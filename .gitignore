@@ -1,0 +1,8 @@
+target/
+.env
+*.log
+.vscode/
+.idea/
+*.iml
+.DS_Store
+bilhete-vairapido.pdf
