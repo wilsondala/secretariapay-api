@@ -18,6 +18,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
 
     List<Booking> findByPassenger_Id(UUID passengerId);
 
+    List<Booking> findByTrip_TransportCompany_Id(UUID transportCompanyId);
+
     List<Booking> findByStatusAndExpiresAtBefore(
             BookingStatus status,
             LocalDateTime expiresAt

@@ -98,6 +98,14 @@ public class BookingService {
     }
 
     @Transactional(readOnly = true)
+    public List<BookingResponse> findByCompanyId(UUID companyId) {
+        return bookingRepository.findByTrip_TransportCompany_Id(companyId)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public BookingResponse findById(UUID id) {
         return toResponse(findEntityById(id));
     }

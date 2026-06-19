@@ -4,15 +4,10 @@ import com.vairapido.api.dto.boarding.TicketBoardingResponse;
 import com.vairapido.api.dto.ticket.TicketRequest;
 import com.vairapido.api.dto.ticket.TicketResponse;
 import com.vairapido.api.service.TicketBoardingService;
-import com.vairapido.api.service.TicketPdfService;
 import com.vairapido.api.service.TicketService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import org.springframework.http.ContentDisposition;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,65 +17,55 @@ import java.util.UUID;
 @RequestMapping("/api/v1/tickets")
 public class TicketController {
 
-    private final TicketService service;
-    private final TicketPdfService ticketPdfService;
+    private final TicketService ticketService;
     private final TicketBoardingService ticketBoardingService;
 
     public TicketController(
-            TicketService service,
-            TicketPdfService ticketPdfService,
+            TicketService ticketService,
             TicketBoardingService ticketBoardingService
     ) {
-        this.service = service;
-        this.ticketPdfService = ticketPdfService;
+        this.ticketService = ticketService;
         this.ticketBoardingService = ticketBoardingService;
     }
 
-    @PostMapping("/issue")
-    @ResponseStatus(HttpStatus.CREATED)
+    @PostMapping
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
     public TicketResponse issue(@Valid @RequestBody TicketRequest request) {
-        return service.issue(request);
+        return ticketService.issue(request);
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
     public List<TicketResponse> findAll() {
-        return service.findAll();
+        return ticketService.findAll();
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN') or @companyAccessService.canAccessTicket(#p0)")
     public TicketResponse findById(@PathVariable UUID id) {
-        return service.findById(id);
-    }
-
-    @GetMapping("/{id}/pdf")
-    public ResponseEntity<byte[]> downloadPdf(@PathVariable UUID id) {
-        byte[] pdf = ticketPdfService.generateTicketPdf(id);
-
-        String fileName = "bilhete-vairapido-" + id + ".pdf";
-
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_PDF)
-                .header(
-                        HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.attachment()
-                                .filename(fileName)
-                                .build()
-                                .toString()
-                )
-                .body(pdf);
+        return ticketService.findById(id);
     }
 
     @GetMapping("/code/{ticketCode}")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN') or @companyAccessService.canAccessTicketCode(#p0)")
     public TicketResponse findByCode(@PathVariable String ticketCode) {
-        return service.findByCode(ticketCode);
+        return ticketService.findByCode(ticketCode);
     }
 
-    /**
-     * Embarque operacional.
-     * Rota protegida por JWT.
-     * Marca o bilhete como USED e grava usedAt.
-     */
+    @PatchMapping("/{id}/use")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'OPERATOR', 'ROLE_OPERATOR')")
+    public TicketResponse useTicket(@PathVariable UUID id) {
+        return ticketService.useTicket(id);
+    }
+
+    @PatchMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
+    public TicketResponse cancel(@PathVariable UUID id) {
+        return ticketService.cancel(id);
+    }
+
     @PatchMapping("/{ticketCode}/board")
+    @PreAuthorize("@companyAccessService.canBoardTicketCode(#p0)")
     public TicketBoardingResponse boardByTicketCode(
             @PathVariable String ticketCode,
             HttpServletRequest request
@@ -90,16 +75,6 @@ public class TicketController {
                 getClientIp(request),
                 getUserAgent(request)
         );
-    }
-
-    @PatchMapping("/{id}/use")
-    public TicketResponse useTicket(@PathVariable UUID id) {
-        return service.useTicket(id);
-    }
-
-    @PatchMapping("/{id}/cancel")
-    public TicketResponse cancel(@PathVariable UUID id) {
-        return service.cancel(id);
     }
 
     private String getClientIp(HttpServletRequest request) {

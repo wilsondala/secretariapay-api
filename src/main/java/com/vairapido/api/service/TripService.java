@@ -84,6 +84,14 @@ public class TripService {
     }
 
     @Transactional(readOnly = true)
+    public List<TripResponse> findByCompanyId(UUID companyId) {
+        return tripRepository.findByTransportCompany_Id(companyId)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public TripResponse findById(UUID id) {
         return toResponse(findEntityById(id));
     }
