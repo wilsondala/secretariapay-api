@@ -8,27 +8,61 @@ import com.vairapido.api.entity.TransportCompany;
 import com.vairapido.api.entity.TravelRoute;
 import com.vairapido.api.entity.Trip;
 import com.vairapido.api.entity.enums.BookingStatus;
+import com.vairapido.api.entity.enums.TicketAuditAction;
 import com.vairapido.api.entity.enums.TicketStatus;
 import com.vairapido.api.repository.TicketRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 public class PublicTicketValidationService {
 
     private final TicketRepository ticketRepository;
+    private final TicketAuditLogService ticketAuditLogService;
 
-    public PublicTicketValidationService(TicketRepository ticketRepository) {
+    public PublicTicketValidationService(
+            TicketRepository ticketRepository,
+            TicketAuditLogService ticketAuditLogService
+    ) {
         this.ticketRepository = ticketRepository;
+        this.ticketAuditLogService = ticketAuditLogService;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public TicketValidationResponse validateByCode(String ticketCode) {
-        return ticketRepository.findByTicketCode(ticketCode)
+        return validateByCode(ticketCode, null, null);
+    }
+
+    @Transactional
+    public TicketValidationResponse validateByCode(
+            String ticketCode,
+            String ipAddress,
+            String userAgent
+    ) {
+        Optional<Ticket> optionalTicket = ticketRepository.findByTicketCode(ticketCode);
+
+        TicketValidationResponse response = optionalTicket
                 .map(this::toValidationResponse)
                 .orElseGet(() -> invalidTicket(ticketCode));
+
+        Ticket ticket = optionalTicket.orElse(null);
+
+        ticketAuditLogService.log(
+                TicketAuditAction.PUBLIC_VALIDATION,
+                ticket,
+                ticketCode,
+                Boolean.TRUE.equals(response.getValid()),
+                response.getMessage(),
+                response.getTicketStatus(),
+                response.getBookingStatus(),
+                ipAddress,
+                userAgent
+        );
+
+        return response;
     }
 
     private TicketValidationResponse toValidationResponse(Ticket ticket) {

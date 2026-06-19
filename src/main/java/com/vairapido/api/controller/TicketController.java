@@ -6,6 +6,7 @@ import com.vairapido.api.dto.ticket.TicketResponse;
 import com.vairapido.api.service.TicketBoardingService;
 import com.vairapido.api.service.TicketPdfService;
 import com.vairapido.api.service.TicketService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -80,8 +81,15 @@ public class TicketController {
      * Marca o bilhete como USED e grava usedAt.
      */
     @PatchMapping("/{ticketCode}/board")
-    public TicketBoardingResponse boardByTicketCode(@PathVariable String ticketCode) {
-        return ticketBoardingService.boardByTicketCode(ticketCode);
+    public TicketBoardingResponse boardByTicketCode(
+            @PathVariable String ticketCode,
+            HttpServletRequest request
+    ) {
+        return ticketBoardingService.boardByTicketCode(
+                ticketCode,
+                getClientIp(request),
+                getUserAgent(request)
+        );
     }
 
     @PatchMapping("/{id}/use")
@@ -92,5 +100,19 @@ public class TicketController {
     @PatchMapping("/{id}/cancel")
     public TicketResponse cancel(@PathVariable UUID id) {
         return service.cancel(id);
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+
+        return request.getRemoteAddr();
+    }
+
+    private String getUserAgent(HttpServletRequest request) {
+        return request.getHeader("User-Agent");
     }
 }

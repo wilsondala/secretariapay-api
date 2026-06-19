@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 public class TicketValidationResponse {
 
-    private boolean valid;
+    private Boolean valid;
     private String message;
 
     private String ticketCode;
@@ -35,16 +35,17 @@ public class TicketValidationResponse {
 
     private Integer seatNumber;
     private String validationUrl;
+
     private LocalDateTime issuedAt;
     private LocalDateTime usedAt;
     private LocalDateTime cancelledAt;
     private LocalDateTime validatedAt;
 
-    public boolean isValid() {
+    public Boolean getValid() {
         return valid;
     }
 
-    public TicketValidationResponse setValid(boolean valid) {
+    public TicketValidationResponse setValid(Boolean valid) {
         this.valid = valid;
         return this;
     }

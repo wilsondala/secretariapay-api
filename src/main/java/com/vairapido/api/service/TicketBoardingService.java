@@ -8,6 +8,7 @@ import com.vairapido.api.entity.TransportCompany;
 import com.vairapido.api.entity.TravelRoute;
 import com.vairapido.api.entity.Trip;
 import com.vairapido.api.entity.enums.BookingStatus;
+import com.vairapido.api.entity.enums.TicketAuditAction;
 import com.vairapido.api.entity.enums.TicketStatus;
 import com.vairapido.api.exception.NotFoundException;
 import com.vairapido.api.repository.TicketRepository;
@@ -20,32 +21,89 @@ import java.time.LocalDateTime;
 public class TicketBoardingService {
 
     private final TicketRepository ticketRepository;
+    private final TicketAuditLogService ticketAuditLogService;
 
-    public TicketBoardingService(TicketRepository ticketRepository) {
+    public TicketBoardingService(
+            TicketRepository ticketRepository,
+            TicketAuditLogService ticketAuditLogService
+    ) {
         this.ticketRepository = ticketRepository;
+        this.ticketAuditLogService = ticketAuditLogService;
     }
 
     @Transactional
     public TicketBoardingResponse boardByTicketCode(String ticketCode) {
-        Ticket ticket = ticketRepository.findByTicketCode(ticketCode)
-                .orElseThrow(() -> new NotFoundException("Bilhete não encontrado."));
+        return boardByTicketCode(ticketCode, null, null);
+    }
 
-        validateTicketForBoarding(ticket);
+    @Transactional
+    public TicketBoardingResponse boardByTicketCode(
+            String ticketCode,
+            String ipAddress,
+            String userAgent
+    ) {
+        Ticket ticket = null;
 
-        LocalDateTime now = LocalDateTime.now();
+        try {
+            ticket = ticketRepository.findByTicketCode(ticketCode)
+                    .orElseThrow(() -> new NotFoundException("Bilhete não encontrado."));
 
-        ticket
-                .setStatus(TicketStatus.USED)
-                .setUsedAt(now);
+            validateTicketForBoarding(ticket);
 
-        Ticket savedTicket = ticketRepository.save(ticket);
+            LocalDateTime now = LocalDateTime.now();
 
-        return toBoardingResponse(
-                savedTicket,
-                true,
-                "Embarque confirmado com sucesso.",
-                now
-        );
+            ticket
+                    .setStatus(TicketStatus.USED)
+                    .setUsedAt(now);
+
+            Ticket savedTicket = ticketRepository.save(ticket);
+
+            TicketBoardingResponse response = toBoardingResponse(
+                    savedTicket,
+                    true,
+                    "Embarque confirmado com sucesso.",
+                    now
+            );
+
+            ticketAuditLogService.log(
+                    TicketAuditAction.BOARDING,
+                    savedTicket,
+                    savedTicket.getTicketCode(),
+                    true,
+                    response.getMessage(),
+                    savedTicket.getStatus(),
+                    savedTicket.getBooking().getStatus(),
+                    ipAddress,
+                    userAgent
+            );
+
+            return response;
+        } catch (RuntimeException exception) {
+            BookingStatus bookingStatus = null;
+            TicketStatus ticketStatus = null;
+
+            if (ticket != null) {
+                ticketStatus = ticket.getStatus();
+
+                if (ticket.getBooking() != null) {
+                    bookingStatus = ticket.getBooking().getStatus();
+                }
+            }
+
+            ticketAuditLogService.log(
+                    TicketAuditAction.BOARDING,
+                    ticket,
+                    ticketCode,
+                    false,
+                    exception.getMessage(),
+                    ticketStatus,
+                    bookingStatus,
+                    ipAddress,
+                    userAgent
+            );
+
+            throw exception;
+        }
     }
 
     private void validateTicketForBoarding(Ticket ticket) {
