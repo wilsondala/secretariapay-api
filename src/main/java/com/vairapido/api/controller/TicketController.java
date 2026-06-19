@@ -1,7 +1,9 @@
 package com.vairapido.api.controller;
 
+import com.vairapido.api.dto.boarding.TicketBoardingResponse;
 import com.vairapido.api.dto.ticket.TicketRequest;
 import com.vairapido.api.dto.ticket.TicketResponse;
+import com.vairapido.api.service.TicketBoardingService;
 import com.vairapido.api.service.TicketPdfService;
 import com.vairapido.api.service.TicketService;
 import jakarta.validation.Valid;
@@ -21,13 +23,16 @@ public class TicketController {
 
     private final TicketService service;
     private final TicketPdfService ticketPdfService;
+    private final TicketBoardingService ticketBoardingService;
 
     public TicketController(
             TicketService service,
-            TicketPdfService ticketPdfService
+            TicketPdfService ticketPdfService,
+            TicketBoardingService ticketBoardingService
     ) {
         this.service = service;
         this.ticketPdfService = ticketPdfService;
+        this.ticketBoardingService = ticketBoardingService;
     }
 
     @PostMapping("/issue")
@@ -67,6 +72,16 @@ public class TicketController {
     @GetMapping("/code/{ticketCode}")
     public TicketResponse findByCode(@PathVariable String ticketCode) {
         return service.findByCode(ticketCode);
+    }
+
+    /**
+     * Embarque operacional.
+     * Rota protegida por JWT.
+     * Marca o bilhete como USED e grava usedAt.
+     */
+    @PatchMapping("/{ticketCode}/board")
+    public TicketBoardingResponse boardByTicketCode(@PathVariable String ticketCode) {
+        return ticketBoardingService.boardByTicketCode(ticketCode);
     }
 
     @PatchMapping("/{id}/use")
