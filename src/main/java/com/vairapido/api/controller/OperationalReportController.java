@@ -4,6 +4,7 @@ import com.vairapido.api.dto.report.OperationalReportResponse;
 import com.vairapido.api.dto.report.OperationalTicketReportItemResponse;
 import com.vairapido.api.dto.ticketaudit.TicketAuditLogResponse;
 import com.vairapido.api.service.OperationalReportCsvService;
+import com.vairapido.api.service.OperationalReportDetailCsvService;
 import com.vairapido.api.service.OperationalReportDetailService;
 import com.vairapido.api.service.OperationalReportService;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -28,15 +29,18 @@ public class OperationalReportController {
     private final OperationalReportService operationalReportService;
     private final OperationalReportCsvService operationalReportCsvService;
     private final OperationalReportDetailService operationalReportDetailService;
+    private final OperationalReportDetailCsvService operationalReportDetailCsvService;
 
     public OperationalReportController(
             OperationalReportService operationalReportService,
             OperationalReportCsvService operationalReportCsvService,
-            OperationalReportDetailService operationalReportDetailService
+            OperationalReportDetailService operationalReportDetailService,
+            OperationalReportDetailCsvService operationalReportDetailCsvService
     ) {
         this.operationalReportService = operationalReportService;
         this.operationalReportCsvService = operationalReportCsvService;
         this.operationalReportDetailService = operationalReportDetailService;
+        this.operationalReportDetailCsvService = operationalReportDetailCsvService;
     }
 
     @GetMapping
@@ -164,6 +168,94 @@ public class OperationalReportController {
         return buildCsvResponse(
                 csv,
                 "relatorio-operacional-empresa-" + companyId + "-" + nowForFileName() + ".csv"
+        );
+    }
+
+    @GetMapping("/tickets/export/csv")
+    public ResponseEntity<byte[]> exportGlobalTicketsCsv(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startAt,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endAt
+    ) {
+        List<OperationalTicketReportItemResponse> tickets =
+                operationalReportDetailService.findGlobalTickets(startAt, endAt);
+
+        byte[] csv = operationalReportDetailCsvService.generateTicketsCsv(tickets);
+
+        return buildCsvResponse(
+                csv,
+                "relatorio-operacional-tickets-global-" + nowForFileName() + ".csv"
+        );
+    }
+
+    @GetMapping("/audit-logs/export/csv")
+    public ResponseEntity<byte[]> exportGlobalAuditLogsCsv(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startAt,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endAt
+    ) {
+        List<TicketAuditLogResponse> logs =
+                operationalReportDetailService.findGlobalAuditLogs(startAt, endAt);
+
+        byte[] csv = operationalReportDetailCsvService.generateAuditLogsCsv(logs);
+
+        return buildCsvResponse(
+                csv,
+                "relatorio-operacional-auditoria-global-" + nowForFileName() + ".csv"
+        );
+    }
+
+    @GetMapping("/company/{companyId}/tickets/export/csv")
+    public ResponseEntity<byte[]> exportCompanyTicketsCsv(
+            @PathVariable UUID companyId,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startAt,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endAt
+    ) {
+        List<OperationalTicketReportItemResponse> tickets =
+                operationalReportDetailService.findCompanyTickets(companyId, startAt, endAt);
+
+        byte[] csv = operationalReportDetailCsvService.generateTicketsCsv(tickets);
+
+        return buildCsvResponse(
+                csv,
+                "relatorio-operacional-tickets-empresa-" + companyId + "-" + nowForFileName() + ".csv"
+        );
+    }
+
+    @GetMapping("/company/{companyId}/audit-logs/export/csv")
+    public ResponseEntity<byte[]> exportCompanyAuditLogsCsv(
+            @PathVariable UUID companyId,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startAt,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endAt
+    ) {
+        List<TicketAuditLogResponse> logs =
+                operationalReportDetailService.findCompanyAuditLogs(companyId, startAt, endAt);
+
+        byte[] csv = operationalReportDetailCsvService.generateAuditLogsCsv(logs);
+
+        return buildCsvResponse(
+                csv,
+                "relatorio-operacional-auditoria-empresa-" + companyId + "-" + nowForFileName() + ".csv"
         );
     }
 
