@@ -8,6 +8,7 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -34,6 +35,7 @@ public class TripReportController {
     }
 
     @GetMapping("/{tripId}")
+    @PreAuthorize("@companyAccessService.canAccessTrip(#p0)")
     public TripReportResponse getTripReport(
             @PathVariable UUID tripId,
 
@@ -44,6 +46,7 @@ public class TripReportController {
     }
 
     @GetMapping("/{tripId}/financial")
+    @PreAuthorize("@companyAccessService.canAccessTrip(#p0)")
     public TripReportResponse getTripFinancialReport(
             @PathVariable UUID tripId,
 
@@ -54,6 +57,7 @@ public class TripReportController {
     }
 
     @GetMapping("/{tripId}/tickets")
+    @PreAuthorize("@companyAccessService.canAccessTrip(#p0)")
     public List<TripTicketReportItemResponse> getTripTickets(
             @PathVariable UUID tripId
     ) {
@@ -61,6 +65,7 @@ public class TripReportController {
     }
 
     @GetMapping("/{tripId}/export/csv")
+    @PreAuthorize("@companyAccessService.canAccessTrip(#p0)")
     public ResponseEntity<byte[]> exportTripReportCsv(
             @PathVariable UUID tripId,
 

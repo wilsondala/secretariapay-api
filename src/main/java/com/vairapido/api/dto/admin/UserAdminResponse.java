@@ -12,6 +12,11 @@ public class UserAdminResponse {
     private String email;
     private UserRole role;
     private Boolean active;
+
+    private UUID transportCompanyId;
+    private String transportCompanyName;
+    private String transportCompanyTradeName;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -57,6 +62,33 @@ public class UserAdminResponse {
 
     public UserAdminResponse setActive(Boolean active) {
         this.active = active;
+        return this;
+    }
+
+    public UUID getTransportCompanyId() {
+        return transportCompanyId;
+    }
+
+    public UserAdminResponse setTransportCompanyId(UUID transportCompanyId) {
+        this.transportCompanyId = transportCompanyId;
+        return this;
+    }
+
+    public String getTransportCompanyName() {
+        return transportCompanyName;
+    }
+
+    public UserAdminResponse setTransportCompanyName(String transportCompanyName) {
+        this.transportCompanyName = transportCompanyName;
+        return this;
+    }
+
+    public String getTransportCompanyTradeName() {
+        return transportCompanyTradeName;
+    }
+
+    public UserAdminResponse setTransportCompanyTradeName(String transportCompanyTradeName) {
+        this.transportCompanyTradeName = transportCompanyTradeName;
         return this;
     }
 

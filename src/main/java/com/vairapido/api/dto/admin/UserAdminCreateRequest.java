@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.util.UUID;
+
 public class UserAdminCreateRequest {
 
     @NotBlank(message = "Nome completo é obrigatório.")
@@ -21,6 +23,8 @@ public class UserAdminCreateRequest {
 
     @NotNull(message = "Perfil do usuário é obrigatório.")
     private UserRole role;
+
+    private UUID transportCompanyId;
 
     private Boolean active = true;
 
@@ -57,6 +61,15 @@ public class UserAdminCreateRequest {
 
     public UserAdminCreateRequest setRole(UserRole role) {
         this.role = role;
+        return this;
+    }
+
+    public UUID getTransportCompanyId() {
+        return transportCompanyId;
+    }
+
+    public UserAdminCreateRequest setTransportCompanyId(UUID transportCompanyId) {
+        this.transportCompanyId = transportCompanyId;
         return this;
     }
 

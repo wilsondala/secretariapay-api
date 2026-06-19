@@ -12,6 +12,7 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -44,6 +45,7 @@ public class OperationalReportController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
     public OperationalReportResponse getGlobalReport(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -57,6 +59,7 @@ public class OperationalReportController {
     }
 
     @GetMapping("/tickets")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
     public List<OperationalTicketReportItemResponse> getGlobalTickets(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -70,6 +73,7 @@ public class OperationalReportController {
     }
 
     @GetMapping("/audit-logs")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
     public List<TicketAuditLogResponse> getGlobalAuditLogs(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -83,6 +87,7 @@ public class OperationalReportController {
     }
 
     @GetMapping("/company/{companyId}")
+    @PreAuthorize("@companyAccessService.canAccessCompany(#p0)")
     public OperationalReportResponse getCompanyReport(
             @PathVariable UUID companyId,
 
@@ -98,6 +103,7 @@ public class OperationalReportController {
     }
 
     @GetMapping("/company/{companyId}/tickets")
+    @PreAuthorize("@companyAccessService.canAccessCompany(#p0)")
     public List<OperationalTicketReportItemResponse> getCompanyTickets(
             @PathVariable UUID companyId,
 
@@ -113,6 +119,7 @@ public class OperationalReportController {
     }
 
     @GetMapping("/company/{companyId}/audit-logs")
+    @PreAuthorize("@companyAccessService.canAccessCompany(#p0)")
     public List<TicketAuditLogResponse> getCompanyAuditLogs(
             @PathVariable UUID companyId,
 
@@ -128,6 +135,7 @@ public class OperationalReportController {
     }
 
     @GetMapping("/export/csv")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
     public ResponseEntity<byte[]> exportGlobalReportCsv(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -149,6 +157,7 @@ public class OperationalReportController {
     }
 
     @GetMapping("/company/{companyId}/export/csv")
+    @PreAuthorize("@companyAccessService.canAccessCompany(#p0)")
     public ResponseEntity<byte[]> exportCompanyReportCsv(
             @PathVariable UUID companyId,
 
@@ -172,6 +181,7 @@ public class OperationalReportController {
     }
 
     @GetMapping("/tickets/export/csv")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
     public ResponseEntity<byte[]> exportGlobalTicketsCsv(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -193,6 +203,7 @@ public class OperationalReportController {
     }
 
     @GetMapping("/audit-logs/export/csv")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
     public ResponseEntity<byte[]> exportGlobalAuditLogsCsv(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -214,6 +225,7 @@ public class OperationalReportController {
     }
 
     @GetMapping("/company/{companyId}/tickets/export/csv")
+    @PreAuthorize("@companyAccessService.canAccessCompany(#p0)")
     public ResponseEntity<byte[]> exportCompanyTicketsCsv(
             @PathVariable UUID companyId,
 
@@ -237,6 +249,7 @@ public class OperationalReportController {
     }
 
     @GetMapping("/company/{companyId}/audit-logs/export/csv")
+    @PreAuthorize("@companyAccessService.canAccessCompany(#p0)")
     public ResponseEntity<byte[]> exportCompanyAuditLogsCsv(
             @PathVariable UUID companyId,
 

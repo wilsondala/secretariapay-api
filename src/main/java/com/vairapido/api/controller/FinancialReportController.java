@@ -11,6 +11,7 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -43,6 +44,7 @@ public class FinancialReportController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
     public FinancialReportResponse getGlobalFinancialReport(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -63,6 +65,7 @@ public class FinancialReportController {
     }
 
     @GetMapping("/bookings")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
     public List<FinancialBookingReportItemResponse> getGlobalFinancialBookings(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -83,6 +86,7 @@ public class FinancialReportController {
     }
 
     @GetMapping("/company/{companyId}")
+    @PreAuthorize("@companyAccessService.canAccessCompany(#p0)")
     public FinancialReportResponse getCompanyFinancialReport(
             @PathVariable UUID companyId,
 
@@ -106,6 +110,7 @@ public class FinancialReportController {
     }
 
     @GetMapping("/company/{companyId}/bookings")
+    @PreAuthorize("@companyAccessService.canAccessCompany(#p0)")
     public List<FinancialBookingReportItemResponse> getCompanyFinancialBookings(
             @PathVariable UUID companyId,
 
@@ -129,6 +134,7 @@ public class FinancialReportController {
     }
 
     @GetMapping("/export/csv")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
     public ResponseEntity<byte[]> exportGlobalFinancialReportCsv(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -156,6 +162,7 @@ public class FinancialReportController {
     }
 
     @GetMapping("/company/{companyId}/export/csv")
+    @PreAuthorize("@companyAccessService.canAccessCompany(#p0)")
     public ResponseEntity<byte[]> exportCompanyFinancialReportCsv(
             @PathVariable UUID companyId,
 
@@ -186,6 +193,7 @@ public class FinancialReportController {
     }
 
     @GetMapping("/bookings/export/csv")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
     public ResponseEntity<byte[]> exportGlobalFinancialBookingsCsv(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -214,6 +222,7 @@ public class FinancialReportController {
     }
 
     @GetMapping("/company/{companyId}/bookings/export/csv")
+    @PreAuthorize("@companyAccessService.canAccessCompany(#p0)")
     public ResponseEntity<byte[]> exportCompanyFinancialBookingsCsv(
             @PathVariable UUID companyId,
 

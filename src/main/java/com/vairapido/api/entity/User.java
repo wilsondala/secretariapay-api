@@ -37,6 +37,10 @@ public class User implements UserDetails {
     @Column(nullable = false, length = 40)
     private UserStatus status = UserStatus.ACTIVE;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "transport_company_id")
+    private TransportCompany transportCompany;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
@@ -162,6 +166,15 @@ public class User implements UserDetails {
 
     public User setStatus(UserStatus status) {
         this.status = status;
+        return this;
+    }
+
+    public TransportCompany getTransportCompany() {
+        return transportCompany;
+    }
+
+    public User setTransportCompany(TransportCompany transportCompany) {
+        this.transportCompany = transportCompany;
         return this;
     }
 

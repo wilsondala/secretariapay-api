@@ -100,6 +100,20 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
 
+                        .requestMatchers("/api/v1/admin/**")
+                        .hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/tickets/*/board")
+                        .hasAnyAuthority("ADMIN", "ROLE_ADMIN", "OPERATOR", "ROLE_OPERATOR")
+
+                        .requestMatchers("/api/v1/reports/**")
+                        .hasAnyAuthority(
+                                "ADMIN",
+                                "ROLE_ADMIN",
+                                "COMPANY_ADMIN",
+                                "ROLE_COMPANY_ADMIN"
+                        )
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
