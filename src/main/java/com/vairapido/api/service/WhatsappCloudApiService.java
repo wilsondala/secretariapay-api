@@ -1,6 +1,7 @@
 package com.vairapido.api.service;
 
 import com.vairapido.api.config.WhatsappCloudApiProperties;
+import com.vairapido.api.dto.whatsappcloud.WhatsappCloudDocumentMessageRequest;
 import com.vairapido.api.dto.whatsappcloud.WhatsappCloudMessageResponse;
 import com.vairapido.api.dto.whatsappcloud.WhatsappCloudTextMessageRequest;
 import com.vairapido.api.dto.whatsappcloud.WhatsappOutboundMessageResult;
@@ -39,57 +40,80 @@ public class WhatsappCloudApiService {
     ) {
         String normalizedPhone = normalizePhoneForCloudApi(phoneNumber);
 
-        WhatsappOutboundMessageResult result = new WhatsappOutboundMessageResult()
-                .setEnabled(properties.isEnabled())
-                .setAttempted(false)
-                .setSent(false)
-                .setPhoneNumber(normalizedPhone)
-                .setSentAt(LocalDateTime.now());
+        WhatsappOutboundMessageResult result = baseResult(normalizedPhone);
 
-        if (!properties.isEnabled()) {
-            logger.info(
-                    "Envio real WhatsApp desativado. Destino: {}. Mensagem simulada: {}",
-                    normalizedPhone,
-                    messageText
-            );
+        String validationError = validateBaseSend(
+                normalizedPhone,
+                "text",
+                messageText
+        );
 
-            return result.setErrorMessage(
-                    "Envio real WhatsApp desativado por configuração."
-            );
+        if (validationError != null) {
+            logValidationFailure("texto", normalizedPhone, messageText, validationError);
+            return result.setErrorMessage(validationError);
         }
 
-        if (!properties.isConfigured()) {
-            logger.warn(
-                    "Envio WhatsApp ativado, mas configuração incompleta. " +
-                            "Verifique VAIRAPIDO_WHATSAPP_PHONE_NUMBER_ID, " +
-                            "VAIRAPIDO_WHATSAPP_ACCESS_TOKEN, " +
-                            "VAIRAPIDO_WHATSAPP_GRAPH_API_VERSION e base URL."
-            );
+        WhatsappCloudTextMessageRequest request =
+                WhatsappCloudTextMessageRequest.textMessage(
+                        normalizedPhone,
+                        messageText
+                );
 
-            return result.setErrorMessage(
-                    "Configuração da WhatsApp Cloud API incompleta."
-            );
+        return sendPayload(
+                normalizedPhone,
+                request,
+                result,
+                "mensagem de texto"
+        );
+    }
+
+    public WhatsappOutboundMessageResult sendDocumentMessage(
+            String phoneNumber,
+            String documentUrl,
+            String fileName,
+            String caption
+    ) {
+        String normalizedPhone = normalizePhoneForCloudApi(phoneNumber);
+
+        WhatsappOutboundMessageResult result = baseResult(normalizedPhone);
+
+        String validationError = validateBaseSend(
+                normalizedPhone,
+                "document",
+                documentUrl
+        );
+
+        if (validationError != null) {
+            logValidationFailure("documento", normalizedPhone, documentUrl, validationError);
+            return result.setErrorMessage(validationError);
         }
 
-        if (normalizedPhone.isBlank()) {
-            return result.setErrorMessage(
-                    "Número de telefone inválido para envio WhatsApp."
-            );
-        }
+        String normalizedFileName = normalizeFileName(fileName);
+        String normalizedCaption = caption == null ? "" : caption.trim();
 
-        if (messageText == null || messageText.isBlank()) {
-            return result.setErrorMessage(
-                    "Mensagem vazia. Nada foi enviado para o WhatsApp."
-            );
-        }
+        WhatsappCloudDocumentMessageRequest request =
+                WhatsappCloudDocumentMessageRequest.documentMessage(
+                        normalizedPhone,
+                        documentUrl,
+                        normalizedFileName,
+                        normalizedCaption
+                );
 
+        return sendPayload(
+                normalizedPhone,
+                request,
+                result,
+                "documento PDF"
+        );
+    }
+
+    private WhatsappOutboundMessageResult sendPayload(
+            String normalizedPhone,
+            Object request,
+            WhatsappOutboundMessageResult result,
+            String messageType
+    ) {
         try {
-            WhatsappCloudTextMessageRequest request =
-                    WhatsappCloudTextMessageRequest.textMessage(
-                            normalizedPhone,
-                            messageText
-                    );
-
             WhatsappCloudMessageResponse response = restClient
                     .post()
                     .uri(
@@ -110,7 +134,8 @@ public class WhatsappCloudApiService {
             String providerMessageId = extractProviderMessageId(response);
 
             logger.info(
-                    "Mensagem WhatsApp enviada com sucesso. Destino: {}. ProviderMessageId: {}",
+                    "WhatsApp {} enviado com sucesso. Destino: {}. ProviderMessageId: {}",
+                    messageType,
                     normalizedPhone,
                     providerMessageId
             );
@@ -124,7 +149,8 @@ public class WhatsappCloudApiService {
             String responseBody = safeResponseBody(exception.getResponseBodyAsString());
 
             logger.warn(
-                    "Falha HTTP ao enviar mensagem WhatsApp. Status: {}. Body: {}",
+                    "Falha HTTP ao enviar WhatsApp {}. Status: {}. Body: {}",
+                    messageType,
                     exception.getStatusCode().value(),
                     responseBody
             );
@@ -141,7 +167,8 @@ public class WhatsappCloudApiService {
 
         } catch (Exception exception) {
             logger.error(
-                    "Falha inesperada ao enviar mensagem WhatsApp.",
+                    "Falha inesperada ao enviar WhatsApp {}.",
+                    messageType,
                     exception
             );
 
@@ -153,6 +180,67 @@ public class WhatsappCloudApiService {
                                     + exception.getMessage()
                     );
         }
+    }
+
+    private WhatsappOutboundMessageResult baseResult(String normalizedPhone) {
+        return new WhatsappOutboundMessageResult()
+                .setEnabled(properties.isEnabled())
+                .setAttempted(false)
+                .setSent(false)
+                .setPhoneNumber(normalizedPhone)
+                .setSentAt(LocalDateTime.now());
+    }
+
+    private String validateBaseSend(
+            String normalizedPhone,
+            String payloadType,
+            String requiredValue
+    ) {
+        if (!properties.isEnabled()) {
+            return "Envio real WhatsApp desativado por configuração.";
+        }
+
+        if (!properties.isConfigured()) {
+            return "Configuração da WhatsApp Cloud API incompleta.";
+        }
+
+        if (normalizedPhone == null || normalizedPhone.isBlank()) {
+            return "Número de telefone inválido para envio WhatsApp.";
+        }
+
+        if (requiredValue == null || requiredValue.isBlank()) {
+            if ("document".equals(payloadType)) {
+                return "URL do documento vazia. Nada foi enviado para o WhatsApp.";
+            }
+
+            return "Mensagem vazia. Nada foi enviado para o WhatsApp.";
+        }
+
+        return null;
+    }
+
+    private void logValidationFailure(
+            String messageType,
+            String normalizedPhone,
+            String payload,
+            String validationError
+    ) {
+        if (!properties.isEnabled()) {
+            logger.info(
+                    "Envio real WhatsApp desativado. Tipo: {}. Destino: {}. Payload simulado: {}",
+                    messageType,
+                    normalizedPhone,
+                    payload
+            );
+            return;
+        }
+
+        logger.warn(
+                "WhatsApp {} não enviado. Destino: {}. Motivo: {}",
+                messageType,
+                normalizedPhone,
+                validationError
+        );
     }
 
     private String extractProviderMessageId(
@@ -174,6 +262,30 @@ public class WhatsappCloudApiService {
         }
 
         return phoneNumber.replaceAll("\\D", "");
+    }
+
+    private String normalizeFileName(String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            return "bilhete-vairapido.pdf";
+        }
+
+        String normalized = fileName
+                .trim()
+                .replace("\\", "-")
+                .replace("/", "-")
+                .replace(":", "-")
+                .replace("*", "-")
+                .replace("?", "-")
+                .replace("\"", "")
+                .replace("<", "-")
+                .replace(">", "-")
+                .replace("|", "-");
+
+        if (!normalized.toLowerCase().endsWith(".pdf")) {
+            normalized = normalized + ".pdf";
+        }
+
+        return normalized;
     }
 
     private String removeTrailingSlash(String value) {

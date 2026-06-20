@@ -871,7 +871,7 @@ public class WhatsappCommandService {
             return "-";
         }
 
-        return "https://api-vairapido.triacompany.com/api/v1/tickets/"
+        return "https://api-vairapido.triacompany.com/api/v1/public/tickets/"
                 + ticketId
                 + "/pdf";
     }

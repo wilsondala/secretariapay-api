@@ -92,11 +92,16 @@ public class WhatsappWebhookService {
                         message.messageText()
                 );
 
-        WhatsappOutboundMessageResult outboundMessageResult =
+        WhatsappOutboundMessageResult outboundTextResult =
                 sendReplyMessageIfAvailable(
                         sessionResponse.getPhoneNumber(),
                         commandResult.getReplyMessage()
                 );
+
+        sendTicketPdfDocumentIfAvailable(
+                sessionResponse.getPhoneNumber(),
+                commandResult
+        );
 
         WhatsappWebhookReceiveResponse response = new WhatsappWebhookReceiveResponse()
                 .setProcessed(true)
@@ -112,14 +117,14 @@ public class WhatsappWebhookService {
                 .setReplyMessage(commandResult.getReplyMessage())
                 .setReceivedAt(LocalDateTime.now());
 
-        if (outboundMessageResult != null) {
+        if (outboundTextResult != null) {
             response
-                    .setOutboundEnabled(outboundMessageResult.getEnabled())
-                    .setOutboundAttempted(outboundMessageResult.getAttempted())
-                    .setOutboundSent(outboundMessageResult.getSent())
-                    .setOutboundPhoneNumber(outboundMessageResult.getPhoneNumber())
-                    .setOutboundProviderMessageId(outboundMessageResult.getProviderMessageId())
-                    .setOutboundErrorMessage(outboundMessageResult.getErrorMessage());
+                    .setOutboundEnabled(outboundTextResult.getEnabled())
+                    .setOutboundAttempted(outboundTextResult.getAttempted())
+                    .setOutboundSent(outboundTextResult.getSent())
+                    .setOutboundPhoneNumber(outboundTextResult.getPhoneNumber())
+                    .setOutboundProviderMessageId(outboundTextResult.getProviderMessageId())
+                    .setOutboundErrorMessage(outboundTextResult.getErrorMessage());
         }
 
         return response;
@@ -137,6 +142,155 @@ public class WhatsappWebhookService {
                 phoneNumber,
                 replyMessage
         );
+    }
+
+    private WhatsappOutboundMessageResult sendTicketPdfDocumentIfAvailable(
+            String phoneNumber,
+            WhatsappCommandResult commandResult
+    ) {
+        if (commandResult == null
+                || commandResult.getCommandName() == null
+                || !"ISSUE_TICKET".equals(commandResult.getCommandName())) {
+            return null;
+        }
+
+        String replyMessage = commandResult.getReplyMessage();
+
+        if (replyMessage == null || replyMessage.isBlank()) {
+            return null;
+        }
+
+        String pdfUrl = extractPdfUrl(replyMessage);
+
+        if (pdfUrl == null || pdfUrl.isBlank()) {
+            return null;
+        }
+
+        String publicPdfUrl = normalizePdfUrlForPublicDownload(pdfUrl);
+        String ticketCode = extractLineValue(replyMessage, "Código do bilhete:");
+        String bookingCode = extractLineValue(replyMessage, "Reserva:");
+
+        String fileName = buildTicketPdfFileName(ticketCode, bookingCode);
+
+        String caption = """
+                🎫 Bilhete VaiRápido em PDF.
+
+                Apresente este documento no momento do embarque.
+                """.trim();
+
+        return whatsappCloudApiService.sendDocumentMessage(
+                phoneNumber,
+                publicPdfUrl,
+                fileName,
+                caption
+        );
+    }
+
+    private String extractPdfUrl(String replyMessage) {
+        String[] lines = splitLines(replyMessage);
+
+        for (int i = 0; i < lines.length; i++) {
+            String currentLine = lines[i] == null ? "" : lines[i].trim();
+
+            if (!currentLine.equalsIgnoreCase("PDF:")) {
+                continue;
+            }
+
+            if (i + 1 < lines.length) {
+                String url = lines[i + 1] == null ? "" : lines[i + 1].trim();
+
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    return url;
+                }
+            }
+        }
+
+        for (String line : lines) {
+            String value = line == null ? "" : line.trim();
+
+            if (value.startsWith("http://") || value.startsWith("https://")) {
+                if (value.contains("/pdf")) {
+                    return value;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private String normalizePdfUrlForPublicDownload(String pdfUrl) {
+        if (pdfUrl == null || pdfUrl.isBlank()) {
+            return null;
+        }
+
+        return pdfUrl.replace(
+                "/api/v1/tickets/",
+                "/api/v1/public/tickets/"
+        );
+    }
+
+    private String extractLineValue(String text, String label) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+
+        for (String line : splitLines(text)) {
+            String value = line == null ? "" : line.trim();
+
+            if (!value.toLowerCase().startsWith(label.toLowerCase())) {
+                continue;
+            }
+
+            String extracted = value.substring(label.length()).trim();
+
+            return extracted.isBlank() ? null : extracted;
+        }
+
+        return null;
+    }
+
+    private String buildTicketPdfFileName(
+            String ticketCode,
+            String bookingCode
+    ) {
+        String baseName = ticketCode != null && !ticketCode.isBlank()
+                ? ticketCode
+                : bookingCode;
+
+        if (baseName == null || baseName.isBlank()) {
+            baseName = "bilhete-vairapido";
+        }
+
+        return "bilhete-" + sanitizeFileName(baseName) + ".pdf";
+    }
+
+    private String sanitizeFileName(String value) {
+        if (value == null || value.isBlank()) {
+            return "vairapido";
+        }
+
+        return value
+                .trim()
+                .replace("\\", "-")
+                .replace("/", "-")
+                .replace(":", "-")
+                .replace("*", "-")
+                .replace("?", "-")
+                .replace("\"", "")
+                .replace("<", "-")
+                .replace(">", "-")
+                .replace("|", "-");
+    }
+
+    private String[] splitLines(String text) {
+        if (text == null) {
+            return new String[0];
+        }
+
+        return text
+                .replace("\r\n", "\n")
+                .replace("\r", "\n")
+                .split("\n");
     }
 
     private WhatsappSessionType resolveSessionType(String phoneNumber) {
