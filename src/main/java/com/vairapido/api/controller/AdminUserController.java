@@ -4,6 +4,7 @@ import com.vairapido.api.dto.admin.UserAdminCreateRequest;
 import com.vairapido.api.dto.admin.UserAdminResponse;
 import com.vairapido.api.dto.admin.UserAdminUpdateRoleRequest;
 import com.vairapido.api.dto.admin.UserAdminUpdateStatusRequest;
+import com.vairapido.api.dto.admin.UserAdminUpdateWhatsappRequest;
 import com.vairapido.api.service.UserAdminService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -56,6 +57,24 @@ public class AdminUserController {
             @Valid @RequestBody UserAdminUpdateStatusRequest request
     ) {
         return userAdminService.updateStatus(id, request);
+    }
+
+    @PatchMapping("/{id}/whatsapp")
+    public UserAdminResponse updateWhatsapp(
+            @PathVariable UUID id,
+            @Valid @RequestBody UserAdminUpdateWhatsappRequest request
+    ) {
+        return userAdminService.updateWhatsapp(id, request);
+    }
+
+    @PatchMapping("/{id}/whatsapp/verify")
+    public UserAdminResponse verifyWhatsapp(@PathVariable UUID id) {
+        return userAdminService.verifyWhatsapp(id);
+    }
+
+    @DeleteMapping("/{id}/whatsapp")
+    public UserAdminResponse clearWhatsapp(@PathVariable UUID id) {
+        return userAdminService.clearWhatsapp(id);
     }
 
     @DeleteMapping("/{id}")

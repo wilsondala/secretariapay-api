@@ -13,6 +13,10 @@ public class UserAdminResponse {
     private UserRole role;
     private Boolean active;
 
+    private String whatsapp;
+    private Boolean whatsappVerified;
+    private LocalDateTime lastWhatsappLoginAt;
+
     private UUID transportCompanyId;
     private String transportCompanyName;
     private String transportCompanyTradeName;
@@ -62,6 +66,33 @@ public class UserAdminResponse {
 
     public UserAdminResponse setActive(Boolean active) {
         this.active = active;
+        return this;
+    }
+
+    public String getWhatsapp() {
+        return whatsapp;
+    }
+
+    public UserAdminResponse setWhatsapp(String whatsapp) {
+        this.whatsapp = whatsapp;
+        return this;
+    }
+
+    public Boolean getWhatsappVerified() {
+        return whatsappVerified;
+    }
+
+    public UserAdminResponse setWhatsappVerified(Boolean whatsappVerified) {
+        this.whatsappVerified = whatsappVerified;
+        return this;
+    }
+
+    public LocalDateTime getLastWhatsappLoginAt() {
+        return lastWhatsappLoginAt;
+    }
+
+    public UserAdminResponse setLastWhatsappLoginAt(LocalDateTime lastWhatsappLoginAt) {
+        this.lastWhatsappLoginAt = lastWhatsappLoginAt;
         return this;
     }
 

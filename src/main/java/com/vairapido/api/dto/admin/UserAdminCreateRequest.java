@@ -26,6 +26,10 @@ public class UserAdminCreateRequest {
 
     private UUID transportCompanyId;
 
+    private String whatsapp;
+
+    private Boolean whatsappVerified = false;
+
     private Boolean active = true;
 
     public String getFullName() {
@@ -70,6 +74,24 @@ public class UserAdminCreateRequest {
 
     public UserAdminCreateRequest setTransportCompanyId(UUID transportCompanyId) {
         this.transportCompanyId = transportCompanyId;
+        return this;
+    }
+
+    public String getWhatsapp() {
+        return whatsapp;
+    }
+
+    public UserAdminCreateRequest setWhatsapp(String whatsapp) {
+        this.whatsapp = whatsapp;
+        return this;
+    }
+
+    public Boolean getWhatsappVerified() {
+        return whatsappVerified;
+    }
+
+    public UserAdminCreateRequest setWhatsappVerified(Boolean whatsappVerified) {
+        this.whatsappVerified = whatsappVerified;
         return this;
     }
 
