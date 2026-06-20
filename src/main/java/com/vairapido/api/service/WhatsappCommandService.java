@@ -1,19 +1,25 @@
 package com.vairapido.api.service;
 
+import com.vairapido.api.dto.booking.BookingRequest;
+import com.vairapido.api.dto.booking.BookingResponse;
 import com.vairapido.api.dto.dashboard.DashboardSummaryResponse;
 import com.vairapido.api.dto.publicticket.TicketValidationResponse;
 import com.vairapido.api.dto.whatsappcommand.WhatsappCommandResult;
 import com.vairapido.api.dto.whatsappsession.WhatsappSessionResponse;
+import com.vairapido.api.entity.Passenger;
 import com.vairapido.api.entity.TransportCompany;
 import com.vairapido.api.entity.TravelRoute;
 import com.vairapido.api.entity.Trip;
 import com.vairapido.api.entity.User;
 import com.vairapido.api.entity.WhatsappSession;
+import com.vairapido.api.entity.enums.BookingStatus;
 import com.vairapido.api.entity.enums.TripStatus;
 import com.vairapido.api.entity.enums.UserRole;
 import com.vairapido.api.entity.enums.UserStatus;
 import com.vairapido.api.entity.enums.WhatsappConversationStep;
 import com.vairapido.api.entity.enums.WhatsappSessionType;
+import com.vairapido.api.repository.BookingRepository;
+import com.vairapido.api.repository.PassengerRepository;
 import com.vairapido.api.repository.TripRepository;
 import com.vairapido.api.repository.UserRepository;
 import com.vairapido.api.repository.WhatsappSessionRepository;
@@ -31,6 +37,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -49,24 +56,42 @@ public class WhatsappCommandService {
     private static final Pattern TRIP_SEARCH_DATE_PATTERN =
             Pattern.compile("(\\d{2}[/-]\\d{2}[/-]\\d{4})");
 
+    private static final Pattern TRIP_OPTION_PATTERN =
+            Pattern.compile("\\b(?:viagem|opcao|opção)\\s*(\\d+)\\b", Pattern.CASE_INSENSITIVE);
+
+    private static final List<BookingStatus> ACTIVE_SEAT_STATUSES = List.of(
+            BookingStatus.PENDING_PAYMENT,
+            BookingStatus.PAID,
+            BookingStatus.TICKET_ISSUED
+    );
+
     private final UserRepository userRepository;
     private final DashboardService dashboardService;
     private final PublicTicketValidationService publicTicketValidationService;
     private final TripRepository tripRepository;
     private final WhatsappSessionRepository whatsappSessionRepository;
+    private final PassengerRepository passengerRepository;
+    private final BookingRepository bookingRepository;
+    private final BookingService bookingService;
 
     public WhatsappCommandService(
             UserRepository userRepository,
             DashboardService dashboardService,
             PublicTicketValidationService publicTicketValidationService,
             TripRepository tripRepository,
-            WhatsappSessionRepository whatsappSessionRepository
+            WhatsappSessionRepository whatsappSessionRepository,
+            PassengerRepository passengerRepository,
+            BookingRepository bookingRepository,
+            BookingService bookingService
     ) {
         this.userRepository = userRepository;
         this.dashboardService = dashboardService;
         this.publicTicketValidationService = publicTicketValidationService;
         this.tripRepository = tripRepository;
         this.whatsappSessionRepository = whatsappSessionRepository;
+        this.passengerRepository = passengerRepository;
+        this.bookingRepository = bookingRepository;
+        this.bookingService = bookingService;
     }
 
     @Transactional
@@ -90,6 +115,11 @@ public class WhatsappCommandService {
 
         if (isDashboardCommand(normalizedMessage)) {
             return dashboard(session);
+        }
+
+        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
+                && isTripOptionSelection(messageText)) {
+            return createBookingFromSelectedTrip(session, messageText);
         }
 
         if (isBuyTicketCommand(normalizedMessage)) {
@@ -352,6 +382,110 @@ public class WhatsappCommandService {
         return allowed("SEARCH_TRIPS", reply.toString().trim());
     }
 
+    private WhatsappCommandResult createBookingFromSelectedTrip(
+            WhatsappSessionResponse session,
+            String messageText
+    ) {
+        if (!WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
+            return denied(
+                    "CREATE_BOOKING",
+                    "Este comando é destinado ao passageiro."
+            );
+        }
+
+        Integer optionNumber = extractSelectedOptionNumber(messageText);
+
+        if (optionNumber == null || optionNumber < 1) {
+            return allowed(
+                    "CREATE_BOOKING",
+                    "Não consegui identificar a viagem escolhida.\n\nResponda no formato:\nViagem 1"
+            );
+        }
+
+        UUID tripId = extractTripIdFromMetadata(session.getMetadata(), optionNumber);
+
+        if (tripId == null) {
+            return allowed(
+                    "CREATE_BOOKING",
+                    "Não encontrei esta opção na sua sessão atual.\n\nFaça uma nova busca enviando origem, destino e data."
+            );
+        }
+
+        try {
+            Trip trip = tripRepository.findById(tripId)
+                    .orElseThrow(() -> new IllegalArgumentException("Viagem não encontrada."));
+
+            Integer seatNumber = findFirstAvailableSeat(trip);
+
+            Passenger passenger = ensurePassengerForWhatsapp(session);
+
+            BookingRequest request = new BookingRequest()
+                    .setTripId(trip.getId())
+                    .setPassengerId(passenger.getId())
+                    .setSeatNumber(seatNumber);
+
+            BookingResponse booking = bookingService.create(request);
+
+            String metadata = appendMetadata(
+                    session.getMetadata(),
+                    "selected_option=" + optionNumber,
+                    "selected_trip_id=" + trip.getId(),
+                    "booking_id=" + booking.getId(),
+                    "booking_code=" + booking.getBookingCode(),
+                    "seat_number=" + booking.getSeatNumber()
+            );
+
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.WAITING_PAYMENT,
+                    metadata
+            );
+
+            String reply = """
+                    ✅ Reserva criada com sucesso.
+
+                    Código da reserva: %s
+                    Trecho: %s → %s
+                    Saída: %s
+                    Passageiro: %s
+                    Poltrona: %d
+                    Valor: %s %s
+                    Status: %s
+
+                    Esta reserva expira em: %s
+
+                    Próximo passo:
+                    Envie "Pagar reserva %s" para simular o pagamento.
+                    """.formatted(
+                    booking.getBookingCode(),
+                    booking.getOriginCity(),
+                    booking.getDestinationCity(),
+                    booking.getDepartureAt() != null
+                            ? booking.getDepartureAt().format(DATE_TIME_FORMATTER)
+                            : "-",
+                    booking.getPassengerName(),
+                    booking.getSeatNumber(),
+                    booking.getCurrency(),
+                    booking.getAmount() != null ? booking.getAmount().toPlainString() : "0.00",
+                    booking.getStatus(),
+                    booking.getExpiresAt() != null
+                            ? booking.getExpiresAt().format(DATE_TIME_FORMATTER)
+                            : "-",
+                    booking.getBookingCode()
+            );
+
+            return allowed("CREATE_BOOKING", reply.trim());
+
+        } catch (Exception exception) {
+            return allowed(
+                    "CREATE_BOOKING",
+                    "Não foi possível criar a reserva agora.\n\nMotivo: "
+                            + exception.getMessage()
+                            + "\n\nFaça uma nova busca ou tente novamente."
+            );
+        }
+    }
+
     private String formatTripOption(int optionNumber, Trip trip) {
         TravelRoute route = trip.getRoute();
         TransportCompany company = trip.getTransportCompany();
@@ -575,6 +709,133 @@ public class WhatsappCommandService {
                 .trim();
     }
 
+    private boolean isTripOptionSelection(String messageText) {
+        return extractSelectedOptionNumber(messageText) != null;
+    }
+
+    private Integer extractSelectedOptionNumber(String messageText) {
+        if (messageText == null || messageText.isBlank()) {
+            return null;
+        }
+
+        Matcher matcher = TRIP_OPTION_PATTERN.matcher(messageText);
+
+        if (!matcher.find()) {
+            return null;
+        }
+
+        try {
+            return Integer.parseInt(matcher.group(1));
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private UUID extractTripIdFromMetadata(String metadata, int optionNumber) {
+        if (metadata == null || metadata.isBlank()) {
+            return null;
+        }
+
+        String key = "option_" + optionNumber + "=";
+
+        for (String line : splitLines(metadata)) {
+            if (!line.startsWith(key)) {
+                continue;
+            }
+
+            String rawId = line.substring(key.length()).trim();
+
+            try {
+                return UUID.fromString(rawId);
+            } catch (IllegalArgumentException exception) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private Passenger ensurePassengerForWhatsapp(WhatsappSessionResponse session) {
+        if (session.getPassengerId() != null) {
+            Optional<Passenger> byId = passengerRepository.findById(session.getPassengerId());
+
+            if (byId.isPresent()) {
+                return byId.get();
+            }
+        }
+
+        Optional<Passenger> byWhatsapp = passengerRepository.findByWhatsapp(session.getPhoneNumber());
+
+        if (byWhatsapp.isPresent()) {
+            return byWhatsapp.get();
+        }
+
+        String documentNumber = buildWhatsappDocumentNumber(session.getPhoneNumber());
+
+        Optional<Passenger> byDocument = passengerRepository.findByDocumentNumber(documentNumber);
+
+        if (byDocument.isPresent()) {
+            Passenger passenger = byDocument.get();
+
+            passenger
+                    .setPhone(session.getPhoneNumber())
+                    .setWhatsapp(session.getPhoneNumber());
+
+            return passengerRepository.save(passenger);
+        }
+
+        String fullName = session.getPassengerFullName() != null
+                && !session.getPassengerFullName().isBlank()
+                ? session.getPassengerFullName()
+                : "Passageiro WhatsApp " + session.getPhoneNumber();
+
+        Passenger passenger = new Passenger()
+                .setFullName(fullName)
+                .setDocumentNumber(documentNumber)
+                .setPhone(session.getPhoneNumber())
+                .setWhatsapp(session.getPhoneNumber());
+
+        return passengerRepository.save(passenger);
+    }
+
+    private String buildWhatsappDocumentNumber(String phoneNumber) {
+        String digits = phoneNumber == null
+                ? String.valueOf(System.currentTimeMillis())
+                : phoneNumber.replaceAll("\\D", "");
+
+        if (digits.isBlank()) {
+            digits = String.valueOf(System.currentTimeMillis());
+        }
+
+        String document = "WPP" + digits;
+
+        if (document.length() > 30) {
+            document = document.substring(0, 30);
+        }
+
+        return document;
+    }
+
+    private Integer findFirstAvailableSeat(Trip trip) {
+        if (trip.getTotalSeats() == null || trip.getTotalSeats() <= 0) {
+            throw new IllegalArgumentException("Viagem sem configuração válida de assentos.");
+        }
+
+        for (int seatNumber = 1; seatNumber <= trip.getTotalSeats(); seatNumber++) {
+            boolean taken = bookingRepository.existsByTrip_IdAndSeatNumberAndStatusIn(
+                    trip.getId(),
+                    seatNumber,
+                    ACTIVE_SEAT_STATUSES
+            );
+
+            if (!taken) {
+                return seatNumber;
+            }
+        }
+
+        throw new IllegalArgumentException("Não há poltronas disponíveis para esta viagem.");
+    }
+
     private void updateSessionStep(
             WhatsappSessionResponse session,
             WhatsappConversationStep step,
@@ -618,6 +879,22 @@ public class WhatsappCommandService {
                     .append("=")
                     .append(options.get(i).getId())
                     .append("\n");
+        }
+
+        return metadata.toString().trim();
+    }
+
+    private String appendMetadata(String currentMetadata, String... linesToAppend) {
+        StringBuilder metadata = new StringBuilder();
+
+        if (currentMetadata != null && !currentMetadata.isBlank()) {
+            metadata.append(currentMetadata.trim()).append("\n");
+        }
+
+        for (String line : linesToAppend) {
+            if (line != null && !line.isBlank()) {
+                metadata.append(line.trim()).append("\n");
+            }
         }
 
         return metadata.toString().trim();
