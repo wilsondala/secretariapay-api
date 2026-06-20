@@ -7,3 +7,4 @@ target/
 .DS_Store
 bilhete-vairapido.pdf
 .env.*.local
+.env.production

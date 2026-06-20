@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vairapido-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vairapido_db}
+      POSTGRES_USER: ${POSTGRES_USER:-vairapido_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vairapido123}
+    volumes:
+      - vairapido_postgres_data:/var/lib/postgresql/data
+    networks:
+      - vairapido-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vairapido_user} -d ${POSTGRES_DB:-vairapido_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vairapido-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - vairapido-network
+
+volumes:
+  vairapido_postgres_data:
+
+networks:
+  vairapido-network:
+    driver: bridge
