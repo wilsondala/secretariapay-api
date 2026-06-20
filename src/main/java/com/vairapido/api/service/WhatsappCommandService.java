@@ -3,9 +3,12 @@ package com.vairapido.api.service;
 import com.vairapido.api.dto.booking.BookingRequest;
 import com.vairapido.api.dto.booking.BookingResponse;
 import com.vairapido.api.dto.dashboard.DashboardSummaryResponse;
+import com.vairapido.api.dto.payment.PaymentRequest;
+import com.vairapido.api.dto.payment.PaymentResponse;
 import com.vairapido.api.dto.publicticket.TicketValidationResponse;
 import com.vairapido.api.dto.whatsappcommand.WhatsappCommandResult;
 import com.vairapido.api.dto.whatsappsession.WhatsappSessionResponse;
+import com.vairapido.api.entity.Booking;
 import com.vairapido.api.entity.Passenger;
 import com.vairapido.api.entity.TransportCompany;
 import com.vairapido.api.entity.TravelRoute;
@@ -13,6 +16,7 @@ import com.vairapido.api.entity.Trip;
 import com.vairapido.api.entity.User;
 import com.vairapido.api.entity.WhatsappSession;
 import com.vairapido.api.entity.enums.BookingStatus;
+import com.vairapido.api.entity.enums.PaymentMethod;
 import com.vairapido.api.entity.enums.TripStatus;
 import com.vairapido.api.entity.enums.UserRole;
 import com.vairapido.api.entity.enums.UserStatus;
@@ -59,6 +63,9 @@ public class WhatsappCommandService {
     private static final Pattern TRIP_OPTION_PATTERN =
             Pattern.compile("\\b(?:viagem|opcao|opção)\\s*(\\d+)\\b", Pattern.CASE_INSENSITIVE);
 
+    private static final Pattern BOOKING_CODE_PATTERN =
+            Pattern.compile("\\bVR\\d{6,}\\b", Pattern.CASE_INSENSITIVE);
+
     private static final List<BookingStatus> ACTIVE_SEAT_STATUSES = List.of(
             BookingStatus.PENDING_PAYMENT,
             BookingStatus.PAID,
@@ -73,6 +80,7 @@ public class WhatsappCommandService {
     private final PassengerRepository passengerRepository;
     private final BookingRepository bookingRepository;
     private final BookingService bookingService;
+    private final PaymentService paymentService;
 
     public WhatsappCommandService(
             UserRepository userRepository,
@@ -82,7 +90,8 @@ public class WhatsappCommandService {
             WhatsappSessionRepository whatsappSessionRepository,
             PassengerRepository passengerRepository,
             BookingRepository bookingRepository,
-            BookingService bookingService
+            BookingService bookingService,
+            PaymentService paymentService
     ) {
         this.userRepository = userRepository;
         this.dashboardService = dashboardService;
@@ -92,6 +101,7 @@ public class WhatsappCommandService {
         this.passengerRepository = passengerRepository;
         this.bookingRepository = bookingRepository;
         this.bookingService = bookingService;
+        this.paymentService = paymentService;
     }
 
     @Transactional
@@ -115,6 +125,11 @@ public class WhatsappCommandService {
 
         if (isDashboardCommand(normalizedMessage)) {
             return dashboard(session);
+        }
+
+        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
+                && isPaymentCommand(normalizedMessage)) {
+            return payBookingFromWhatsapp(session, messageText);
         }
 
         if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
@@ -486,6 +501,169 @@ public class WhatsappCommandService {
         }
     }
 
+    private WhatsappCommandResult payBookingFromWhatsapp(
+            WhatsappSessionResponse session,
+            String messageText
+    ) {
+        if (!WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
+            return denied(
+                    "PAY_BOOKING",
+                    "Este comando é destinado ao passageiro."
+            );
+        }
+
+        String bookingCode = extractBookingCode(messageText);
+
+        if (bookingCode == null || bookingCode.isBlank()) {
+            bookingCode = extractMetadataValue(session.getMetadata(), "booking_code");
+        }
+
+        if (bookingCode == null || bookingCode.isBlank()) {
+            return allowed(
+                    "PAY_BOOKING",
+                    """
+                    Não encontrei uma reserva pendente na sua sessão.
+
+                    Envie o código da reserva no formato:
+                    Pagar reserva VR123456
+
+                    Ou faça uma nova busca de viagem.
+                    """
+            );
+        }
+
+        try {
+            Booking booking = bookingRepository.findByBookingCode(bookingCode)
+                    .orElseThrow(() -> new IllegalArgumentException("Reserva não encontrada."));
+
+            if (booking.getPassenger() != null
+                    && booking.getPassenger().getWhatsapp() != null
+                    && session.getPhoneNumber() != null
+                    && !booking.getPassenger().getWhatsapp().equals(session.getPhoneNumber())) {
+                return denied(
+                        "PAY_BOOKING",
+                        "Esta reserva pertence a outro passageiro."
+                );
+            }
+
+            if (BookingStatus.PAID.equals(booking.getStatus())
+                    || BookingStatus.TICKET_ISSUED.equals(booking.getStatus())) {
+                String reply = """
+                        Esta reserva já está paga.
+
+                        Código da reserva: %s
+                        Status: %s
+
+                        Próximo passo:
+                        Envie "Emitir bilhete %s".
+                        """.formatted(
+                        booking.getBookingCode(),
+                        booking.getStatus(),
+                        booking.getBookingCode()
+                );
+
+                return allowed("PAY_BOOKING", reply.trim());
+            }
+
+            if (!BookingStatus.PENDING_PAYMENT.equals(booking.getStatus())) {
+                String reply = """
+                        Não é possível pagar esta reserva agora.
+
+                        Código da reserva: %s
+                        Status atual: %s
+
+                        Faça uma nova busca ou fale com o suporte.
+                        """.formatted(
+                        booking.getBookingCode(),
+                        booking.getStatus()
+                );
+
+                return allowed("PAY_BOOKING", reply.trim());
+            }
+
+            if (booking.getExpiresAt() != null && booking.getExpiresAt().isBefore(LocalDateTime.now())) {
+                String reply = """
+                        Esta reserva já passou do prazo de pagamento.
+
+                        Código da reserva: %s
+                        Expirou em: %s
+
+                        Faça uma nova busca de viagem para criar outra reserva.
+                        """.formatted(
+                        booking.getBookingCode(),
+                        booking.getExpiresAt().format(DATE_TIME_FORMATTER)
+                );
+
+                return allowed("PAY_BOOKING", reply.trim());
+            }
+
+            PaymentRequest paymentRequest = new PaymentRequest()
+                    .setBookingId(booking.getId())
+                    .setMethod(PaymentMethod.PIX);
+
+            PaymentResponse createdPayment = paymentService.create(paymentRequest);
+            PaymentResponse confirmedPayment = paymentService.confirm(createdPayment.getId());
+
+            String metadata = appendMetadata(
+                    session.getMetadata(),
+                    "payment_id=" + confirmedPayment.getId(),
+                    "payment_code=" + confirmedPayment.getPaymentCode(),
+                    "payment_method=" + confirmedPayment.getMethod(),
+                    "payment_status=" + confirmedPayment.getStatus(),
+                    "booking_status=" + confirmedPayment.getBookingStatus()
+            );
+
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.CONFIRMING_BOOKING,
+                    metadata
+            );
+
+            String reply = """
+                    ✅ Pagamento confirmado com sucesso.
+
+                    Reserva: %s
+                    Pagamento: %s
+                    Método: %s
+                    Valor: %s %s
+                    Status da reserva: %s
+
+                    Trecho: %s → %s
+                    Saída: %s
+                    Poltrona: %d
+
+                    Próximo passo:
+                    Envie "Emitir bilhete %s".
+                    """.formatted(
+                    confirmedPayment.getBookingCode(),
+                    confirmedPayment.getPaymentCode(),
+                    confirmedPayment.getMethod(),
+                    confirmedPayment.getCurrency(),
+                    confirmedPayment.getAmount() != null
+                            ? confirmedPayment.getAmount().toPlainString()
+                            : "0.00",
+                    confirmedPayment.getBookingStatus(),
+                    confirmedPayment.getOriginCity(),
+                    confirmedPayment.getDestinationCity(),
+                    confirmedPayment.getDepartureAt() != null
+                            ? confirmedPayment.getDepartureAt().format(DATE_TIME_FORMATTER)
+                            : "-",
+                    confirmedPayment.getSeatNumber(),
+                    confirmedPayment.getBookingCode()
+            );
+
+            return allowed("PAY_BOOKING", reply.trim());
+
+        } catch (Exception exception) {
+            return allowed(
+                    "PAY_BOOKING",
+                    "Não foi possível confirmar o pagamento agora.\n\nMotivo: "
+                            + exception.getMessage()
+                            + "\n\nTente novamente ou envie uma nova busca."
+            );
+        }
+    }
+
     private String formatTripOption(int optionNumber, Trip trip) {
         TravelRoute route = trip.getRoute();
         TransportCompany company = trip.getTransportCompany();
@@ -707,6 +885,46 @@ public class WhatsappCommandService {
                 .replace(";", "")
                 .replace("\"", "")
                 .trim();
+    }
+
+    private boolean isPaymentCommand(String normalizedMessage) {
+        return normalizedMessage.contains("pagar")
+                || normalizedMessage.contains("pagamento")
+                || normalizedMessage.contains("paguei")
+                || normalizedMessage.contains("confirmar pagamento");
+    }
+
+    private String extractBookingCode(String messageText) {
+        if (messageText == null || messageText.isBlank()) {
+            return null;
+        }
+
+        Matcher matcher = BOOKING_CODE_PATTERN.matcher(messageText);
+
+        if (!matcher.find()) {
+            return null;
+        }
+
+        return matcher.group(0)
+                .trim()
+                .toUpperCase(Locale.ROOT);
+    }
+
+    private String extractMetadataValue(String metadata, String key) {
+        if (metadata == null || metadata.isBlank() || key == null || key.isBlank()) {
+            return null;
+        }
+
+        String prefix = key + "=";
+
+        for (String line : splitLines(metadata)) {
+            if (line.startsWith(prefix)) {
+                String value = line.substring(prefix.length()).trim();
+                return value.isBlank() ? null : value;
+            }
+        }
+
+        return null;
     }
 
     private boolean isTripOptionSelection(String messageText) {
