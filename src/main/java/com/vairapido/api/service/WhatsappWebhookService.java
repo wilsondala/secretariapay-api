@@ -1,5 +1,6 @@
 package com.vairapido.api.service;
 
+import com.vairapido.api.dto.whatsappcloud.WhatsappOutboundMessageResult;
 import com.vairapido.api.dto.whatsappcommand.WhatsappCommandResult;
 import com.vairapido.api.dto.whatsappsession.WhatsappSessionResponse;
 import com.vairapido.api.dto.whatsappsession.WhatsappSessionStartRequest;
@@ -22,6 +23,7 @@ public class WhatsappWebhookService {
 
     private final WhatsappSessionService whatsappSessionService;
     private final WhatsappCommandService whatsappCommandService;
+    private final WhatsappCloudApiService whatsappCloudApiService;
     private final UserRepository userRepository;
 
     @Value("${vairapido.whatsapp.verify-token:vairapido-dev-token}")
@@ -30,10 +32,12 @@ public class WhatsappWebhookService {
     public WhatsappWebhookService(
             WhatsappSessionService whatsappSessionService,
             WhatsappCommandService whatsappCommandService,
+            WhatsappCloudApiService whatsappCloudApiService,
             UserRepository userRepository
     ) {
         this.whatsappSessionService = whatsappSessionService;
         this.whatsappCommandService = whatsappCommandService;
+        this.whatsappCloudApiService = whatsappCloudApiService;
         this.userRepository = userRepository;
     }
 
@@ -88,7 +92,13 @@ public class WhatsappWebhookService {
                         message.messageText()
                 );
 
-        return new WhatsappWebhookReceiveResponse()
+        WhatsappOutboundMessageResult outboundMessageResult =
+                sendReplyMessageIfAvailable(
+                        sessionResponse.getPhoneNumber(),
+                        commandResult.getReplyMessage()
+                );
+
+        WhatsappWebhookReceiveResponse response = new WhatsappWebhookReceiveResponse()
                 .setProcessed(true)
                 .setReason("Mensagem WhatsApp processada com sucesso.")
                 .setPhoneNumber(sessionResponse.getPhoneNumber())
@@ -101,6 +111,32 @@ public class WhatsappWebhookService {
                 .setCommandName(commandResult.getCommandName())
                 .setReplyMessage(commandResult.getReplyMessage())
                 .setReceivedAt(LocalDateTime.now());
+
+        if (outboundMessageResult != null) {
+            response
+                    .setOutboundEnabled(outboundMessageResult.getEnabled())
+                    .setOutboundAttempted(outboundMessageResult.getAttempted())
+                    .setOutboundSent(outboundMessageResult.getSent())
+                    .setOutboundPhoneNumber(outboundMessageResult.getPhoneNumber())
+                    .setOutboundProviderMessageId(outboundMessageResult.getProviderMessageId())
+                    .setOutboundErrorMessage(outboundMessageResult.getErrorMessage());
+        }
+
+        return response;
+    }
+
+    private WhatsappOutboundMessageResult sendReplyMessageIfAvailable(
+            String phoneNumber,
+            String replyMessage
+    ) {
+        if (replyMessage == null || replyMessage.isBlank()) {
+            return null;
+        }
+
+        return whatsappCloudApiService.sendTextMessage(
+                phoneNumber,
+                replyMessage
+        );
     }
 
     private WhatsappSessionType resolveSessionType(String phoneNumber) {

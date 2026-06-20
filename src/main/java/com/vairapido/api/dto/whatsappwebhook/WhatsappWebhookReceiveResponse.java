@@ -23,6 +23,13 @@ public class WhatsappWebhookReceiveResponse {
     private String commandName;
     private String replyMessage;
 
+    private Boolean outboundEnabled;
+    private Boolean outboundAttempted;
+    private Boolean outboundSent;
+    private String outboundPhoneNumber;
+    private String outboundProviderMessageId;
+    private String outboundErrorMessage;
+
     private LocalDateTime receivedAt;
 
     public Boolean getProcessed() {
@@ -121,6 +128,60 @@ public class WhatsappWebhookReceiveResponse {
 
     public WhatsappWebhookReceiveResponse setReplyMessage(String replyMessage) {
         this.replyMessage = replyMessage;
+        return this;
+    }
+
+    public Boolean getOutboundEnabled() {
+        return outboundEnabled;
+    }
+
+    public WhatsappWebhookReceiveResponse setOutboundEnabled(Boolean outboundEnabled) {
+        this.outboundEnabled = outboundEnabled;
+        return this;
+    }
+
+    public Boolean getOutboundAttempted() {
+        return outboundAttempted;
+    }
+
+    public WhatsappWebhookReceiveResponse setOutboundAttempted(Boolean outboundAttempted) {
+        this.outboundAttempted = outboundAttempted;
+        return this;
+    }
+
+    public Boolean getOutboundSent() {
+        return outboundSent;
+    }
+
+    public WhatsappWebhookReceiveResponse setOutboundSent(Boolean outboundSent) {
+        this.outboundSent = outboundSent;
+        return this;
+    }
+
+    public String getOutboundPhoneNumber() {
+        return outboundPhoneNumber;
+    }
+
+    public WhatsappWebhookReceiveResponse setOutboundPhoneNumber(String outboundPhoneNumber) {
+        this.outboundPhoneNumber = outboundPhoneNumber;
+        return this;
+    }
+
+    public String getOutboundProviderMessageId() {
+        return outboundProviderMessageId;
+    }
+
+    public WhatsappWebhookReceiveResponse setOutboundProviderMessageId(String outboundProviderMessageId) {
+        this.outboundProviderMessageId = outboundProviderMessageId;
+        return this;
+    }
+
+    public String getOutboundErrorMessage() {
+        return outboundErrorMessage;
+    }
+
+    public WhatsappWebhookReceiveResponse setOutboundErrorMessage(String outboundErrorMessage) {
+        this.outboundErrorMessage = outboundErrorMessage;
         return this;
     }
 

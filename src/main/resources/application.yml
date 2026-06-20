@@ -24,6 +24,15 @@ app:
     jwt-secret: "vaiRapidoBackendJwtSecretKeyForDevelopmentOnlyChangeInProduction2026"
     jwt-expiration-minutes: 1440
 
+vairapido:
+  whatsapp:
+    verify-token: ${VAIRAPIDO_WHATSAPP_VERIFY_TOKEN:vairapido-dev-token}
+    enabled: ${VAIRAPIDO_WHATSAPP_ENABLED:false}
+    phone-number-id: ${VAIRAPIDO_WHATSAPP_PHONE_NUMBER_ID:}
+    access-token: ${VAIRAPIDO_WHATSAPP_ACCESS_TOKEN:}
+    graph-api-version: ${VAIRAPIDO_WHATSAPP_GRAPH_API_VERSION:v20.0}
+    graph-api-base-url: ${VAIRAPIDO_WHATSAPP_GRAPH_API_BASE_URL:https://graph.facebook.com}
+
 management:
   endpoints:
     web:
