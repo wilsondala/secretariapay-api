@@ -18,6 +18,11 @@ public class WhatsappWebhookReceiveResponse {
     private UUID sessionId;
     private WhatsappConversationStep currentStep;
 
+    private Boolean commandProcessed;
+    private Boolean commandAllowed;
+    private String commandName;
+    private String replyMessage;
+
     private LocalDateTime receivedAt;
 
     public Boolean getProcessed() {
@@ -80,6 +85,42 @@ public class WhatsappWebhookReceiveResponse {
 
     public WhatsappWebhookReceiveResponse setCurrentStep(WhatsappConversationStep currentStep) {
         this.currentStep = currentStep;
+        return this;
+    }
+
+    public Boolean getCommandProcessed() {
+        return commandProcessed;
+    }
+
+    public WhatsappWebhookReceiveResponse setCommandProcessed(Boolean commandProcessed) {
+        this.commandProcessed = commandProcessed;
+        return this;
+    }
+
+    public Boolean getCommandAllowed() {
+        return commandAllowed;
+    }
+
+    public WhatsappWebhookReceiveResponse setCommandAllowed(Boolean commandAllowed) {
+        this.commandAllowed = commandAllowed;
+        return this;
+    }
+
+    public String getCommandName() {
+        return commandName;
+    }
+
+    public WhatsappWebhookReceiveResponse setCommandName(String commandName) {
+        this.commandName = commandName;
+        return this;
+    }
+
+    public String getReplyMessage() {
+        return replyMessage;
+    }
+
+    public WhatsappWebhookReceiveResponse setReplyMessage(String replyMessage) {
+        this.replyMessage = replyMessage;
         return this;
     }
 

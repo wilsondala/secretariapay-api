@@ -1,5 +1,6 @@
 package com.vairapido.api.service;
 
+import com.vairapido.api.dto.whatsappcommand.WhatsappCommandResult;
 import com.vairapido.api.dto.whatsappsession.WhatsappSessionResponse;
 import com.vairapido.api.dto.whatsappsession.WhatsappSessionStartRequest;
 import com.vairapido.api.dto.whatsappwebhook.WhatsappWebhookReceiveResponse;
@@ -20,6 +21,7 @@ import java.util.Optional;
 public class WhatsappWebhookService {
 
     private final WhatsappSessionService whatsappSessionService;
+    private final WhatsappCommandService whatsappCommandService;
     private final UserRepository userRepository;
 
     @Value("${vairapido.whatsapp.verify-token:vairapido-dev-token}")
@@ -27,9 +29,11 @@ public class WhatsappWebhookService {
 
     public WhatsappWebhookService(
             WhatsappSessionService whatsappSessionService,
+            WhatsappCommandService whatsappCommandService,
             UserRepository userRepository
     ) {
         this.whatsappSessionService = whatsappSessionService;
+        this.whatsappCommandService = whatsappCommandService;
         this.userRepository = userRepository;
     }
 
@@ -61,6 +65,8 @@ public class WhatsappWebhookService {
             return new WhatsappWebhookReceiveResponse()
                     .setProcessed(false)
                     .setReason("Payload recebido, mas sem mensagem de usuário para processar.")
+                    .setCommandProcessed(false)
+                    .setCommandAllowed(false)
                     .setReceivedAt(LocalDateTime.now());
         }
 
@@ -76,6 +82,12 @@ public class WhatsappWebhookService {
         WhatsappSessionResponse sessionResponse =
                 whatsappSessionService.startSession(startRequest);
 
+        WhatsappCommandResult commandResult =
+                whatsappCommandService.handleCommand(
+                        sessionResponse,
+                        message.messageText()
+                );
+
         return new WhatsappWebhookReceiveResponse()
                 .setProcessed(true)
                 .setReason("Mensagem WhatsApp processada com sucesso.")
@@ -84,6 +96,10 @@ public class WhatsappWebhookService {
                 .setSessionType(sessionResponse.getSessionType())
                 .setSessionId(sessionResponse.getId())
                 .setCurrentStep(sessionResponse.getCurrentStep())
+                .setCommandProcessed(commandResult.getProcessed())
+                .setCommandAllowed(commandResult.getAllowed())
+                .setCommandName(commandResult.getCommandName())
+                .setReplyMessage(commandResult.getReplyMessage())
                 .setReceivedAt(LocalDateTime.now());
     }
 
