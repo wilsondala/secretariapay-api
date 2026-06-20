@@ -86,6 +86,7 @@ public class WhatsappCommandService {
     private final PaymentService paymentService;
     private final TicketService ticketService;
     private final TicketRepository ticketRepository;
+    private final WhatsappFaqAnswerService whatsappFaqAnswerService;
 
     public WhatsappCommandService(
             UserRepository userRepository,
@@ -98,7 +99,8 @@ public class WhatsappCommandService {
             BookingService bookingService,
             PaymentService paymentService,
             TicketService ticketService,
-            TicketRepository ticketRepository
+            TicketRepository ticketRepository,
+            WhatsappFaqAnswerService whatsappFaqAnswerService
     ) {
         this.userRepository = userRepository;
         this.dashboardService = dashboardService;
@@ -111,6 +113,7 @@ public class WhatsappCommandService {
         this.paymentService = paymentService;
         this.ticketService = ticketService;
         this.ticketRepository = ticketRepository;
+        this.whatsappFaqAnswerService = whatsappFaqAnswerService;
     }
 
     @Transactional
@@ -133,7 +136,8 @@ public class WhatsappCommandService {
             return issueTicketFromWhatsapp(session, messageText);
         }
 
-        if (isTicketValidationCommand(normalizedMessage)) {
+        if (WhatsappSessionType.USER.equals(session.getSessionType())
+                && isTicketValidationCommand(normalizedMessage)) {
             return validateTicket(session, messageText);
         }
 
@@ -163,7 +167,7 @@ public class WhatsappCommandService {
             }
         }
 
-        return fallback(session);
+        return fallback(session, messageText);
     }
 
     private WhatsappCommandResult validateTicket(
@@ -956,7 +960,15 @@ public class WhatsappCommandService {
         return menu(session);
     }
 
-    private WhatsappCommandResult fallback(WhatsappSessionResponse session) {
+    private WhatsappCommandResult fallback(WhatsappSessionResponse session, String messageText) {
+        Optional<String> faqAnswer = whatsappFaqAnswerService.answer(
+                messageText,
+                session != null ? session.getSessionType() : null
+        );
+
+        if (faqAnswer.isPresent()) {
+            return allowed("FAQ", faqAnswer.get());
+        }
         if (WhatsappSessionType.USER.equals(session.getSessionType())) {
             return allowed(
                     "FALLBACK",
@@ -1100,10 +1112,11 @@ public class WhatsappCommandService {
     }
 
     private boolean isPaymentCommand(String normalizedMessage) {
-        return normalizedMessage.contains("pagar")
-                || normalizedMessage.contains("pagamento")
+        return normalizedMessage.contains("pagar reserva")
                 || normalizedMessage.contains("paguei")
-                || normalizedMessage.contains("confirmar pagamento");
+                || normalizedMessage.contains("confirmar pagamento")
+                || normalizedMessage.matches(".*\\bpagar\\s+vr\\d{6,}.*")
+                || normalizedMessage.matches(".*\\bpagamento\\s+vr\\d{6,}.*");
     }
 
     private boolean isIssueTicketCommand(String normalizedMessage) {
@@ -1469,3 +1482,4 @@ public class WhatsappCommandService {
     ) {
     }
 }
+
