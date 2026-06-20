@@ -134,7 +134,7 @@ public class TicketService {
     }
 
     private String generateValidationUrl(String ticketCode) {
-        return "https://vairapido.com.br/validar-bilhete/" + ticketCode;
+        return "https://api-vairapido.triacompany.com/api/v1/public/tickets/validate/" + ticketCode + "/page";
     }
 
     private String generateQrCodeUrl(String validationUrl) {
