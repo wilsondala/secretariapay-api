@@ -37,6 +37,14 @@ public class User implements UserDetails {
     @Column(nullable = false, length = 40)
     private UserStatus status = UserStatus.ACTIVE;
 
+    @Column(length = 40)
+    private String whatsapp;
+
+    @Column(nullable = false)
+    private Boolean whatsappVerified = false;
+
+    private LocalDateTime lastWhatsappLoginAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transport_company_id")
     private TransportCompany transportCompany;
@@ -66,11 +74,19 @@ public class User implements UserDetails {
         if (status == null) {
             status = UserStatus.ACTIVE;
         }
+
+        if (whatsappVerified == null) {
+            whatsappVerified = false;
+        }
     }
 
     @PreUpdate
     public void preUpdate() {
         updatedAt = LocalDateTime.now();
+
+        if (whatsappVerified == null) {
+            whatsappVerified = false;
+        }
     }
 
     @Override
@@ -166,6 +182,33 @@ public class User implements UserDetails {
 
     public User setStatus(UserStatus status) {
         this.status = status;
+        return this;
+    }
+
+    public String getWhatsapp() {
+        return whatsapp;
+    }
+
+    public User setWhatsapp(String whatsapp) {
+        this.whatsapp = whatsapp;
+        return this;
+    }
+
+    public Boolean getWhatsappVerified() {
+        return whatsappVerified;
+    }
+
+    public User setWhatsappVerified(Boolean whatsappVerified) {
+        this.whatsappVerified = whatsappVerified;
+        return this;
+    }
+
+    public LocalDateTime getLastWhatsappLoginAt() {
+        return lastWhatsappLoginAt;
+    }
+
+    public User setLastWhatsappLoginAt(LocalDateTime lastWhatsappLoginAt) {
+        this.lastWhatsappLoginAt = lastWhatsappLoginAt;
         return this;
     }
 
