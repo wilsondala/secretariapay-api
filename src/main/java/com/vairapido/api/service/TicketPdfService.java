@@ -11,6 +11,7 @@ import com.vairapido.api.entity.Ticket;
 import com.vairapido.api.entity.TransportCompany;
 import com.vairapido.api.entity.TravelRoute;
 import com.vairapido.api.entity.Trip;
+import com.vairapido.api.entity.enums.PassengerDocumentType;
 import com.vairapido.api.exception.NotFoundException;
 import com.vairapido.api.repository.TicketRepository;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -38,9 +39,14 @@ public class TicketPdfService {
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private final TicketRepository ticketRepository;
+    private final DocumentValidatorService documentValidatorService;
 
-    public TicketPdfService(TicketRepository ticketRepository) {
+    public TicketPdfService(
+            TicketRepository ticketRepository,
+            DocumentValidatorService documentValidatorService
+    ) {
         this.ticketRepository = ticketRepository;
+        this.documentValidatorService = documentValidatorService;
     }
 
     @Transactional(readOnly = true)
@@ -157,6 +163,13 @@ public class TicketPdfService {
 
         float y = 625;
 
+        PassengerDocumentType documentType = getPassengerDocumentType(passenger);
+        String documentLabel = documentValidatorService.label(documentType);
+        String documentNumber = documentValidatorService.normalize(
+                documentType,
+                passenger.getDocumentNumber()
+        );
+
         drawLabelValue(content, "Código do bilhete", ticket.getTicketCode(), 60, y);
         y -= 34;
 
@@ -166,7 +179,7 @@ public class TicketPdfService {
         drawLabelValue(content, "Passageiro", passenger.getFullName(), 60, y);
         y -= 34;
 
-        drawLabelValue(content, "Documento", passenger.getDocumentNumber(), 60, y);
+        drawLabelValue(content, documentLabel, documentNumber, 60, y);
         y -= 34;
 
         drawLabelValue(content, "WhatsApp", passenger.getWhatsapp(), 60, y);
@@ -194,6 +207,51 @@ public class TicketPdfService {
         y -= 34;
 
         drawLabelValue(content, "Status do bilhete", ticket.getStatus().name(), 60, y);
+
+        drawBoardingWarning(content);
+    }
+
+    private void drawBoardingWarning(PDPageContentStream content) throws IOException {
+        float boxX = 60;
+        float boxY = 115;
+        float boxWidth = 475;
+        float boxHeight = 78;
+
+        content.setNonStrokingColor(255, 251, 235);
+        content.addRect(boxX, boxY, boxWidth, boxHeight);
+        content.fill();
+
+        content.setStrokingColor(245, 158, 11);
+        content.addRect(boxX, boxY, boxWidth, boxHeight);
+        content.stroke();
+
+        content.beginText();
+        content.setNonStrokingColor(146, 64, 14);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 10);
+        content.newLineAtOffset(boxX + 12, boxY + 56);
+        content.showText("Atenção no embarque");
+        content.endText();
+
+        content.beginText();
+        content.setNonStrokingColor(120, 53, 15);
+        content.setFont(PDType1Font.HELVETICA, 8);
+        content.newLineAtOffset(boxX + 12, boxY + 39);
+        content.showText("Apresente documento oficial com o mesmo nome e número informado neste bilhete.");
+        content.endText();
+
+        content.beginText();
+        content.setNonStrokingColor(120, 53, 15);
+        content.setFont(PDType1Font.HELVETICA, 8);
+        content.newLineAtOffset(boxX + 12, boxY + 24);
+        content.showText("Divergência de nome ou documento pode impedir o embarque.");
+        content.endText();
+
+        content.beginText();
+        content.setNonStrokingColor(120, 53, 15);
+        content.setFont(PDType1Font.HELVETICA, 8);
+        content.newLineAtOffset(boxX + 12, boxY + 9);
+        content.showText("Dados declarados pelo comprador/passageiro no momento da emissão.");
+        content.endText();
     }
 
     private void drawLabelValue(
@@ -240,6 +298,14 @@ public class TicketPdfService {
         content.newLineAtOffset(60, 55);
         content.showText("VaiRápido - sua passagem em poucos minutos.");
         content.endText();
+    }
+
+    private PassengerDocumentType getPassengerDocumentType(Passenger passenger) {
+        if (passenger == null || passenger.getDocumentType() == null) {
+            return documentValidatorService.defaultDocumentType();
+        }
+
+        return passenger.getDocumentType();
     }
 
     private String getCompanyName(TransportCompany company) {
