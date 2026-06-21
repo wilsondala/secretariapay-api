@@ -93,6 +93,102 @@ public class PublicLegalController {
                         """);
     }
 
+    @GetMapping(value = "/terms-of-service", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> termsOfService() {
+        return ResponseEntity.ok()
+                .contentType(MediaType.TEXT_HTML)
+                .body("""
+                        <!doctype html>
+                        <html lang="pt-BR">
+                        <head>
+                            <meta charset="UTF-8" />
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                            <title>Termos de Serviço - VaiRápido</title>
+                            <style>
+                                body { font-family: Arial, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; line-height: 1.6; }
+                                header { background: #071B33; color: white; padding: 32px 20px; border-bottom: 8px solid #FFC107; }
+                                main { max-width: 920px; margin: 0 auto; padding: 28px 20px 48px; }
+                                h1 { margin: 0; font-size: 36px; }
+                                h2 { margin-top: 28px; color: #071B33; }
+                                .card { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 28px; box-shadow: 0 12px 30px rgba(15,23,42,.08); }
+                                .muted { color: #64748b; }
+                            </style>
+                        </head>
+                        <body>
+                            <header>
+                                <h1>VaiRápido</h1>
+                                <p>Termos de Serviço</p>
+                            </header>
+                            <main>
+                                <section class="card">
+                                    <p class="muted">Última atualização: 20/06/2026</p>
+
+                                    <h2>1. Sobre o serviço</h2>
+                                    <p>
+                                        O VaiRápido é uma plataforma digital em fase de testes para consulta de viagens,
+                                        reserva de passagens, confirmação de pagamento simulado, emissão de bilhete digital
+                                        e validação por QR Code.
+                                    </p>
+
+                                    <h2>2. Uso permitido</h2>
+                                    <p>
+                                        O usuário deve utilizar o serviço apenas para fins legítimos de teste, consulta,
+                                        reserva e validação de bilhetes. É proibido tentar fraudar reservas, reutilizar bilhetes,
+                                        acessar áreas restritas sem autorização ou interferir no funcionamento da plataforma.
+                                    </p>
+
+                                    <h2>3. Ambiente de teste</h2>
+                                    <p>
+                                        O VaiRápido encontra-se em ambiente de validação técnica. Algumas funcionalidades,
+                                        valores, rotas, empresas de transporte, métodos de pagamento e mensagens podem ser
+                                        simulados e alterados antes da versão final de produção.
+                                    </p>
+
+                                    <h2>4. Pagamentos</h2>
+                                    <p>
+                                        No ambiente atual, os pagamentos podem ser simulados para validação do fluxo.
+                                        Integrações reais de pagamento serão implementadas conforme a necessidade do projeto
+                                        e das empresas parceiras.
+                                    </p>
+
+                                    <h2>5. Bilhete digital</h2>
+                                    <p>
+                                        O bilhete digital emitido pelo VaiRápido pode conter código de reserva, código de bilhete,
+                                        dados do passageiro, trecho, horário, poltrona, QR Code e link de validação pública.
+                                        O uso no embarque depende das regras operacionais da empresa de transporte.
+                                    </p>
+
+                                    <h2>6. Disponibilidade</h2>
+                                    <p>
+                                        Durante a fase de testes, o serviço pode sofrer interrupções, ajustes técnicos,
+                                        alterações de fluxo e atualizações sem aviso prévio.
+                                    </p>
+
+                                    <h2>7. Responsabilidades</h2>
+                                    <p>
+                                        O usuário é responsável por fornecer informações corretas durante os testes.
+                                        A plataforma poderá registrar eventos técnicos, auditorias e validações para segurança
+                                        e melhoria do serviço.
+                                    </p>
+
+                                    <h2>8. Privacidade</h2>
+                                    <p>
+                                        O tratamento de dados segue a Política de Privacidade do VaiRápido, disponível
+                                        publicamente na página de privacidade.
+                                    </p>
+
+                                    <h2>9. Contato</h2>
+                                    <p>
+                                        Para dúvidas sobre estes termos, entre em contato:
+                                        geral@triacompany.com
+                                    </p>
+                                </section>
+                            </main>
+                        </body>
+                        </html>
+                        """);
+    }
+
     @GetMapping(value = "/data-deletion", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> dataDeletion() {
         return ResponseEntity.ok()
