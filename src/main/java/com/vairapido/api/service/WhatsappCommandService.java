@@ -52,29 +52,24 @@ import java.util.regex.Pattern;
 @Service
 public class WhatsappCommandService {
 
-    private static final DateTimeFormatter DATE_TIME_FORMATTER =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
-    private static final DateTimeFormatter DATE_FORMATTER =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    private static final Pattern TICKET_CODE_PATTERN =
-            Pattern.compile("(VRTK-[A-Z0-9\\-]+|VRTK\\s*[A-Z0-9\\-]+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TICKET_CODE_PATTERN = Pattern.compile("(VRTK-[A-Z0-9\\-]+|VRTK\\s*[A-Z0-9\\-]+)",
+            Pattern.CASE_INSENSITIVE);
 
-    private static final Pattern TRIP_SEARCH_DATE_PATTERN =
-            Pattern.compile("(\\d{2}[/-]\\d{2}[/-]\\d{4})");
+    private static final Pattern TRIP_SEARCH_DATE_PATTERN = Pattern.compile("(\\d{2}[/-]\\d{2}[/-]\\d{4})");
 
-    private static final Pattern TRIP_OPTION_PATTERN =
-            Pattern.compile("\\b(?:viagem|opcao|opção)\\s*(\\d+)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TRIP_OPTION_PATTERN = Pattern.compile("\\b(?:viagem|opcao|opção)\\s*(\\d+)\\b",
+            Pattern.CASE_INSENSITIVE);
 
-    private static final Pattern BOOKING_CODE_PATTERN =
-            Pattern.compile("\\bVR\\d{6,}\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern BOOKING_CODE_PATTERN = Pattern.compile("\\bVR\\d{6,}\\b", Pattern.CASE_INSENSITIVE);
 
     private static final List<BookingStatus> ACTIVE_SEAT_STATUSES = List.of(
             BookingStatus.PENDING_PAYMENT,
             BookingStatus.PAID,
-            BookingStatus.TICKET_ISSUED
-    );
+            BookingStatus.TICKET_ISSUED);
 
     private final UserRepository userRepository;
     private final DashboardService dashboardService;
@@ -103,8 +98,7 @@ public class WhatsappCommandService {
             TicketService ticketService,
             TicketRepository ticketRepository,
             WhatsappFaqAnswerService whatsappFaqAnswerService,
-            DocumentValidatorService documentValidatorService
-    ) {
+            DocumentValidatorService documentValidatorService) {
         this.userRepository = userRepository;
         this.dashboardService = dashboardService;
         this.publicTicketValidationService = publicTicketValidationService;
@@ -123,8 +117,7 @@ public class WhatsappCommandService {
     @Transactional
     public WhatsappCommandResult handleCommand(
             WhatsappSessionResponse session,
-            String messageText
-    ) {
+            String messageText) {
         String normalizedMessage = normalizeText(messageText);
 
         if (normalizedMessage.isBlank()) {
@@ -138,6 +131,11 @@ public class WhatsappCommandService {
         if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 && WhatsappConversationStep.CONFIRMING_SAVED_PASSENGER.equals(session.getCurrentStep())) {
             return handleSavedPassengerConfirmation(session, normalizedMessage);
+        }
+
+        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
+                && WhatsappConversationStep.CONFIRMING_PASSENGER_DATA.equals(session.getCurrentStep())) {
+            return handlePassengerDataConfirmation(session, normalizedMessage);
         }
 
         if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
@@ -191,13 +189,11 @@ public class WhatsappCommandService {
 
     private WhatsappCommandResult validateTicket(
             WhatsappSessionResponse session,
-            String originalMessage
-    ) {
+            String originalMessage) {
         if (!isAllowedToValidateTickets(session)) {
             return denied(
                     "VALIDATE_TICKET",
-                    "Acesso negado. Este número não está autorizado para validar bilhetes."
-            );
+                    "Acesso negado. Este número não está autorizado para validar bilhetes.");
         }
 
         String ticketCode = extractTicketCode(originalMessage);
@@ -205,12 +201,10 @@ public class WhatsappCommandService {
         if (ticketCode == null || ticketCode.isBlank()) {
             return allowed(
                     "VALIDATE_TICKET",
-                    "Envie o código do bilhete para validação.\n\nExemplo:\nValidar bilhete VRTK-ABC123"
-            );
+                    "Envie o código do bilhete para validação.\n\nExemplo:\nValidar bilhete VRTK-ABC123");
         }
 
-        TicketValidationResponse validation =
-                publicTicketValidationService.validateByCode(ticketCode);
+        TicketValidationResponse validation = publicTicketValidationService.validateByCode(ticketCode);
 
         StringBuilder reply = new StringBuilder();
 
@@ -266,8 +260,7 @@ public class WhatsappCommandService {
         if (optionalUser.isEmpty()) {
             return denied(
                     "DASHBOARD",
-                    "Acesso negado. Este número não está vinculado a um usuário ativo."
-            );
+                    "Acesso negado. Este número não está vinculado a um usuário ativo.");
         }
 
         User user = optionalUser.get();
@@ -279,13 +272,11 @@ public class WhatsappCommandService {
         } else if (UserRole.COMPANY_ADMIN.equals(user.getRole())
                 && user.getTransportCompany() != null) {
             summary = dashboardService.getCompanySummary(
-                    user.getTransportCompany().getId()
-            );
+                    user.getTransportCompany().getId());
         } else {
             return denied(
                     "DASHBOARD",
-                    "Acesso negado. Este perfil não possui acesso ao dashboard pelo WhatsApp."
-            );
+                    "Acesso negado. Este perfil não possui acesso ao dashboard pelo WhatsApp.");
         }
 
         String companyLine = "";
@@ -318,8 +309,7 @@ public class WhatsappCommandService {
                 formatMoney(summary.getConfirmedRevenue()),
                 summary.getGeneratedAt() != null
                         ? summary.getGeneratedAt().format(DATE_TIME_FORMATTER)
-                        : "-"
-        );
+                        : "-");
 
         return allowed("DASHBOARD", reply.trim());
     }
@@ -328,22 +318,20 @@ public class WhatsappCommandService {
         if (!WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
             return allowed(
                     "BUY_TICKET",
-                    "Este comando é destinado ao passageiro.\n\nPara operação, use:\n- Validar bilhete VRTK-...\n- Resumo de hoje"
-            );
+                    "Este comando é destinado ao passageiro.\n\nPara operação, use:\n- Validar bilhete VRTK-...\n- Resumo de hoje");
         }
 
         updateSessionStep(
                 session,
                 WhatsappConversationStep.PASSENGER_IDENTIFICATION,
-                "buy_ticket_started=true"
-        );
+                "buy_ticket_started=true");
 
         String nameLine = session.getPassengerFullName() != null
                 ? "Olá, " + session.getPassengerFullName() + ".\n"
                 : "Olá. Vamos iniciar sua compra.\n";
 
         String reply = nameLine + """
-                
+
                 Para comprar sua passagem, preciso destes dados:
 
                 1. Cidade de origem
@@ -366,8 +354,7 @@ public class WhatsappCommandService {
 
     private WhatsappCommandResult searchTripsForPassenger(
             WhatsappSessionResponse session,
-            TripSearchInput input
-    ) {
+            TripSearchInput input) {
         LocalDateTime startDateTime = input.date().atStartOfDay();
         LocalDateTime endDateTime = input.date().plusDays(1).atStartOfDay();
 
@@ -376,8 +363,7 @@ public class WhatsappCommandService {
                 input.destination(),
                 startDateTime,
                 endDateTime,
-                TripStatus.SCHEDULED
-        );
+                TripStatus.SCHEDULED);
 
         List<Trip> options = trips.stream()
                 .sorted(Comparator.comparing(Trip::getDepartureAt))
@@ -388,8 +374,7 @@ public class WhatsappCommandService {
             updateSessionStep(
                     session,
                     WhatsappConversationStep.PASSENGER_IDENTIFICATION,
-                    buildTripSearchMetadata(input, options)
-            );
+                    buildTripSearchMetadata(input, options));
 
             String reply = """
                     Não encontrei viagens disponíveis para:
@@ -406,8 +391,7 @@ public class WhatsappCommandService {
                     """.formatted(
                     input.origin(),
                     input.destination(),
-                    input.date().format(DATE_FORMATTER)
-            );
+                    input.date().format(DATE_FORMATTER));
 
             return allowed("SEARCH_TRIPS", reply.trim());
         }
@@ -415,8 +399,7 @@ public class WhatsappCommandService {
         updateSessionStep(
                 session,
                 WhatsappConversationStep.CHOOSING_TRIP,
-                buildTripSearchMetadata(input, options)
-        );
+                buildTripSearchMetadata(input, options));
 
         StringBuilder reply = new StringBuilder();
 
@@ -436,13 +419,11 @@ public class WhatsappCommandService {
 
     private WhatsappCommandResult createBookingFromSelectedTrip(
             WhatsappSessionResponse session,
-            String messageText
-    ) {
+            String messageText) {
         if (!WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
             return denied(
                     "CREATE_BOOKING",
-                    "Este comando é destinado ao passageiro."
-            );
+                    "Este comando é destinado ao passageiro.");
         }
 
         Integer optionNumber = extractSelectedOptionNumber(messageText);
@@ -450,8 +431,7 @@ public class WhatsappCommandService {
         if (optionNumber == null || optionNumber < 1) {
             return allowed(
                     "CREATE_BOOKING",
-                    "Não consegui identificar a viagem escolhida.\n\nResponda no formato:\nViagem 1"
-            );
+                    "Não consegui identificar a viagem escolhida.\n\nResponda no formato:\nViagem 1");
         }
 
         UUID tripId = extractTripIdFromMetadata(session.getMetadata(), optionNumber);
@@ -459,8 +439,7 @@ public class WhatsappCommandService {
         if (tripId == null) {
             return allowed(
                     "CREATE_BOOKING",
-                    "Não encontrei esta opção na sua sessão atual.\n\nFaça uma nova busca enviando origem, destino e data."
-            );
+                    "Não encontrei esta opção na sua sessão atual.\n\nFaça uma nova busca enviando origem, destino e data.");
         }
 
         Trip trip = tripRepository.findById(tripId)
@@ -469,8 +448,7 @@ public class WhatsappCommandService {
         String metadata = appendMetadata(
                 session.getMetadata(),
                 "selected_option=" + optionNumber,
-                "selected_trip_id=" + trip.getId()
-        );
+                "selected_trip_id=" + trip.getId());
 
         Optional<Passenger> optionalPassenger = findRealPassengerForWhatsapp(session);
 
@@ -480,8 +458,7 @@ public class WhatsappCommandService {
             updateSessionStep(
                     session,
                     WhatsappConversationStep.CONFIRMING_SAVED_PASSENGER,
-                    metadata
-            );
+                    metadata);
 
             PassengerDocumentType documentType = getPassengerDocumentType(passenger);
             String firstName = extractFirstName(passenger.getFullName());
@@ -503,8 +480,7 @@ public class WhatsappCommandService {
                     firstName,
                     passenger.getFullName(),
                     documentLabel,
-                    maskedDocument
-            );
+                    maskedDocument);
 
             return allowed("CONFIRM_PASSENGER", reply.trim());
         }
@@ -512,28 +488,24 @@ public class WhatsappCommandService {
         updateSessionStep(
                 session,
                 WhatsappConversationStep.ASKING_FULL_NAME,
-                metadata
-        );
+                metadata);
 
         return allowed(
                 "ASK_PASSENGER_NAME",
                 """
-                Antes de finalizar sua reserva, preciso dos dados do passageiro.
+                        Antes de finalizar sua reserva, preciso dos dados do passageiro.
 
-                Qual é o nome completo do passageiro?
-                """.trim()
-        );
+                        Qual é o nome completo do passageiro?
+                        """.trim());
     }
 
     private WhatsappCommandResult payBookingFromWhatsapp(
             WhatsappSessionResponse session,
-            String messageText
-    ) {
+            String messageText) {
         if (!WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
             return denied(
                     "PAY_BOOKING",
-                    "Este comando é destinado ao passageiro."
-            );
+                    "Este comando é destinado ao passageiro.");
         }
 
         String bookingCode = extractBookingCode(messageText);
@@ -546,14 +518,13 @@ public class WhatsappCommandService {
             return allowed(
                     "PAY_BOOKING",
                     """
-                    Não encontrei uma reserva pendente na sua sessão.
+                            Não encontrei uma reserva pendente na sua sessão.
 
-                    Envie o código da reserva no formato:
-                    Pagar reserva VR123456
+                            Envie o código da reserva no formato:
+                            Pagar reserva VR123456
 
-                    Ou faça uma nova busca de viagem.
-                    """
-            );
+                            Ou faça uma nova busca de viagem.
+                            """);
         }
 
         try {
@@ -566,8 +537,7 @@ public class WhatsappCommandService {
                     && !booking.getPassenger().getWhatsapp().equals(session.getPhoneNumber())) {
                 return denied(
                         "PAY_BOOKING",
-                        "Esta reserva pertence a outro passageiro."
-                );
+                        "Esta reserva pertence a outro passageiro.");
             }
 
             if (BookingStatus.PAID.equals(booking.getStatus())
@@ -583,8 +553,7 @@ public class WhatsappCommandService {
                         """.formatted(
                         booking.getBookingCode(),
                         booking.getStatus(),
-                        booking.getBookingCode()
-                );
+                        booking.getBookingCode());
 
                 return allowed("PAY_BOOKING", reply.trim());
             }
@@ -599,8 +568,7 @@ public class WhatsappCommandService {
                         Faça uma nova busca ou fale com o suporte.
                         """.formatted(
                         booking.getBookingCode(),
-                        booking.getStatus()
-                );
+                        booking.getStatus());
 
                 return allowed("PAY_BOOKING", reply.trim());
             }
@@ -615,8 +583,7 @@ public class WhatsappCommandService {
                         Faça uma nova busca de viagem para criar outra reserva.
                         """.formatted(
                         booking.getBookingCode(),
-                        booking.getExpiresAt().format(DATE_TIME_FORMATTER)
-                );
+                        booking.getExpiresAt().format(DATE_TIME_FORMATTER));
 
                 return allowed("PAY_BOOKING", reply.trim());
             }
@@ -634,14 +601,12 @@ public class WhatsappCommandService {
                     "payment_code=" + confirmedPayment.getPaymentCode(),
                     "payment_method=" + confirmedPayment.getMethod(),
                     "payment_status=" + confirmedPayment.getStatus(),
-                    "booking_status=" + confirmedPayment.getBookingStatus()
-            );
+                    "booking_status=" + confirmedPayment.getBookingStatus());
 
             updateSessionStep(
                     session,
                     WhatsappConversationStep.CONFIRMING_BOOKING,
-                    metadata
-            );
+                    metadata);
 
             String reply = """
                     ✅ Pagamento confirmado com sucesso.
@@ -673,8 +638,7 @@ public class WhatsappCommandService {
                             ? confirmedPayment.getDepartureAt().format(DATE_TIME_FORMATTER)
                             : "-",
                     confirmedPayment.getSeatNumber(),
-                    confirmedPayment.getBookingCode()
-            );
+                    confirmedPayment.getBookingCode());
 
             return allowed("PAY_BOOKING", reply.trim());
 
@@ -683,20 +647,17 @@ public class WhatsappCommandService {
                     "PAY_BOOKING",
                     "Não foi possível confirmar o pagamento agora.\n\nMotivo: "
                             + exception.getMessage()
-                            + "\n\nTente novamente ou envie uma nova busca."
-            );
+                            + "\n\nTente novamente ou envie uma nova busca.");
         }
     }
 
     private WhatsappCommandResult issueTicketFromWhatsapp(
             WhatsappSessionResponse session,
-            String messageText
-    ) {
+            String messageText) {
         if (!WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
             return denied(
                     "ISSUE_TICKET",
-                    "Este comando é destinado ao passageiro."
-            );
+                    "Este comando é destinado ao passageiro.");
         }
 
         String bookingCode = extractBookingCode(messageText);
@@ -709,14 +670,13 @@ public class WhatsappCommandService {
             return allowed(
                     "ISSUE_TICKET",
                     """
-                    Não encontrei uma reserva paga na sua sessão.
+                            Não encontrei uma reserva paga na sua sessão.
 
-                    Envie o código da reserva no formato:
-                    Emitir bilhete VR123456
+                            Envie o código da reserva no formato:
+                            Emitir bilhete VR123456
 
-                    Ou faça uma nova compra.
-                    """
-            );
+                            Ou faça uma nova compra.
+                            """);
         }
 
         try {
@@ -729,8 +689,7 @@ public class WhatsappCommandService {
                     && !booking.getPassenger().getWhatsapp().equals(session.getPhoneNumber())) {
                 return denied(
                         "ISSUE_TICKET",
-                        "Esta reserva pertence a outro passageiro."
-                );
+                        "Esta reserva pertence a outro passageiro.");
             }
 
             if (BookingStatus.TICKET_ISSUED.equals(booking.getStatus())) {
@@ -746,25 +705,21 @@ public class WhatsappCommandService {
                             "ticket_id=" + existingTicket.getId(),
                             "ticket_code=" + existingTicket.getTicketCode(),
                             "ticket_status=" + existingTicket.getStatus(),
-                            "ticket_pdf_url=" + buildTicketPdfUrl(existingTicket.getId())
-                    );
+                            "ticket_pdf_url=" + buildTicketPdfUrl(existingTicket.getId()));
 
                     updateSessionStep(
                             session,
                             WhatsappConversationStep.TICKET_ISSUED,
-                            metadata
-                    );
+                            metadata);
 
                     return allowed(
                             "ISSUE_TICKET",
-                            formatTicketIssuedReply(existingTicket, true)
-                    );
+                            formatTicketIssuedReply(existingTicket, true));
                 }
 
                 return allowed(
                         "ISSUE_TICKET",
-                        "Esta reserva já está marcada como bilhete emitido, mas não encontrei o bilhete vinculado. Fale com o suporte."
-                );
+                        "Esta reserva já está marcada como bilhete emitido, mas não encontrei o bilhete vinculado. Fale com o suporte.");
             }
 
             if (BookingStatus.PENDING_PAYMENT.equals(booking.getStatus())) {
@@ -779,8 +734,7 @@ public class WhatsappCommandService {
                         """.formatted(
                         booking.getBookingCode(),
                         booking.getStatus(),
-                        booking.getBookingCode()
-                );
+                        booking.getBookingCode());
 
                 return allowed("ISSUE_TICKET", reply.trim());
             }
@@ -795,8 +749,7 @@ public class WhatsappCommandService {
                         Faça uma nova compra ou fale com o suporte.
                         """.formatted(
                         booking.getBookingCode(),
-                        booking.getStatus()
-                );
+                        booking.getStatus());
 
                 return allowed("ISSUE_TICKET", reply.trim());
             }
@@ -811,27 +764,23 @@ public class WhatsappCommandService {
                     "ticket_id=" + ticket.getId(),
                     "ticket_code=" + ticket.getTicketCode(),
                     "ticket_status=" + ticket.getStatus(),
-                    "ticket_pdf_url=" + buildTicketPdfUrl(ticket.getId())
-            );
+                    "ticket_pdf_url=" + buildTicketPdfUrl(ticket.getId()));
 
             updateSessionStep(
                     session,
                     WhatsappConversationStep.TICKET_ISSUED,
-                    metadata
-            );
+                    metadata);
 
             return allowed(
                     "ISSUE_TICKET",
-                    formatTicketIssuedReply(ticket, false)
-            );
+                    formatTicketIssuedReply(ticket, false));
 
         } catch (Exception exception) {
             return allowed(
                     "ISSUE_TICKET",
                     "Não foi possível emitir o bilhete agora.\n\nMotivo: "
                             + exception.getMessage()
-                            + "\n\nTente novamente ou fale com o suporte."
-            );
+                            + "\n\nTente novamente ou fale com o suporte.");
         }
     }
 
@@ -872,8 +821,7 @@ public class WhatsappCommandService {
                 ticket.getCurrency(),
                 ticket.getAmount() != null ? ticket.getAmount().toPlainString() : "0.00",
                 ticket.getValidationUrl(),
-                buildTicketPdfUrl(ticket.getId())
-        ).trim();
+                buildTicketPdfUrl(ticket.getId())).trim();
     }
 
     private String buildTicketPdfUrl(UUID ticketId) {
@@ -930,8 +878,7 @@ public class WhatsappCommandService {
                 departure,
                 currency,
                 price,
-                availableSeats
-        ).trim();
+                availableSeats).trim();
     }
 
     private WhatsappCommandResult menu(WhatsappSessionResponse session) {
@@ -939,27 +886,25 @@ public class WhatsappCommandService {
             return allowed(
                     "MENU",
                     """
-                    Menu VaiRápido Operacional
+                            Menu VaiRápido Operacional
 
-                    Comandos disponíveis:
-                    1. Validar bilhete VRTK-...
-                    2. Resumo de hoje
-                    3. Ajuda
-                    """
-            );
+                            Comandos disponíveis:
+                            1. Validar bilhete VRTK-...
+                            2. Resumo de hoje
+                            3. Ajuda
+                            """);
         }
 
         return allowed(
                 "MENU",
                 """
-                Menu VaiRápido
+                        Menu VaiRápido
 
-                Comandos disponíveis:
-                1. Comprar passagem
-                2. Consultar bilhete
-                3. Ajuda
-                """
-        );
+                        Comandos disponíveis:
+                        1. Comprar passagem
+                        2. Consultar bilhete
+                        3. Ajuda
+                        """);
     }
 
     private WhatsappCommandResult defaultHelp(WhatsappSessionResponse session) {
@@ -969,8 +914,7 @@ public class WhatsappCommandService {
     private WhatsappCommandResult fallback(WhatsappSessionResponse session, String messageText) {
         Optional<String> faqAnswer = whatsappFaqAnswerService.answer(
                 messageText,
-                session != null ? session.getSessionType() : null
-        );
+                session != null ? session.getSessionType() : null);
 
         if (faqAnswer.isPresent()) {
             return allowed("FAQ", faqAnswer.get());
@@ -979,30 +923,28 @@ public class WhatsappCommandService {
             return allowed(
                     "FALLBACK",
                     """
-                    Não entendi o comando.
+                            Não entendi o comando.
 
-                    Tente uma destas opções:
-                    - Validar bilhete VRTK-...
-                    - Resumo de hoje
-                    - Menu
-                    """
-            );
+                            Tente uma destas opções:
+                            - Validar bilhete VRTK-...
+                            - Resumo de hoje
+                            - Menu
+                            """);
         }
 
         return allowed(
                 "FALLBACK",
                 """
-                Não entendi sua mensagem.
+                        Não entendi sua mensagem.
 
-                Para comprar passagem, envie:
-                Comprar passagem
+                        Para comprar passagem, envie:
+                        Comprar passagem
 
-                Ou envie direto no formato:
-                Origem: São Paulo
-                Destino: Rio de Janeiro
-                Data: 25/06/2026
-                """
-        );
+                        Ou envie direto no formato:
+                        Origem: São Paulo
+                        Destino: Rio de Janeiro
+                        Data: 25/06/2026
+                        """);
     }
 
     private TripSearchInput parseTripSearch(String messageText) {
@@ -1023,8 +965,7 @@ public class WhatsappCommandService {
             return new TripSearchInput(
                     cleanSearchTerm(origin),
                     cleanSearchTerm(destination),
-                    date
-            );
+                    date);
         }
 
         List<String> lines = extractMeaningfulLinesWithoutDate(messageText);
@@ -1218,8 +1159,7 @@ public class WhatsappCommandService {
 
     private WhatsappCommandResult handleSavedPassengerConfirmation(
             WhatsappSessionResponse session,
-            String normalizedMessage
-    ) {
+            String normalizedMessage) {
         Optional<Passenger> optionalPassenger = findRealPassengerForWhatsapp(session);
 
         if (isOptionOne(normalizedMessage) || containsAny(normalizedMessage, "sim", "confirmar", "continuar")) {
@@ -1227,13 +1167,11 @@ public class WhatsappCommandService {
                 updateSessionStep(
                         session,
                         WhatsappConversationStep.ASKING_FULL_NAME,
-                        session.getMetadata()
-                );
+                        session.getMetadata());
 
                 return allowed(
                         "ASK_PASSENGER_NAME",
-                        "Não encontrei mais seus dados salvos.\n\nQual é o nome completo do passageiro?"
-                );
+                        "Não encontrei mais seus dados salvos.\n\nQual é o nome completo do passageiro?");
             }
 
             return createBookingWithPassenger(session, optionalPassenger.get());
@@ -1243,90 +1181,79 @@ public class WhatsappCommandService {
                 || containsAny(normalizedMessage, "nao", "não", "outro", "outra pessoa")) {
             String metadata = appendMetadata(
                     session.getMetadata(),
-                    "passenger_mode=other"
-            );
+                    "passenger_mode=other");
 
             updateSessionStep(
                     session,
                     WhatsappConversationStep.ASKING_FULL_NAME,
-                    metadata
-            );
+                    metadata);
 
             return allowed(
                     "ASK_OTHER_PASSENGER_NAME",
                     """
-                    Perfeito. Vamos comprar para outro passageiro.
+                            Perfeito. Vamos comprar para outro passageiro.
 
-                    Qual é o nome completo do passageiro?
-                    """.trim()
-            );
+                            Qual é o nome completo do passageiro?
+                            """.trim());
         }
 
         if (isOptionThree(normalizedMessage)
                 || containsAny(normalizedMessage, "alterar", "atualizar", "corrigir")) {
             String metadata = appendMetadata(
                     session.getMetadata(),
-                    "passenger_mode=update"
-            );
+                    "passenger_mode=update");
 
             updateSessionStep(
                     session,
                     WhatsappConversationStep.ASKING_FULL_NAME,
-                    metadata
-            );
+                    metadata);
 
             return allowed(
                     "ASK_UPDATE_PASSENGER_NAME",
                     """
-                    Vamos atualizar seus dados.
+                            Vamos atualizar seus dados.
 
-                    Qual é o nome completo do passageiro?
-                    """.trim()
-            );
+                            Qual é o nome completo do passageiro?
+                            """.trim());
         }
 
         return allowed(
                 "CONFIRM_PASSENGER",
                 """
-                Não consegui entender sua resposta.
+                        Não consegui entender sua resposta.
 
-                Essa compra é para o passageiro salvo?
+                        Essa compra é para o passageiro salvo?
 
-                1. Sim, continuar
-                2. Não, comprar para outra pessoa
-                3. Alterar meus dados
-                """.trim()
-        );
+                        1. Sim, continuar
+                        2. Não, comprar para outra pessoa
+                        3. Alterar meus dados
+                        """.trim());
     }
 
     private WhatsappCommandResult handlePassengerNameAnswer(
             WhatsappSessionResponse session,
-            String messageText
-    ) {
+            String messageText) {
         String fullName = messageText == null ? "" : messageText.trim();
 
         if (fullName.length() < 5 || !fullName.contains(" ")) {
             return allowed(
                     "ASK_PASSENGER_NAME",
                     """
-                    Informe o nome completo do passageiro.
+                            Informe o nome completo do passageiro.
 
-                    Exemplo:
-                    Wilson Dala
-                    """.trim()
-            );
+                            Exemplo:
+                            Wilson Dala
+                            """.trim());
         }
 
         String metadata = appendMetadata(
                 session.getMetadata(),
-                "pending_passenger_name=" + fullName
-        );
+                "pending_passenger_name=" + fullName);
 
         updateSessionStep(
                 session,
                 WhatsappConversationStep.ASKING_DOCUMENT,
-                metadata
-        );
+                metadata);
 
         PassengerDocumentType documentType = resolveDocumentTypeFromMetadata(metadata);
         String firstName = extractFirstName(fullName);
@@ -1343,21 +1270,18 @@ public class WhatsappCommandService {
 
     private WhatsappCommandResult handlePassengerDocumentAnswer(
             WhatsappSessionResponse session,
-            String messageText
-    ) {
+            String messageText) {
         String fullName = extractMetadataValue(session.getMetadata(), "pending_passenger_name");
 
         if (fullName == null || fullName.isBlank()) {
             updateSessionStep(
                     session,
                     WhatsappConversationStep.ASKING_FULL_NAME,
-                    session.getMetadata()
-            );
+                    session.getMetadata());
 
             return allowed(
                     "ASK_PASSENGER_NAME",
-                    "Não encontrei o nome do passageiro na sessão.\n\nQual é o nome completo do passageiro?"
-            );
+                    "Não encontrei o nome do passageiro na sessão.\n\nQual é o nome completo do passageiro?");
         }
 
         PassengerDocumentType documentType = resolveDocumentTypeFromMetadata(session.getMetadata());
@@ -1372,11 +1296,10 @@ public class WhatsappCommandService {
             return allowed(
                     "ASK_PASSENGER_DOCUMENT",
                     """
-                    %s inválido. Verifique os dados e envie novamente.
+                            %s inválido. Verifique os dados e envie novamente.
 
-                    %s
-                    """.formatted(documentLabel, example).trim()
-            );
+                            %s
+                            """.formatted(documentLabel, example).trim());
         }
 
         String passengerMode = extractMetadataValue(session.getMetadata(), "passenger_mode");
@@ -1422,26 +1345,122 @@ public class WhatsappCommandService {
 
         updateSessionPassenger(session, passenger);
 
-        return createBookingWithPassenger(session, passenger);
+        String maskedDocument = documentValidatorService.mask(
+                documentType,
+                passenger.getDocumentNumber());
+
+        String confirmationMetadata = appendMetadata(
+                session.getMetadata(),
+                "confirmed_passenger_id=" + passenger.getId(),
+                "confirmed_passenger_name=" + passenger.getFullName(),
+                "confirmed_document_type=" + documentType,
+                "confirmed_document_number=" + passenger.getDocumentNumber());
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                confirmationMetadata);
+
+        String reply = """
+                Confirme os dados do passageiro:
+
+                Passageiro: %s
+                %s: %s
+
+                Você confirma a emissão da passagem para este passageiro?
+
+                1. Sim, confirmar
+                2. Corrigir dados
+                """.formatted(
+                passenger.getFullName(),
+                documentLabel,
+                maskedDocument);
+
+        return allowed("CONFIRM_PASSENGER_DATA", reply.trim());
+    }
+
+    private WhatsappCommandResult handlePassengerDataConfirmation(
+            WhatsappSessionResponse session,
+            String normalizedMessage) {
+        if (isOptionOne(normalizedMessage)
+                || containsAny(normalizedMessage, "sim", "confirmo", "confirmar", "continuar")) {
+
+            String passengerId = extractMetadataValue(session.getMetadata(), "confirmed_passenger_id");
+
+            if (passengerId == null || passengerId.isBlank()) {
+                updateSessionStep(
+                        session,
+                        WhatsappConversationStep.ASKING_FULL_NAME,
+                        session.getMetadata());
+
+                return allowed(
+                        "ASK_PASSENGER_NAME",
+                        "Não encontrei os dados confirmados do passageiro.\n\nQual é o nome completo do passageiro?");
+            }
+
+            try {
+                Passenger passenger = passengerRepository.findById(UUID.fromString(passengerId))
+                        .orElseThrow(() -> new IllegalArgumentException("Passageiro não encontrado."));
+
+                return createBookingWithPassenger(session, passenger);
+
+            } catch (Exception exception) {
+                updateSessionStep(
+                        session,
+                        WhatsappConversationStep.ASKING_FULL_NAME,
+                        session.getMetadata());
+
+                return allowed(
+                        "ASK_PASSENGER_NAME",
+                        "Não consegui confirmar o passageiro informado.\n\nQual é o nome completo do passageiro?");
+            }
+        }
+
+        if (isOptionTwo(normalizedMessage)
+                || containsAny(normalizedMessage, "corrigir", "alterar", "nao", "não")) {
+            String metadata = appendMetadata(
+                    session.getMetadata(),
+                    "passenger_correction_requested=true");
+
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.ASKING_FULL_NAME,
+                    metadata);
+
+            return allowed(
+                    "ASK_PASSENGER_NAME",
+                    """
+                            Sem problema. Vamos corrigir os dados do passageiro.
+
+                            Qual é o nome completo do passageiro?
+                            """.trim());
+        }
+
+        return allowed(
+                "CONFIRM_PASSENGER_DATA",
+                """
+                        Não consegui entender sua resposta.
+
+                        Você confirma a emissão da passagem para este passageiro?
+
+                        1. Sim, confirmar
+                        2. Corrigir dados
+                        """.trim());
     }
 
     private WhatsappCommandResult createBookingWithPassenger(
             WhatsappSessionResponse session,
-            Passenger passenger
-    ) {
+            Passenger passenger) {
         UUID tripId = extractSelectedTripIdFromMetadata(session.getMetadata());
 
         if (tripId == null) {
             updateSessionStep(
                     session,
                     WhatsappConversationStep.PASSENGER_IDENTIFICATION,
-                    session.getMetadata()
-            );
+                    session.getMetadata());
 
             return allowed(
                     "CREATE_BOOKING",
-                    "Não encontrei a viagem escolhida na sessão.\n\nFaça uma nova busca enviando origem, destino e data."
-            );
+                    "Não encontrei a viagem escolhida na sessão.\n\nFaça uma nova busca enviando origem, destino e data.");
         }
 
         try {
@@ -1469,14 +1488,12 @@ public class WhatsappCommandService {
                     "passenger_id=" + passenger.getId(),
                     "passenger_name=" + passenger.getFullName(),
                     "passenger_document_type=" + documentType,
-                    "passenger_document=" + passenger.getDocumentNumber()
-            );
+                    "passenger_document=" + passenger.getDocumentNumber());
 
             updateSessionStep(
                     session,
                     WhatsappConversationStep.WAITING_PAYMENT,
-                    metadata
-            );
+                    metadata);
 
             String reply = """
                     ✅ Reserva criada com sucesso.
@@ -1511,8 +1528,7 @@ public class WhatsappCommandService {
                     booking.getExpiresAt() != null
                             ? booking.getExpiresAt().format(DATE_TIME_FORMATTER)
                             : "-",
-                    booking.getBookingCode()
-            );
+                    booking.getBookingCode());
 
             return allowed("CREATE_BOOKING", reply.trim());
 
@@ -1521,8 +1537,7 @@ public class WhatsappCommandService {
                     "CREATE_BOOKING",
                     "Não foi possível criar a reserva agora.\n\nMotivo: "
                             + exception.getMessage()
-                            + "\n\nFaça uma nova busca ou tente novamente."
-            );
+                            + "\n\nFaça uma nova busca ou tente novamente.");
         }
     }
 
@@ -1556,8 +1571,7 @@ public class WhatsappCommandService {
 
     private void updateSessionPassenger(
             WhatsappSessionResponse session,
-            Passenger passenger
-    ) {
+            Passenger passenger) {
         if (session == null || session.getId() == null || passenger == null) {
             return;
         }
@@ -1624,8 +1638,8 @@ public class WhatsappCommandService {
 
         String fullName = session.getPassengerFullName() != null
                 && !session.getPassengerFullName().isBlank()
-                ? session.getPassengerFullName()
-                : "Passageiro WhatsApp " + session.getPhoneNumber();
+                        ? session.getPassengerFullName()
+                        : "Passageiro WhatsApp " + session.getPhoneNumber();
 
         Passenger passenger = new Passenger()
                 .setFullName(fullName)
@@ -1664,8 +1678,7 @@ public class WhatsappCommandService {
             boolean taken = bookingRepository.existsByTrip_IdAndSeatNumberAndStatusIn(
                     trip.getId(),
                     seatNumber,
-                    ACTIVE_SEAT_STATUSES
-            );
+                    ACTIVE_SEAT_STATUSES);
 
             if (!taken) {
                 return seatNumber;
@@ -1678,14 +1691,12 @@ public class WhatsappCommandService {
     private void updateSessionStep(
             WhatsappSessionResponse session,
             WhatsappConversationStep step,
-            String metadata
-    ) {
+            String metadata) {
         if (session == null || session.getId() == null) {
             return;
         }
 
-        Optional<WhatsappSession> optionalSession =
-                whatsappSessionRepository.findById(session.getId());
+        Optional<WhatsappSession> optionalSession = whatsappSessionRepository.findById(session.getId());
 
         if (optionalSession.isEmpty()) {
             return;
@@ -1702,8 +1713,7 @@ public class WhatsappCommandService {
 
     private String buildTripSearchMetadata(
             TripSearchInput input,
-            List<Trip> options
-    ) {
+            List<Trip> options) {
         StringBuilder metadata = new StringBuilder();
 
         metadata.append("flow=BUY_TICKET\n");
@@ -1800,8 +1810,7 @@ public class WhatsappCommandService {
 
         return userRepository.findByWhatsappAndStatus(
                 session.getPhoneNumber(),
-                UserStatus.ACTIVE
-        );
+                UserStatus.ACTIVE);
     }
 
     private String extractTicketCode(String message) {
@@ -1885,8 +1894,7 @@ public class WhatsappCommandService {
 
     private WhatsappCommandResult allowed(
             String commandName,
-            String replyMessage
-    ) {
+            String replyMessage) {
         return new WhatsappCommandResult()
                 .setProcessed(true)
                 .setAllowed(true)
@@ -1896,8 +1904,7 @@ public class WhatsappCommandService {
 
     private WhatsappCommandResult denied(
             String commandName,
-            String replyMessage
-    ) {
+            String replyMessage) {
         return new WhatsappCommandResult()
                 .setProcessed(true)
                 .setAllowed(false)
@@ -1908,7 +1915,6 @@ public class WhatsappCommandService {
     private record TripSearchInput(
             String origin,
             String destination,
-            LocalDate date
-    ) {
+            LocalDate date) {
     }
 }
