@@ -168,8 +168,21 @@ public class WhatsappCommandService {
         }
 
         if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
+                && WhatsappConversationStep.CHOOSING_TRIP.equals(session.getCurrentStep())
                 && isTripOptionSelection(messageText)) {
             return createBookingFromSelectedTrip(session, messageText);
+        }
+
+        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
+                && WhatsappConversationStep.WAITING_PAYMENT.equals(session.getCurrentStep())
+                && isOptionOne(normalizedMessage)) {
+            return payBookingFromWhatsapp(session, "Pagar reserva");
+        }
+
+        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
+                && WhatsappConversationStep.CONFIRMING_BOOKING.equals(session.getCurrentStep())
+                && isOptionOne(normalizedMessage)) {
+            return issueTicketFromWhatsapp(session, "Emitir bilhete");
         }
 
         if (isBuyTicketCommand(normalizedMessage)) {
@@ -403,16 +416,16 @@ public class WhatsappCommandService {
 
         StringBuilder reply = new StringBuilder();
 
-        reply.append("Encontrei viagens disponíveis:\n\n");
+        reply.append("🚌 Encontrei viagens disponíveis\n\n");
 
         for (int i = 0; i < options.size(); i++) {
             Trip trip = options.get(i);
             reply.append(formatTripOption(i + 1, trip)).append("\n\n");
         }
 
-        reply.append("Para escolher, responda com:\n");
-        reply.append("Viagem 1\n\n");
-        reply.append("Se quiser mudar a busca, envie novamente origem, destino e data.");
+        reply.append("Escolha uma opção respondendo apenas com o número.\n\n");
+        reply.append("Exemplo: 1\n\n");
+        reply.append("Para mudar a busca, envie novamente origem, destino e data.");
 
         return allowed("SEARCH_TRIPS", reply.toString().trim());
     }
@@ -609,24 +622,20 @@ public class WhatsappCommandService {
                     metadata);
 
             String reply = """
-                    ✅ Pagamento confirmado com sucesso.
+                    💳 Pagamento confirmado
 
-                    Reserva: %s
-                    Pagamento: %s
-                    Método: %s
-                    Valor: %s %s
-                    Status da reserva: %s
+                    🎫 Reserva: %s
+                    💰 Valor: %s %s
+                    ✅ Status: %s
+                    📍 Trecho: %s → %s
+                    🕒 Saída: %s
+                    💺 Poltrona: %d
 
-                    Trecho: %s → %s
-                    Saída: %s
-                    Poltrona: %d
-
-                    Próximo passo:
-                    Envie "Emitir bilhete %s".
+                    Escolha uma opção:
+                    1️⃣ Emitir bilhete agora
+                    2️⃣ Fazer nova busca
                     """.formatted(
                     confirmedPayment.getBookingCode(),
-                    confirmedPayment.getPaymentCode(),
-                    confirmedPayment.getMethod(),
                     confirmedPayment.getCurrency(),
                     confirmedPayment.getAmount() != null
                             ? confirmedPayment.getAmount().toPlainString()
@@ -637,8 +646,7 @@ public class WhatsappCommandService {
                     confirmedPayment.getDepartureAt() != null
                             ? confirmedPayment.getDepartureAt().format(DATE_TIME_FORMATTER)
                             : "-",
-                    confirmedPayment.getSeatNumber(),
-                    confirmedPayment.getBookingCode());
+                    confirmedPayment.getSeatNumber());
 
             return allowed("PAY_BOOKING", reply.trim());
 
@@ -854,7 +862,7 @@ public class WhatsappCommandService {
 
         String currency = trip.getCurrency() != null && !trip.getCurrency().isBlank()
                 ? trip.getCurrency()
-                : "BRL";
+                : documentValidatorService.defaultCurrency();
 
         String price = trip.getPrice() != null
                 ? trip.getPrice().toPlainString()
@@ -865,11 +873,11 @@ public class WhatsappCommandService {
                 : 0;
 
         return """
-                %d. %s
-                Trecho: %s → %s
-                Saída: %s
-                Preço: %s %s
-                Lugares disponíveis: %d
+                %d️⃣ %s
+                📍 %s → %s
+                🕒 Saída: %s
+                💰 Valor: %s %s
+                💺 Lugares: %d
                 """.formatted(
                 optionNumber,
                 companyName,
@@ -1120,6 +1128,16 @@ public class WhatsappCommandService {
             return null;
         }
 
+        String cleaned = messageText.trim();
+
+        if (cleaned.matches("\\d+")) {
+            try {
+                return Integer.parseInt(cleaned);
+            } catch (NumberFormatException exception) {
+                return null;
+            }
+        }
+
         Matcher matcher = TRIP_OPTION_PATTERN.matcher(messageText);
 
         if (!matcher.find()) {
@@ -1361,15 +1379,15 @@ public class WhatsappCommandService {
                 confirmationMetadata);
 
         String reply = """
-                Confirme os dados do passageiro:
+                🧾 Confirme os dados do passageiro
 
-                Passageiro: %s
-                %s: %s
+                🧍 Passageiro: %s
+                🪪 %s: %s
 
                 Você confirma a emissão da passagem para este passageiro?
 
-                1. Sim, confirmar
-                2. Corrigir dados
+                1️⃣ Sim, confirmar
+                2️⃣ Corrigir dados
                 """.formatted(
                 passenger.getFullName(),
                 documentLabel,
@@ -1496,39 +1514,36 @@ public class WhatsappCommandService {
                     metadata);
 
             String reply = """
-                    ✅ Reserva criada com sucesso.
+                    ✅ Reserva criada
 
-                    Código da reserva: %s
-                    Trecho: %s → %s
-                    Saída: %s
-                    Passageiro: %s
-                    %s: %s
-                    Poltrona: %d
-                    Valor: %s %s
-                    Status: %s
+                    🎫 Código: %s
+                    🧍 Passageiro: %s
+                    🪪 %s: %s
+                    📍 Trecho: %s → %s
+                    🕒 Saída: %s
+                    💺 Poltrona: %d
+                    💰 Valor: %s %s
+                    ⏳ Expira em: %s
 
-                    Esta reserva expira em: %s
-
-                    Próximo passo:
-                    Envie "Pagar reserva %s" para simular o pagamento.
+                    Escolha uma opção:
+                    1️⃣ Pagar agora
+                    2️⃣ Fazer nova busca
                     """.formatted(
                     booking.getBookingCode(),
+                    booking.getPassengerName(),
+                    documentLabel,
+                    maskedDocument,
                     booking.getOriginCity(),
                     booking.getDestinationCity(),
                     booking.getDepartureAt() != null
                             ? booking.getDepartureAt().format(DATE_TIME_FORMATTER)
                             : "-",
-                    booking.getPassengerName(),
-                    documentLabel,
-                    maskedDocument,
                     booking.getSeatNumber(),
                     booking.getCurrency(),
                     booking.getAmount() != null ? booking.getAmount().toPlainString() : "0.00",
-                    booking.getStatus(),
                     booking.getExpiresAt() != null
                             ? booking.getExpiresAt().format(DATE_TIME_FORMATTER)
-                            : "-",
-                    booking.getBookingCode());
+                            : "-");
 
             return allowed("CREATE_BOOKING", reply.trim());
 
