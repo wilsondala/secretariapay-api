@@ -1629,7 +1629,7 @@ public class WhatsappCommandService {
 
         Passenger passenger = new Passenger()
                 .setFullName(fullName)
-                .setDocumentType(PassengerDocumentType.CPF)
+                .setDocumentType(documentValidatorService.defaultDocumentType())
                 .setDocumentNumber(documentNumber)
                 .setPhone(session.getPhoneNumber())
                 .setWhatsapp(session.getPhoneNumber());
@@ -1743,13 +1743,13 @@ public class WhatsappCommandService {
         String rawType = extractMetadataValue(metadata, "document_type");
 
         if (rawType == null || rawType.isBlank()) {
-            return PassengerDocumentType.CPF;
+            return documentValidatorService.defaultDocumentType();
         }
 
         try {
             return PassengerDocumentType.valueOf(rawType.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
-            return PassengerDocumentType.CPF;
+            return documentValidatorService.defaultDocumentType();
         }
     }
 

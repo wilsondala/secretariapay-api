@@ -1,5 +1,6 @@
 package com.vairapido.api.service;
 
+import com.vairapido.api.config.BusinessCountryProperties;
 import com.vairapido.api.entity.enums.PassengerDocumentType;
 import org.springframework.stereotype.Service;
 
@@ -8,12 +9,32 @@ import java.util.Locale;
 @Service
 public class DocumentValidatorService {
 
+    private final BusinessCountryProperties businessCountryProperties;
+
+    public DocumentValidatorService(BusinessCountryProperties businessCountryProperties) {
+        this.businessCountryProperties = businessCountryProperties;
+    }
+
+    public PassengerDocumentType defaultDocumentType() {
+        return businessCountryProperties.getDefaultDocumentType();
+    }
+
+    public String defaultDocumentLabel() {
+        return label(defaultDocumentType());
+    }
+
+    public String defaultCurrency() {
+        return businessCountryProperties.getCurrency();
+    }
+
     public String normalize(PassengerDocumentType type, String value) {
+        PassengerDocumentType resolvedType = resolveType(type);
+
         if (value == null) {
             return "";
         }
 
-        if (PassengerDocumentType.CPF.equals(type)) {
+        if (PassengerDocumentType.CPF.equals(resolvedType)) {
             return value.replaceAll("\\D", "");
         }
 
@@ -26,17 +47,18 @@ public class DocumentValidatorService {
     }
 
     public boolean isValid(PassengerDocumentType type, String value) {
-        String normalized = normalize(type, value);
+        PassengerDocumentType resolvedType = resolveType(type);
+        String normalized = normalize(resolvedType, value);
 
-        if (PassengerDocumentType.CPF.equals(type)) {
+        if (PassengerDocumentType.CPF.equals(resolvedType)) {
             return isValidCpf(normalized);
         }
 
-        if (PassengerDocumentType.BI.equals(type)) {
+        if (PassengerDocumentType.BI.equals(resolvedType)) {
             return isValidBi(normalized);
         }
 
-        if (PassengerDocumentType.PASSPORT.equals(type)) {
+        if (PassengerDocumentType.PASSPORT.equals(resolvedType)) {
             return isValidPassport(normalized);
         }
 
@@ -44,11 +66,13 @@ public class DocumentValidatorService {
     }
 
     public String label(PassengerDocumentType type) {
-        if (PassengerDocumentType.BI.equals(type)) {
+        PassengerDocumentType resolvedType = resolveType(type);
+
+        if (PassengerDocumentType.BI.equals(resolvedType)) {
             return "BI";
         }
 
-        if (PassengerDocumentType.PASSPORT.equals(type)) {
+        if (PassengerDocumentType.PASSPORT.equals(resolvedType)) {
             return "Passaporte";
         }
 
@@ -56,17 +80,18 @@ public class DocumentValidatorService {
     }
 
     public String mask(PassengerDocumentType type, String value) {
-        String normalized = normalize(type, value);
+        PassengerDocumentType resolvedType = resolveType(type);
+        String normalized = normalize(resolvedType, value);
 
         if (normalized.isBlank()) {
             return "***";
         }
 
-        if (PassengerDocumentType.CPF.equals(type) && normalized.length() == 11) {
+        if (PassengerDocumentType.CPF.equals(resolvedType) && normalized.length() == 11) {
             return "***.***.***-" + normalized.substring(9);
         }
 
-        if (PassengerDocumentType.BI.equals(type)) {
+        if (PassengerDocumentType.BI.equals(resolvedType)) {
             if (normalized.length() <= 6) {
                 return "***" + normalized.substring(Math.max(0, normalized.length() - 2));
             }
@@ -81,6 +106,28 @@ public class DocumentValidatorService {
         }
 
         return "***";
+    }
+
+    public String example(PassengerDocumentType type) {
+        PassengerDocumentType resolvedType = resolveType(type);
+
+        if (PassengerDocumentType.BI.equals(resolvedType)) {
+            return "006543219LA042";
+        }
+
+        if (PassengerDocumentType.PASSPORT.equals(resolvedType)) {
+            return "A1234567";
+        }
+
+        return "52998224725";
+    }
+
+    private PassengerDocumentType resolveType(PassengerDocumentType type) {
+        if (type == null) {
+            return defaultDocumentType();
+        }
+
+        return type;
     }
 
     private boolean isValidCpf(String cpf) {

@@ -25,6 +25,10 @@ app:
     jwt-expiration-minutes: 1440
 
 vairapido:
+  business:
+    country: ${VAIRAPIDO_BUSINESS_COUNTRY:BR}
+    currency: ${VAIRAPIDO_BUSINESS_CURRENCY:BRL}
+
   whatsapp:
     verify-token: ${VAIRAPIDO_WHATSAPP_VERIFY_TOKEN:vairapido-dev-token}
     enabled: ${VAIRAPIDO_WHATSAPP_ENABLED:false}
