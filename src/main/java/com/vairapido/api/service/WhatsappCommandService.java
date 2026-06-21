@@ -18,6 +18,7 @@ import com.vairapido.api.entity.Trip;
 import com.vairapido.api.entity.User;
 import com.vairapido.api.entity.WhatsappSession;
 import com.vairapido.api.entity.enums.BookingStatus;
+import com.vairapido.api.entity.enums.PassengerDocumentType;
 import com.vairapido.api.entity.enums.PaymentMethod;
 import com.vairapido.api.entity.enums.TripStatus;
 import com.vairapido.api.entity.enums.UserRole;
@@ -87,6 +88,7 @@ public class WhatsappCommandService {
     private final TicketService ticketService;
     private final TicketRepository ticketRepository;
     private final WhatsappFaqAnswerService whatsappFaqAnswerService;
+    private final DocumentValidatorService documentValidatorService;
 
     public WhatsappCommandService(
             UserRepository userRepository,
@@ -100,7 +102,8 @@ public class WhatsappCommandService {
             PaymentService paymentService,
             TicketService ticketService,
             TicketRepository ticketRepository,
-            WhatsappFaqAnswerService whatsappFaqAnswerService
+            WhatsappFaqAnswerService whatsappFaqAnswerService,
+            DocumentValidatorService documentValidatorService
     ) {
         this.userRepository = userRepository;
         this.dashboardService = dashboardService;
@@ -114,6 +117,7 @@ public class WhatsappCommandService {
         this.ticketService = ticketService;
         this.ticketRepository = ticketRepository;
         this.whatsappFaqAnswerService = whatsappFaqAnswerService;
+        this.documentValidatorService = documentValidatorService;
     }
 
     @Transactional
@@ -479,13 +483,16 @@ public class WhatsappCommandService {
                     metadata
             );
 
+            PassengerDocumentType documentType = getPassengerDocumentType(passenger);
             String firstName = extractFirstName(passenger.getFullName());
+            String documentLabel = documentValidatorService.label(documentType);
+            String maskedDocument = documentValidatorService.mask(documentType, passenger.getDocumentNumber());
 
             String reply = """
                     Olá %s, encontrei seus dados salvos:
 
                     Passageiro: %s
-                    CPF: %s
+                    %s: %s
 
                     Essa compra é para esse passageiro?
 
@@ -495,7 +502,8 @@ public class WhatsappCommandService {
                     """.formatted(
                     firstName,
                     passenger.getFullName(),
-                    maskDocument(passenger.getDocumentNumber())
+                    documentLabel,
+                    maskedDocument
             );
 
             return allowed("CONFIRM_PASSENGER", reply.trim());
@@ -1320,13 +1328,15 @@ public class WhatsappCommandService {
                 metadata
         );
 
+        PassengerDocumentType documentType = resolveDocumentTypeFromMetadata(metadata);
         String firstName = extractFirstName(fullName);
+        String documentLabel = documentValidatorService.label(documentType);
 
         String reply = """
                 Obrigado, %s.
 
-                Agora informe o CPF do passageiro.
-                """.formatted(firstName);
+                Agora informe o %s do passageiro.
+                """.formatted(firstName, documentLabel);
 
         return allowed("ASK_PASSENGER_DOCUMENT", reply.trim());
     }
@@ -1350,17 +1360,22 @@ public class WhatsappCommandService {
             );
         }
 
-        String documentNumber = cleanDocumentNumber(messageText);
+        PassengerDocumentType documentType = resolveDocumentTypeFromMetadata(session.getMetadata());
+        String documentNumber = documentValidatorService.normalize(documentType, messageText);
+        String documentLabel = documentValidatorService.label(documentType);
 
-        if (documentNumber.length() != 11) {
+        if (!documentValidatorService.isValid(documentType, documentNumber)) {
+            String example = PassengerDocumentType.BI.equals(documentType)
+                    ? "Exemplo: 006543219LA042"
+                    : "Exemplo: 52998224725";
+
             return allowed(
                     "ASK_PASSENGER_DOCUMENT",
                     """
-                    Informe um CPF válido com 11 números.
+                    %s inválido. Verifique os dados e envie novamente.
 
-                    Exemplo:
-                    12345678900
-                    """.trim()
+                    %s
+                    """.formatted(documentLabel, example).trim()
             );
         }
 
@@ -1374,6 +1389,7 @@ public class WhatsappCommandService {
 
             passenger
                     .setFullName(fullName)
+                    .setDocumentType(documentType)
                     .setDocumentNumber(documentNumber)
                     .setPhone(session.getPhoneNumber())
                     .setWhatsapp(session.getPhoneNumber());
@@ -1385,6 +1401,7 @@ public class WhatsappCommandService {
 
             passenger
                     .setFullName(fullName)
+                    .setDocumentType(documentType)
                     .setDocumentNumber(documentNumber)
                     .setPhone(session.getPhoneNumber());
 
@@ -1395,6 +1412,7 @@ public class WhatsappCommandService {
 
             passenger
                     .setFullName(fullName)
+                    .setDocumentType(documentType)
                     .setDocumentNumber(documentNumber)
                     .setPhone(session.getPhoneNumber())
                     .setWhatsapp(session.getPhoneNumber());
@@ -1439,6 +1457,10 @@ public class WhatsappCommandService {
 
             BookingResponse booking = bookingService.create(request);
 
+            PassengerDocumentType documentType = getPassengerDocumentType(passenger);
+            String documentLabel = documentValidatorService.label(documentType);
+            String maskedDocument = documentValidatorService.mask(documentType, passenger.getDocumentNumber());
+
             String metadata = appendMetadata(
                     session.getMetadata(),
                     "booking_id=" + booking.getId(),
@@ -1446,6 +1468,7 @@ public class WhatsappCommandService {
                     "seat_number=" + booking.getSeatNumber(),
                     "passenger_id=" + passenger.getId(),
                     "passenger_name=" + passenger.getFullName(),
+                    "passenger_document_type=" + documentType,
                     "passenger_document=" + passenger.getDocumentNumber()
             );
 
@@ -1462,7 +1485,7 @@ public class WhatsappCommandService {
                     Trecho: %s → %s
                     Saída: %s
                     Passageiro: %s
-                    CPF: %s
+                    %s: %s
                     Poltrona: %d
                     Valor: %s %s
                     Status: %s
@@ -1479,7 +1502,8 @@ public class WhatsappCommandService {
                             ? booking.getDepartureAt().format(DATE_TIME_FORMATTER)
                             : "-",
                     booking.getPassengerName(),
-                    maskDocument(passenger.getDocumentNumber()),
+                    documentLabel,
+                    maskedDocument,
                     booking.getSeatNumber(),
                     booking.getCurrency(),
                     booking.getAmount() != null ? booking.getAmount().toPlainString() : "0.00",
@@ -1605,6 +1629,7 @@ public class WhatsappCommandService {
 
         Passenger passenger = new Passenger()
                 .setFullName(fullName)
+                .setDocumentType(PassengerDocumentType.CPF)
                 .setDocumentNumber(documentNumber)
                 .setPhone(session.getPhoneNumber())
                 .setWhatsapp(session.getPhoneNumber());
@@ -1714,6 +1739,28 @@ public class WhatsappCommandService {
         return metadata.toString().trim();
     }
 
+    private PassengerDocumentType resolveDocumentTypeFromMetadata(String metadata) {
+        String rawType = extractMetadataValue(metadata, "document_type");
+
+        if (rawType == null || rawType.isBlank()) {
+            return PassengerDocumentType.CPF;
+        }
+
+        try {
+            return PassengerDocumentType.valueOf(rawType.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            return PassengerDocumentType.CPF;
+        }
+    }
+
+    private PassengerDocumentType getPassengerDocumentType(Passenger passenger) {
+        if (passenger == null || passenger.getDocumentType() == null) {
+            return PassengerDocumentType.CPF;
+        }
+
+        return passenger.getDocumentType();
+    }
+
     private boolean isAllowedToValidateTickets(WhatsappSessionResponse session) {
         if (session == null || session.getUserRole() == null) {
             return false;
@@ -1787,34 +1834,6 @@ public class WhatsappCommandService {
     private boolean isOptionThree(String normalizedMessage) {
         return "3".equals(normalizedMessage)
                 || normalizedMessage.startsWith("3 ");
-    }
-
-    private String cleanDocumentNumber(String value) {
-        if (value == null) {
-            return "";
-        }
-
-        String digits = value.replaceAll("\\D", "");
-
-        if (digits.length() > 30) {
-            return digits.substring(0, 30);
-        }
-
-        return digits;
-    }
-
-    private String maskDocument(String documentNumber) {
-        String digits = cleanDocumentNumber(documentNumber);
-
-        if (digits.length() == 11) {
-            return "***.***.***-" + digits.substring(9);
-        }
-
-        if (digits.length() > 4) {
-            return "***" + digits.substring(digits.length() - 4);
-        }
-
-        return "***";
     }
 
     private String extractFirstName(String fullName) {

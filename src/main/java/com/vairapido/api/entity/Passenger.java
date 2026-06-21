@@ -1,5 +1,6 @@
 package com.vairapido.api.entity;
 
+import com.vairapido.api.entity.enums.PassengerDocumentType;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;
@@ -16,6 +17,10 @@ public class Passenger {
 
     @Column(name = "full_name", nullable = false, length = 160)
     private String fullName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "document_type", nullable = false, length = 20)
+    private PassengerDocumentType documentType = PassengerDocumentType.CPF;
 
     @Column(name = "document_number", nullable = false, unique = true, length = 30)
     private String documentNumber;
@@ -41,12 +46,21 @@ public class Passenger {
     @PrePersist
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();
+
+        if (documentType == null) {
+            documentType = PassengerDocumentType.CPF;
+        }
+
         this.createdAt = now;
         this.updatedAt = now;
     }
 
     @PreUpdate
     public void preUpdate() {
+        if (documentType == null) {
+            documentType = PassengerDocumentType.CPF;
+        }
+
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -60,6 +74,15 @@ public class Passenger {
 
     public Passenger setFullName(String fullName) {
         this.fullName = fullName;
+        return this;
+    }
+
+    public PassengerDocumentType getDocumentType() {
+        return documentType;
+    }
+
+    public Passenger setDocumentType(PassengerDocumentType documentType) {
+        this.documentType = documentType;
         return this;
     }
 
