@@ -52,6 +52,12 @@ public class TicketController {
         return ticketService.findByCode(ticketCode);
     }
 
+    @GetMapping("/{ticketCode}/boarding-preview")
+    @PreAuthorize("@companyAccessService.canBoardTicketCode(#p0)")
+    public TicketBoardingResponse previewBoardingByTicketCode(@PathVariable String ticketCode) {
+        return ticketBoardingService.previewByTicketCode(ticketCode);
+    }
+
     @PatchMapping("/{id}/use")
     @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'OPERATOR', 'ROLE_OPERATOR')")
     public TicketResponse useTicket(@PathVariable UUID id) {

@@ -8,6 +8,7 @@ import com.vairapido.api.entity.TransportCompany;
 import com.vairapido.api.entity.TravelRoute;
 import com.vairapido.api.entity.Trip;
 import com.vairapido.api.entity.enums.BookingStatus;
+import com.vairapido.api.entity.enums.PassengerDocumentType;
 import com.vairapido.api.entity.enums.TicketAuditAction;
 import com.vairapido.api.entity.enums.TicketStatus;
 import com.vairapido.api.exception.NotFoundException;
@@ -20,15 +21,49 @@ import java.time.LocalDateTime;
 @Service
 public class TicketBoardingService {
 
+    private static final String DOCUMENT_CHECK_MESSAGE = """
+            Confira o documento oficial do passageiro antes de liberar o embarque.
+            O nome e o número do documento precisam ser os mesmos do bilhete.
+            """.trim();
+
     private final TicketRepository ticketRepository;
     private final TicketAuditLogService ticketAuditLogService;
+    private final DocumentValidatorService documentValidatorService;
 
     public TicketBoardingService(
             TicketRepository ticketRepository,
-            TicketAuditLogService ticketAuditLogService
+            TicketAuditLogService ticketAuditLogService,
+            DocumentValidatorService documentValidatorService
     ) {
         this.ticketRepository = ticketRepository;
         this.ticketAuditLogService = ticketAuditLogService;
+        this.documentValidatorService = documentValidatorService;
+    }
+
+    @Transactional(readOnly = true)
+    public TicketBoardingResponse previewByTicketCode(String ticketCode) {
+        Ticket ticket = ticketRepository.findByTicketCode(ticketCode)
+                .orElseThrow(() -> new NotFoundException("Bilhete não encontrado."));
+
+        try {
+            validateTicketForBoarding(ticket);
+
+            return toBoardingResponse(
+                    ticket,
+                    false,
+                    true,
+                    "Bilhete liberado para embarque.",
+                    null
+            );
+        } catch (RuntimeException exception) {
+            return toBoardingResponse(
+                    ticket,
+                    false,
+                    false,
+                    exception.getMessage(),
+                    null
+            );
+        }
     }
 
     @Transactional
@@ -61,6 +96,7 @@ public class TicketBoardingService {
             TicketBoardingResponse response = toBoardingResponse(
                     savedTicket,
                     true,
+                    false,
                     "Embarque confirmado com sucesso.",
                     now
             );
@@ -151,6 +187,7 @@ public class TicketBoardingService {
     private TicketBoardingResponse toBoardingResponse(
             Ticket ticket,
             boolean boarded,
+            boolean canBoard,
             String message,
             LocalDateTime boardedAt
     ) {
@@ -160,9 +197,33 @@ public class TicketBoardingService {
         TransportCompany company = trip.getTransportCompany();
         TravelRoute route = trip.getRoute();
 
-        return new TicketBoardingResponse()
+        PassengerDocumentType documentType = resolvePassengerDocumentType(passenger);
+        String documentNumber = documentValidatorService.normalize(documentType, passenger.getDocumentNumber());
+        String documentMasked = documentValidatorService.mask(documentType, passenger.getDocumentNumber());
+        String documentLabel = documentValidatorService.label(documentType);
+
+        String companyDisplayName = resolveCompanyDisplayName(company);
+        String originLabel = formatLocationLabel(
+                route.getOriginCity(),
+                route.getOriginState(),
+                route.getOriginTerminal()
+        );
+        String destinationLabel = formatLocationLabel(
+                route.getDestinationCity(),
+                route.getDestinationState(),
+                route.getDestinationTerminal()
+        );
+
+        String routeLabel = originLabel + " → " + destinationLabel;
+        String seatLabel = booking.getSeatNumber() != null
+                ? "Poltrona " + booking.getSeatNumber()
+                : "Poltrona não informada";
+
+        TicketBoardingResponse response = new TicketBoardingResponse()
                 .setBoarded(boarded)
+                .setCanBoard(canBoard)
                 .setMessage(message)
+                .setDocumentCheckMessage(DOCUMENT_CHECK_MESSAGE)
 
                 .setTicketCode(ticket.getTicketCode())
                 .setTicketStatus(ticket.getStatus())
@@ -171,26 +232,142 @@ public class TicketBoardingService {
                 .setBookingStatus(booking.getStatus())
 
                 .setPassengerName(passenger.getFullName())
-                .setPassengerDocument(passenger.getDocumentNumber())
+                .setPassengerDocumentType(documentType)
+                .setPassengerDocumentLabel(documentLabel)
+                .setPassengerDocument(documentNumber)
+                .setPassengerDocumentMasked(documentMasked)
+                .setPassengerWhatsapp(passenger.getWhatsapp())
 
                 .setCompanyName(company.getName())
                 .setCompanyTradeName(company.getTradeName())
+                .setCompanyDisplayName(companyDisplayName)
 
                 .setOriginCity(route.getOriginCity())
                 .setOriginState(route.getOriginState())
                 .setOriginTerminal(route.getOriginTerminal())
+                .setOriginLabel(originLabel)
 
                 .setDestinationCity(route.getDestinationCity())
                 .setDestinationState(route.getDestinationState())
                 .setDestinationTerminal(route.getDestinationTerminal())
+                .setDestinationLabel(destinationLabel)
+
+                .setRouteLabel(routeLabel)
 
                 .setDepartureAt(trip.getDepartureAt())
                 .setArrivalAt(trip.getArrivalAt())
 
                 .setSeatNumber(booking.getSeatNumber())
+                .setSeatLabel(seatLabel)
 
                 .setIssuedAt(ticket.getIssuedAt())
                 .setUsedAt(ticket.getUsedAt())
                 .setBoardedAt(boardedAt);
+
+        applyBoardingStatus(response, ticket, boarded, canBoard, message);
+
+        return response;
+    }
+
+    private void applyBoardingStatus(
+            TicketBoardingResponse response,
+            Ticket ticket,
+            boolean boarded,
+            boolean canBoard,
+            String message
+    ) {
+        if (boarded) {
+            response
+                    .setBoardingStatusIcon("✅")
+                    .setBoardingStatusTitle("Embarque confirmado")
+                    .setBoardingStatusDescription("O passageiro foi marcado como embarcado.")
+                    .setRequiredAction("Nenhuma ação pendente. Este bilhete já foi utilizado.");
+
+            return;
+        }
+
+        if (canBoard) {
+            response
+                    .setBoardingStatusIcon("🟢")
+                    .setBoardingStatusTitle("Liberado para embarque")
+                    .setBoardingStatusDescription("Bilhete válido. Confira o documento oficial antes de confirmar o embarque.")
+                    .setRequiredAction("Conferir documento oficial e clicar em Marcar embarque.");
+
+            return;
+        }
+
+        if (ticket.getStatus() == TicketStatus.USED) {
+            response
+                    .setBoardingStatusIcon("⚠️")
+                    .setBoardingStatusTitle("Bilhete já utilizado")
+                    .setBoardingStatusDescription(message)
+                    .setRequiredAction("Não permitir novo embarque com este bilhete.");
+
+            return;
+        }
+
+        response
+                .setBoardingStatusIcon("🔴")
+                .setBoardingStatusTitle("Embarque bloqueado")
+                .setBoardingStatusDescription(message)
+                .setRequiredAction("Não permitir embarque. Oriente o passageiro a procurar atendimento.");
+    }
+
+    private PassengerDocumentType resolvePassengerDocumentType(Passenger passenger) {
+        if (passenger != null && passenger.getDocumentType() != null) {
+            return passenger.getDocumentType();
+        }
+
+        return documentValidatorService.defaultDocumentType();
+    }
+
+    private String resolveCompanyDisplayName(TransportCompany company) {
+        if (company == null) {
+            return "-";
+        }
+
+        if (company.getTradeName() != null && !company.getTradeName().isBlank()) {
+            return company.getTradeName();
+        }
+
+        if (company.getName() != null && !company.getName().isBlank()) {
+            return company.getName();
+        }
+
+        return "-";
+    }
+
+    private String formatLocationLabel(
+            String city,
+            String state,
+            String terminal
+    ) {
+        StringBuilder builder = new StringBuilder();
+
+        if (city != null && !city.isBlank()) {
+            builder.append(city.trim());
+        }
+
+        if (state != null && !state.isBlank()) {
+            if (!builder.isEmpty()) {
+                builder.append(" - ");
+            }
+
+            builder.append(state.trim());
+        }
+
+        if (terminal != null && !terminal.isBlank()) {
+            if (!builder.isEmpty()) {
+                builder.append(" | ");
+            }
+
+            builder.append(terminal.trim());
+        }
+
+        if (builder.isEmpty()) {
+            return "-";
+        }
+
+        return builder.toString();
     }
 }
