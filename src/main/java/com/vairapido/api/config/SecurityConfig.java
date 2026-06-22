@@ -22,105 +22,111 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final UserDetailsService userDetailsService;
+        private final JwtAuthenticationFilter jwtAuthenticationFilter;
+        private final UserDetailsService userDetailsService;
 
-    public SecurityConfig(
-            JwtAuthenticationFilter jwtAuthenticationFilter,
-            UserDetailsService userDetailsService
-    ) {
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-        this.userDetailsService = userDetailsService;
-    }
+        public SecurityConfig(
+                        JwtAuthenticationFilter jwtAuthenticationFilter,
+                        UserDetailsService userDetailsService) {
+                this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+                this.userDetailsService = userDetailsService;
+        }
 
-    @Bean
-    public FilterRegistrationBean<JwtAuthenticationFilter> jwtAuthenticationFilterRegistration(
-            JwtAuthenticationFilter filter
-    ) {
-        FilterRegistrationBean<JwtAuthenticationFilter> registration =
-                new FilterRegistrationBean<>(filter);
+        @Bean
+        public FilterRegistrationBean<JwtAuthenticationFilter> jwtAuthenticationFilterRegistration(
+                        JwtAuthenticationFilter filter) {
+                FilterRegistrationBean<JwtAuthenticationFilter> registration = new FilterRegistrationBean<>(filter);
 
-        registration.setEnabled(false);
+                registration.setEnabled(false);
 
-        return registration;
-    }
+                return registration;
+        }
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+        @Bean
+        public PasswordEncoder passwordEncoder() {
+                return new BCryptPasswordEncoder();
+        }
 
-    @Bean
-    public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        @Bean
+        public AuthenticationProvider authenticationProvider() {
+                DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
 
-        provider.setUserDetailsService(userDetailsService);
-        provider.setPasswordEncoder(passwordEncoder());
+                provider.setUserDetailsService(userDetailsService);
+                provider.setPasswordEncoder(passwordEncoder());
 
-        return provider;
-    }
+                return provider;
+        }
 
-    @Bean
-    @Order(1)
-    public SecurityFilterChain publicSecurityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .securityMatcher("/api/v1/public/**")
-                .csrf(AbstractHttpConfigurer::disable)
-                .cors(AbstractHttpConfigurer::disable)
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
-                .authorizeHttpRequests(auth -> auth
-                        .anyRequest().permitAll()
-                );
+        @Bean
+        @Order(1)
+        public SecurityFilterChain publicSecurityFilterChain(HttpSecurity http) throws Exception {
+                http
+                                .securityMatcher("/api/v1/public/**")
+                                .csrf(AbstractHttpConfigurer::disable)
+                                .cors(AbstractHttpConfigurer::disable)
+                                .sessionManagement(session -> session
+                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                                .authorizeHttpRequests(auth -> auth
+                                                .anyRequest().permitAll());
 
-        return http.build();
-    }
+                return http.build();
+        }
 
-    @Bean
-    @Order(2)
-    public SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(AbstractHttpConfigurer::disable)
-                .cors(AbstractHttpConfigurer::disable)
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
-                .authenticationProvider(authenticationProvider())
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+        @Bean
+        @Order(2)
+        public SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
+                http
+                                .csrf(AbstractHttpConfigurer::disable)
+                                .cors(AbstractHttpConfigurer::disable)
+                                .sessionManagement(session -> session
+                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                                .authenticationProvider(authenticationProvider())
+                                .authorizeHttpRequests(auth -> auth
+                                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        .requestMatchers(HttpMethod.GET, "/").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/health").permitAll()
-                        .requestMatchers("/error").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/v1/health").permitAll()
+                                                .requestMatchers("/error").permitAll()
+                                                .requestMatchers("/actuator/**").permitAll()
 
-                        .requestMatchers("/api/v1/public/**").permitAll()
+                                                .requestMatchers("/api/v1/public/**").permitAll()
 
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
 
-                        .requestMatchers("/api/v1/admin/**")
-                        .hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+                                                .requestMatchers("/api/v1/admin/**")
+                                                .hasAnyAuthority("ADMIN", "ROLE_ADMIN")
 
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/tickets/*/board")
-                        .hasAnyAuthority("ADMIN", "ROLE_ADMIN", "OPERATOR", "ROLE_OPERATOR")
+                                                .requestMatchers(HttpMethod.GET, "/api/v1/tickets/*/boarding-preview")
+                                                .hasAnyAuthority(
+                                                                "ADMIN",
+                                                                "ROLE_ADMIN",
+                                                                "COMPANY_ADMIN",
+                                                                "ROLE_COMPANY_ADMIN",
+                                                                "OPERATOR",
+                                                                "ROLE_OPERATOR")
 
-                        .requestMatchers("/api/v1/reports/**")
-                        .hasAnyAuthority(
-                                "ADMIN",
-                                "ROLE_ADMIN",
-                                "COMPANY_ADMIN",
-                                "ROLE_COMPANY_ADMIN"
-                        )
+                                                .requestMatchers(HttpMethod.PATCH, "/api/v1/tickets/*/board")
+                                                .hasAnyAuthority(
+                                                                "ADMIN",
+                                                                "ROLE_ADMIN",
+                                                                "COMPANY_ADMIN",
+                                                                "ROLE_COMPANY_ADMIN",
+                                                                "OPERATOR",
+                                                                "ROLE_OPERATOR")
 
-                        .anyRequest().authenticated()
-                )
-                .addFilterBefore(
-                        jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class
-                );
+                                                .requestMatchers("/api/v1/reports/**")
+                                                .hasAnyAuthority(
+                                                                "ADMIN",
+                                                                "ROLE_ADMIN",
+                                                                "COMPANY_ADMIN",
+                                                                "ROLE_COMPANY_ADMIN")
 
-        return http.build();
-    }
+                                                .anyRequest().authenticated())
+                                .addFilterBefore(
+                                                jwtAuthenticationFilter,
+                                                UsernamePasswordAuthenticationFilter.class);
+
+                return http.build();
+        }
 }
