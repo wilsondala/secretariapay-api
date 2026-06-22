@@ -17,116 +17,174 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
 
-        private final JwtAuthenticationFilter jwtAuthenticationFilter;
-        private final UserDetailsService userDetailsService;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final UserDetailsService userDetailsService;
 
-        public SecurityConfig(
-                        JwtAuthenticationFilter jwtAuthenticationFilter,
-                        UserDetailsService userDetailsService) {
-                this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-                this.userDetailsService = userDetailsService;
-        }
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            UserDetailsService userDetailsService
+    ) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.userDetailsService = userDetailsService;
+    }
 
-        @Bean
-        public FilterRegistrationBean<JwtAuthenticationFilter> jwtAuthenticationFilterRegistration(
-                        JwtAuthenticationFilter filter) {
-                FilterRegistrationBean<JwtAuthenticationFilter> registration = new FilterRegistrationBean<>(filter);
+    @Bean
+    public FilterRegistrationBean<JwtAuthenticationFilter> jwtAuthenticationFilterRegistration(
+            JwtAuthenticationFilter filter
+    ) {
+        FilterRegistrationBean<JwtAuthenticationFilter> registration =
+                new FilterRegistrationBean<>(filter);
 
-                registration.setEnabled(false);
+        registration.setEnabled(false);
 
-                return registration;
-        }
+        return registration;
+    }
 
-        @Bean
-        public PasswordEncoder passwordEncoder() {
-                return new BCryptPasswordEncoder();
-        }
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
-        @Bean
-        public AuthenticationProvider authenticationProvider() {
-                DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+    @Bean
+    public AuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
 
-                provider.setUserDetailsService(userDetailsService);
-                provider.setPasswordEncoder(passwordEncoder());
+        provider.setUserDetailsService(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder());
 
-                return provider;
-        }
+        return provider;
+    }
 
-        @Bean
-        @Order(1)
-        public SecurityFilterChain publicSecurityFilterChain(HttpSecurity http) throws Exception {
-                http
-                                .securityMatcher("/api/v1/public/**")
-                                .csrf(AbstractHttpConfigurer::disable)
-                                .cors(AbstractHttpConfigurer::disable)
-                                .sessionManagement(session -> session
-                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                                .authorizeHttpRequests(auth -> auth
-                                                .anyRequest().permitAll());
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
 
-                return http.build();
-        }
+        configuration.setAllowedOriginPatterns(List.of(
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "https://*.vercel.app",
+                "https://vairapido.triacompany.com",
+                "https://www.vairapido.triacompany.com"
+        ));
 
-        @Bean
-        @Order(2)
-        public SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
-                http
-                                .csrf(AbstractHttpConfigurer::disable)
-                                .cors(AbstractHttpConfigurer::disable)
-                                .sessionManagement(session -> session
-                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                                .authenticationProvider(authenticationProvider())
-                                .authorizeHttpRequests(auth -> auth
-                                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+        configuration.setAllowedMethods(List.of(
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "OPTIONS"
+        ));
 
-                                                .requestMatchers(HttpMethod.GET, "/").permitAll()
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/health").permitAll()
-                                                .requestMatchers("/error").permitAll()
-                                                .requestMatchers("/actuator/**").permitAll()
+        configuration.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "Origin",
+                "X-Requested-With"
+        ));
 
-                                                .requestMatchers("/api/v1/public/**").permitAll()
+        configuration.setExposedHeaders(List.of(
+                "Authorization"
+        ));
 
-                                                .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
-                                                .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
 
-                                                .requestMatchers("/api/v1/admin/**")
-                                                .hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
 
-                                                .requestMatchers(HttpMethod.GET, "/api/v1/tickets/*/boarding-preview")
-                                                .hasAnyAuthority(
-                                                                "ADMIN",
-                                                                "ROLE_ADMIN",
-                                                                "COMPANY_ADMIN",
-                                                                "ROLE_COMPANY_ADMIN",
-                                                                "OPERATOR",
-                                                                "ROLE_OPERATOR")
+        return source;
+    }
 
-                                                .requestMatchers(HttpMethod.PATCH, "/api/v1/tickets/*/board")
-                                                .hasAnyAuthority(
-                                                                "ADMIN",
-                                                                "ROLE_ADMIN",
-                                                                "COMPANY_ADMIN",
-                                                                "ROLE_COMPANY_ADMIN",
-                                                                "OPERATOR",
-                                                                "ROLE_OPERATOR")
+    @Bean
+    @Order(1)
+    public SecurityFilterChain publicSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/api/v1/public/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .authorizeHttpRequests(auth -> auth
+                        .anyRequest().permitAll()
+                );
 
-                                                .requestMatchers("/api/v1/reports/**")
-                                                .hasAnyAuthority(
-                                                                "ADMIN",
-                                                                "ROLE_ADMIN",
-                                                                "COMPANY_ADMIN",
-                                                                "ROLE_COMPANY_ADMIN")
+        return http.build();
+    }
 
-                                                .anyRequest().authenticated())
-                                .addFilterBefore(
-                                                jwtAuthenticationFilter,
-                                                UsernamePasswordAuthenticationFilter.class);
+    @Bean
+    @Order(2)
+    public SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .authenticationProvider(authenticationProvider())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                return http.build();
-        }
+                        .requestMatchers(HttpMethod.GET, "/").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/health").permitAll()
+                        .requestMatchers("/error").permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
+
+                        .requestMatchers("/api/v1/public/**").permitAll()
+
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
+
+                        .requestMatchers("/api/v1/admin/**")
+                        .hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+
+                        .requestMatchers(HttpMethod.GET, "/api/v1/tickets/*/boarding-preview")
+                        .hasAnyAuthority(
+                                "ADMIN",
+                                "ROLE_ADMIN",
+                                "COMPANY_ADMIN",
+                                "ROLE_COMPANY_ADMIN",
+                                "OPERATOR",
+                                "ROLE_OPERATOR"
+                        )
+
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/tickets/*/board")
+                        .hasAnyAuthority(
+                                "ADMIN",
+                                "ROLE_ADMIN",
+                                "COMPANY_ADMIN",
+                                "ROLE_COMPANY_ADMIN",
+                                "OPERATOR",
+                                "ROLE_OPERATOR"
+                        )
+
+                        .requestMatchers("/api/v1/reports/**")
+                        .hasAnyAuthority(
+                                "ADMIN",
+                                "ROLE_ADMIN",
+                                "COMPANY_ADMIN",
+                                "ROLE_COMPANY_ADMIN"
+                        )
+
+                        .anyRequest().authenticated()
+                )
+                .addFilterBefore(
+                        jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                );
+
+        return http.build();
+    }
 }
