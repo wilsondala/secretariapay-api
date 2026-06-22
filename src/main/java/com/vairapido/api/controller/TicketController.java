@@ -53,7 +53,7 @@ public class TicketController {
     }
 
     @GetMapping("/{ticketCode}/boarding-preview")
-    @PreAuthorize("@companyAccessService.canBoardTicketCode(#p0)")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN') or @companyAccessService.canBoardTicketCode(#p0)")
     public TicketBoardingResponse previewBoardingByTicketCode(@PathVariable String ticketCode) {
         return ticketBoardingService.previewByTicketCode(ticketCode);
     }
@@ -71,7 +71,7 @@ public class TicketController {
     }
 
     @PatchMapping("/{ticketCode}/board")
-    @PreAuthorize("@companyAccessService.canBoardTicketCode(#p0)")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN') or @companyAccessService.canBoardTicketCode(#p0)")
     public TicketBoardingResponse boardByTicketCode(
             @PathVariable String ticketCode,
             HttpServletRequest request
