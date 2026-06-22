@@ -28,6 +28,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.text.NumberFormat;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.UUID;
@@ -77,15 +78,14 @@ public class TicketPdfService {
 
             try (PDPageContentStream content = new PDPageContentStream(document, page)) {
                 drawBackground(content);
-                drawHeader(content);
-                drawStatusBox(content, ticket);
+                drawHeader(content, ticket);
                 drawMainTicketCard(content);
                 drawSuccessBanner(content);
                 drawTicketMeta(content, ticket, booking);
                 drawRouteSection(content, route, trip, booking);
                 drawPassengerCard(content, passenger);
                 drawQrCard(content, qrImage);
-                drawSummaryStrip(content, booking, trip, company, route);
+                drawSummaryStrip(content, booking, company, route);
                 drawBoardingWarning(content);
                 drawSecurityFooter(content, ticket);
                 drawBottomBrand(content);
@@ -120,7 +120,7 @@ public class TicketPdfService {
         content.fill();
     }
 
-    private void drawHeader(PDPageContentStream content) throws IOException {
+    private void drawHeader(PDPageContentStream content, Ticket ticket) throws IOException {
         content.setNonStrokingColor(13, 27, 42);
         content.addRect(0, 735, 595, 107);
         content.fill();
@@ -130,58 +130,56 @@ public class TicketPdfService {
         content.fill();
 
         content.setNonStrokingColor(255, 193, 7);
-        content.addRect(45, 775, 42, 42);
+        content.addRect(45, 777, 38, 38);
         content.fill();
 
         content.setNonStrokingColor(13, 27, 42);
-        content.addRect(55, 787, 22, 18);
+        content.addRect(56, 788, 16, 16);
         content.fill();
 
         content.beginText();
         content.setNonStrokingColor(255, 255, 255);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 28);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 26);
         content.newLineAtOffset(100, 795);
         content.showText("Vai");
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(255, 193, 7);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 28);
-        content.newLineAtOffset(145, 795);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 26);
+        content.newLineAtOffset(143, 795);
         content.showText("Rapido");
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(226, 232, 240);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 12);
-        content.newLineAtOffset(102, 775);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 11);
+        content.newLineAtOffset(102, 777);
         content.showText("Bilhete digital de passagem");
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(255, 255, 255);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 13);
-        content.newLineAtOffset(410, 805);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 12);
+        content.newLineAtOffset(405, 805);
         content.showText("BILHETE DE PASSAGEM");
         content.endText();
-    }
 
-    private void drawStatusBox(PDPageContentStream content, Ticket ticket) throws IOException {
         content.setNonStrokingColor(34, 197, 94);
-        content.addRect(410, 760, 120, 38);
+        content.addRect(410, 765, 120, 34);
         content.fill();
 
         content.beginText();
         content.setNonStrokingColor(255, 255, 255);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 20);
-        content.newLineAtOffset(435, 773);
-        content.showText(ticket.getStatus().name());
+        content.setFont(PDType1Font.HELVETICA_BOLD, 17);
+        content.newLineAtOffset(438, 776);
+        content.showText(resolveTicketStatusLabel(ticket));
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(226, 232, 240);
-        content.setFont(PDType1Font.HELVETICA, 9);
-        content.newLineAtOffset(405, 745);
+        content.setFont(PDType1Font.HELVETICA, 8);
+        content.newLineAtOffset(408, 748);
         content.showText("Apresente este bilhete no embarque");
         content.endText();
     }
@@ -207,14 +205,14 @@ public class TicketPdfService {
 
         content.beginText();
         content.setNonStrokingColor(22, 163, 74);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 16);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 15);
         content.newLineAtOffset(65, 678);
         content.showText("Bilhete confirmado");
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(22, 163, 74);
-        content.setFont(PDType1Font.HELVETICA, 10);
+        content.setFont(PDType1Font.HELVETICA, 9);
         content.newLineAtOffset(65, 664);
         content.showText("Apresente este bilhete no momento do embarque.");
         content.endText();
@@ -227,10 +225,10 @@ public class TicketPdfService {
     ) throws IOException {
         float y = 615;
 
-        drawMetaItem(content, "CODIGO DO BILHETE", ticket.getTicketCode(), 45, y, 160);
-        drawMetaItem(content, "CODIGO DA RESERVA", booking.getBookingCode(), 210, y, 130);
-        drawMetaItem(content, "DATA DA EMISSAO", formatDateTime(ticket.getIssuedAt()), 355, y, 110);
-        drawMetaItem(content, "TIPO", "Convencional", 470, y, 70);
+        drawMetaItem(content, "CODIGO DO BILHETE", ticket.getTicketCode(), 45, y, 150);
+        drawMetaItem(content, "CODIGO DA RESERVA", booking.getBookingCode(), 205, y, 120);
+        drawMetaItem(content, "DATA DA EMISSAO", formatDateTime(ticket.getIssuedAt()), 340, y, 105);
+        drawMetaItem(content, "TIPO", "Convencional", 465, y, 75);
     }
 
     private void drawRouteSection(
@@ -240,9 +238,9 @@ public class TicketPdfService {
             Booking booking
     ) throws IOException {
         float x = 45;
-        float y = 495;
+        float y = 475;
         float width = 505;
-        float height = 105;
+        float height = 120;
 
         content.setNonStrokingColor(248, 250, 252);
         content.addRect(x, y, width, height);
@@ -255,64 +253,64 @@ public class TicketPdfService {
         content.beginText();
         content.setNonStrokingColor(30, 64, 175);
         content.setFont(PDType1Font.HELVETICA_BOLD, 8);
-        content.newLineAtOffset(65, 570);
+        content.newLineAtOffset(65, 565);
         content.showText("ORIGEM");
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(15, 23, 42);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 24);
-        content.newLineAtOffset(65, 545);
-        content.showText(limitText(formatCityState(route.getOriginCity(), route.getOriginState()), 22));
+        content.setFont(PDType1Font.HELVETICA_BOLD, 20);
+        content.newLineAtOffset(65, 543);
+        content.showText(limitText(formatCityState(route.getOriginCity(), route.getOriginState()), 20));
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(71, 85, 105);
-        content.setFont(PDType1Font.HELVETICA, 10);
-        content.newLineAtOffset(65, 528);
-        content.showText(limitText(safeText(route.getOriginTerminal()), 30));
+        content.setFont(PDType1Font.HELVETICA, 8);
+        content.newLineAtOffset(65, 526);
+        content.showText(limitText(safeText(route.getOriginTerminal()), 32));
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(30, 64, 175);
         content.setFont(PDType1Font.HELVETICA_BOLD, 8);
-        content.newLineAtOffset(340, 570);
+        content.newLineAtOffset(335, 565);
         content.showText("DESTINO");
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(15, 23, 42);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 24);
-        content.newLineAtOffset(340, 545);
-        content.showText(limitText(formatCityState(route.getDestinationCity(), route.getDestinationState()), 22));
+        content.setFont(PDType1Font.HELVETICA_BOLD, 20);
+        content.newLineAtOffset(335, 543);
+        content.showText(limitText(formatCityState(route.getDestinationCity(), route.getDestinationState()), 20));
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(71, 85, 105);
-        content.setFont(PDType1Font.HELVETICA, 10);
-        content.newLineAtOffset(340, 528);
-        content.showText(limitText(safeText(route.getDestinationTerminal()), 30));
+        content.setFont(PDType1Font.HELVETICA, 8);
+        content.newLineAtOffset(335, 526);
+        content.showText(limitText(safeText(route.getDestinationTerminal()), 32));
         content.endText();
 
         content.setNonStrokingColor(13, 27, 42);
-        content.addRect(279, 538, 34, 34);
+        content.addRect(280, 535, 30, 30);
         content.fill();
 
         content.beginText();
         content.setNonStrokingColor(255, 193, 7);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 18);
-        content.newLineAtOffset(290, 548);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 16);
+        content.newLineAtOffset(291, 545);
         content.showText(">");
         content.endText();
 
         content.setNonStrokingColor(239, 246, 255);
-        content.addRect(x, y, width, 35);
+        content.addRect(x, y, width, 38);
         content.fill();
 
-        drawRouteInfo(content, "DATA DA VIAGEM", formatDate(trip), 65, 510);
-        drawRouteInfo(content, "HORARIO", formatTime(trip), 200, 510);
-        drawRouteInfo(content, "POLTRONA", String.valueOf(booking.getSeatNumber()), 330, 510);
-        drawRouteInfo(content, "CHEGADA", formatDateTime(trip.getArrivalAt()), 430, 510);
+        drawRouteInfo(content, "DATA DA VIAGEM", formatDate(trip), 65, 490);
+        drawRouteInfo(content, "HORARIO", formatTime(trip), 190, 490);
+        drawRouteInfo(content, "POLTRONA", String.valueOf(booking.getSeatNumber()), 305, 490);
+        drawRouteInfo(content, "CHEGADA", formatDateTime(trip.getArrivalAt()), 415, 490);
     }
 
     private void drawPassengerCard(
@@ -322,7 +320,7 @@ public class TicketPdfService {
         float x = 45;
         float y = 270;
         float width = 235;
-        float height = 205;
+        float height = 190;
 
         content.setNonStrokingColor(255, 255, 255);
         content.addRect(x, y, width, height);
@@ -333,13 +331,13 @@ public class TicketPdfService {
         content.stroke();
 
         content.setNonStrokingColor(13, 27, 42);
-        content.addRect(x, y + height - 35, width, 35);
+        content.addRect(x, y + height - 32, width, 32);
         content.fill();
 
         content.beginText();
         content.setNonStrokingColor(255, 255, 255);
         content.setFont(PDType1Font.HELVETICA_BOLD, 11);
-        content.newLineAtOffset(x + 18, y + height - 22);
+        content.newLineAtOffset(x + 18, y + height - 21);
         content.showText("PASSAGEIRO");
         content.endText();
 
@@ -347,10 +345,10 @@ public class TicketPdfService {
         String documentLabel = documentValidatorService.label(documentType);
         String documentNumber = documentValidatorService.normalize(documentType, passenger.getDocumentNumber());
 
-        drawPassengerLine(content, "NOME COMPLETO", passenger.getFullName(), x + 18, y + 145);
-        drawPassengerLine(content, documentLabel, documentNumber, x + 18, y + 100);
+        drawPassengerLine(content, "NOME COMPLETO", passenger.getFullName(), x + 18, y + 135);
+        drawPassengerLine(content, documentLabel, documentNumber, x + 18, y + 95);
         drawPassengerLine(content, "TELEFONE / WHATSAPP", passenger.getWhatsapp(), x + 18, y + 55);
-        drawPassengerLine(content, "TIPO DE PASSAGEIRO", "Adulto", x + 18, y + 15);
+        drawPassengerLine(content, "TIPO DE PASSAGEIRO", "Adulto", x + 18, y + 18);
     }
 
     private void drawQrCard(
@@ -360,7 +358,7 @@ public class TicketPdfService {
         float x = 300;
         float y = 270;
         float width = 250;
-        float height = 205;
+        float height = 190;
 
         content.setNonStrokingColor(255, 255, 255);
         content.addRect(x, y, width, height);
@@ -371,29 +369,29 @@ public class TicketPdfService {
         content.stroke();
 
         content.setNonStrokingColor(13, 27, 42);
-        content.addRect(x, y + height - 35, width, 35);
+        content.addRect(x, y + height - 32, width, 32);
         content.fill();
 
         content.beginText();
         content.setNonStrokingColor(255, 255, 255);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 11);
-        content.newLineAtOffset(x + 18, y + height - 22);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 10);
+        content.newLineAtOffset(x + 18, y + height - 21);
         content.showText("QR CODE DE VALIDACAO");
         content.endText();
 
-        content.drawImage(qrImage, x + 57, y + 55, 135, 135);
+        content.drawImage(qrImage, x + 72, y + 60, 110, 110);
 
         content.beginText();
         content.setNonStrokingColor(15, 23, 42);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 10);
-        content.newLineAtOffset(x + 68, y + 35);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 9);
+        content.newLineAtOffset(x + 78, y + 40);
         content.showText("QR Code de validacao");
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(71, 85, 105);
-        content.setFont(PDType1Font.HELVETICA, 8);
-        content.newLineAtOffset(x + 50, y + 20);
+        content.setFont(PDType1Font.HELVETICA, 7);
+        content.newLineAtOffset(x + 60, y + 25);
         content.showText("Escaneie para consultar este bilhete.");
         content.endText();
     }
@@ -401,7 +399,6 @@ public class TicketPdfService {
     private void drawSummaryStrip(
             PDPageContentStream content,
             Booking booking,
-            Trip trip,
             TransportCompany company,
             TravelRoute route
     ) throws IOException {
@@ -420,8 +417,8 @@ public class TicketPdfService {
 
         drawSmallSummary(content, "EMPRESA", getCompanyName(company), x + 15, y + 14);
         drawSmallSummary(content, "TRECHO", formatCityState(route.getOriginCity(), route.getOriginState()) + " / " + formatCityState(route.getDestinationCity(), route.getDestinationState()), x + 125, y + 14);
-        drawSmallSummary(content, "VALOR PAGO", formatMoney(booking), x + 280, y + 14);
-        drawSmallSummary(content, "STATUS", booking.getStatus().name(), x + 410, y + 14);
+        drawSmallSummary(content, "VALOR PAGO", formatMoney(booking), x + 290, y + 14);
+        drawSmallSummary(content, "STATUS", resolveBookingStatusLabel(booking), x + 415, y + 14);
     }
 
     private void drawBoardingWarning(PDPageContentStream content) throws IOException {
@@ -496,9 +493,9 @@ public class TicketPdfService {
 
         content.beginText();
         content.setNonStrokingColor(255, 193, 7);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 8);
-        content.newLineAtOffset(x + 280, y + 18);
-        content.showText("Validacao: " + limitText(ticket.getValidationUrl(), 55));
+        content.setFont(PDType1Font.HELVETICA_BOLD, 7);
+        content.newLineAtOffset(x + 265, y + 18);
+        content.showText("Validacao: " + limitText(ticket.getValidationUrl(), 48));
         content.endText();
     }
 
@@ -528,17 +525,35 @@ public class TicketPdfService {
     ) throws IOException {
         content.beginText();
         content.setNonStrokingColor(71, 85, 105);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 7);
-        content.newLineAtOffset(x, y + 17);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 6);
+        content.newLineAtOffset(x, y + 18);
         content.showText(limitText(safeText(label), maxLength));
         content.endText();
 
+        String safeValue = safeText(value);
+        String firstLine = safeValue;
+        String secondLine = "";
+
+        if (safeValue.length() > 21) {
+            firstLine = safeValue.substring(0, Math.min(21, safeValue.length()));
+            secondLine = safeValue.substring(Math.min(21, safeValue.length()));
+        }
+
         content.beginText();
         content.setNonStrokingColor(15, 23, 42);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 10);
-        content.newLineAtOffset(x, y + 2);
-        content.showText(limitText(safeText(value), maxLength));
+        content.setFont(PDType1Font.HELVETICA_BOLD, 8);
+        content.newLineAtOffset(x, y + 5);
+        content.showText(limitText(firstLine, maxLength));
         content.endText();
+
+        if (!secondLine.isBlank()) {
+            content.beginText();
+            content.setNonStrokingColor(15, 23, 42);
+            content.setFont(PDType1Font.HELVETICA, 7);
+            content.newLineAtOffset(x, y - 7);
+            content.showText(limitText(secondLine, maxLength));
+            content.endText();
+        }
     }
 
     private void drawRouteInfo(
@@ -550,16 +565,16 @@ public class TicketPdfService {
     ) throws IOException {
         content.beginText();
         content.setNonStrokingColor(71, 85, 105);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 7);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 6);
         content.newLineAtOffset(x, y + 14);
         content.showText(label);
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(15, 23, 42);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 12);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 10);
         content.newLineAtOffset(x, y);
-        content.showText(limitText(safeText(value), 22));
+        content.showText(limitText(safeText(value), 20));
         content.endText();
     }
 
@@ -572,14 +587,14 @@ public class TicketPdfService {
     ) throws IOException {
         content.beginText();
         content.setNonStrokingColor(30, 64, 175);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 7);
-        content.newLineAtOffset(x, y + 16);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 6);
+        content.newLineAtOffset(x, y + 14);
         content.showText(limitText(safeText(label), 26));
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(15, 23, 42);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 10);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 9);
         content.newLineAtOffset(x, y);
         content.showText(limitText(safeText(value), 32));
         content.endText();
@@ -606,9 +621,9 @@ public class TicketPdfService {
 
         content.beginText();
         content.setNonStrokingColor(15, 23, 42);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 8);
+        content.setFont(PDType1Font.HELVETICA_BOLD, 7);
         content.newLineAtOffset(x, y);
-        content.showText(limitText(safeText(value), 28));
+        content.showText(limitText(safeText(value), 26));
         content.endText();
     }
 
@@ -630,22 +645,6 @@ public class TicketPdfService {
         }
 
         return safeText(company.getName());
-    }
-
-    private String formatLocation(String city, String state, String terminal) {
-        StringBuilder builder = new StringBuilder();
-
-        builder.append(safeText(city));
-
-        if (state != null && !state.isBlank()) {
-            builder.append(" - ").append(state.trim());
-        }
-
-        if (terminal != null && !terminal.isBlank()) {
-            builder.append(" | ").append(terminal.trim());
-        }
-
-        return builder.toString();
     }
 
     private String formatCityState(String city, String state) {
@@ -672,7 +671,7 @@ public class TicketPdfService {
         return trip.getDepartureAt().format(TIME_FORMATTER);
     }
 
-    private String formatDateTime(java.time.LocalDateTime dateTime) {
+    private String formatDateTime(LocalDateTime dateTime) {
         if (dateTime == null) {
             return "-";
         }
@@ -692,6 +691,32 @@ public class TicketPdfService {
         return safeText(booking.getCurrency()) + " " + numberFormat.format(booking.getAmount());
     }
 
+    private String resolveTicketStatusLabel(Ticket ticket) {
+        if (ticket == null || ticket.getStatus() == null) {
+            return "-";
+        }
+
+        return switch (ticket.getStatus()) {
+            case VALID -> "VALIDO";
+            case USED -> "USADO";
+            case CANCELLED -> "CANCELADO";
+        };
+    }
+
+    private String resolveBookingStatusLabel(Booking booking) {
+        if (booking == null || booking.getStatus() == null) {
+            return "-";
+        }
+
+        return switch (booking.getStatus()) {
+            case PENDING_PAYMENT -> "PENDENTE";
+            case PAID -> "PAGO";
+            case TICKET_ISSUED -> "CONFIRMADA";
+            case CANCELLED -> "CANCELADA";
+            case EXPIRED -> "EXPIRADA";
+        };
+    }
+
     private String safeText(String value) {
         if (value == null || value.isBlank()) {
             return "-";
@@ -700,6 +725,30 @@ public class TicketPdfService {
         return value
                 .replace("\n", " ")
                 .replace("\r", " ")
+                .replace("Á", "A")
+                .replace("À", "A")
+                .replace("Â", "A")
+                .replace("Ã", "A")
+                .replace("á", "a")
+                .replace("à", "a")
+                .replace("â", "a")
+                .replace("ã", "a")
+                .replace("É", "E")
+                .replace("Ê", "E")
+                .replace("é", "e")
+                .replace("ê", "e")
+                .replace("Í", "I")
+                .replace("í", "i")
+                .replace("Ó", "O")
+                .replace("Ô", "O")
+                .replace("Õ", "O")
+                .replace("ó", "o")
+                .replace("ô", "o")
+                .replace("õ", "o")
+                .replace("Ú", "U")
+                .replace("ú", "u")
+                .replace("Ç", "C")
+                .replace("ç", "c")
                 .replace("→", ">")
                 .replace("–", "-")
                 .replace("—", "-")
