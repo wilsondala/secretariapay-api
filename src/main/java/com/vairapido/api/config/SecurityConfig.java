@@ -71,6 +71,7 @@ public class SecurityConfig {
                                 "http://127.0.0.1:*",
                                 "https://*.vercel.app",
                                 "https://vairapido.triacompany.com",
+                                "https://painel-vairapido.triacompany.com",
                                 "https://www.vairapido.triacompany.com"));
 
                 configuration.setAllowedMethods(List.of(
