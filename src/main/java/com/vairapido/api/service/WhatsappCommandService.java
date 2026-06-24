@@ -332,7 +332,7 @@ public class WhatsappCommandService {
         return allowed("DASHBOARD", reply.trim());
     }
 
-    private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
+            private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
         if (!WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
             return allowed(
                     "BUY_TICKET",
@@ -348,29 +348,35 @@ public class WhatsappCommandService {
                 ? "Olá, " + session.getPassengerFullName() + ".\n"
                 : "Olá. Vamos iniciar sua compra.\n";
 
-        String reply = nameLine + """
+        String reply = """
+                %s
+                Posso ajudar você a comprar sua passagem pelo WhatsApp.
 
-                Para comprar sua passagem, preciso destes dados:
+                %s
 
+                Para comprar sua passagem, envie:
                 1. Cidade de origem
                 2. Cidade de destino
                 3. Data da viagem
                 4. Documento do passageiro
 
-                Envie no formato:
-                Origem: São Paulo
-                Destino: Rio de Janeiro
-                Data: 25/06/2026
+                %s
 
-                Ou envie em duas linhas:
-                São Paulo
-                Rio de Janeiro 25/06/2026
-                """;
+                Você também pode enviar em linhas simples:
+                Luanda
+                Benguela
+                25/06/2026
+                """.formatted(
+                nameLine,
+                buildSupportedCountriesCard(),
+                buildTripSearchExamplesCard());
 
         return allowed("BUY_TICKET", reply.trim());
     }
 
-    private WhatsappCommandResult searchTripsForPassenger(
+
+
+            private WhatsappCommandResult searchTripsForPassenger(
             WhatsappSessionResponse session,
             TripSearchInput input) {
 
@@ -438,16 +444,13 @@ public class WhatsappCommandService {
                     Destino: %s
                     Data: %s
 
-                    Tente novamente com outro destino, outra data ou envie no formato:
-
-                    Origem: São Paulo
-                    Destino: Rio de Janeiro
-                    Data: 25/06/2026
+                    %s
                     """.formatted(
                     buildCountryDetectedMessage(countryResolution),
                     input.origin(),
                     input.destination(),
-                    input.date().format(DATE_FORMATTER));
+                    input.date().format(DATE_FORMATTER),
+                    buildNewSearchInstructionCard());
 
             return allowed("SEARCH_TRIPS", reply.trim());
         }
@@ -473,12 +476,14 @@ public class WhatsappCommandService {
 
         reply.append("Escolha uma opção respondendo apenas com o número.\n\n");
         reply.append("Exemplo: 1\n\n");
-        reply.append("Para mudar a busca, envie novamente origem, destino e data.");
+        reply.append(buildNewSearchInstructionCard());
 
         return allowed("SEARCH_TRIPS", reply.toString().trim());
     }
 
-    private WhatsappCommandResult createBookingFromSelectedTrip(
+
+
+            private WhatsappCommandResult createBookingFromSelectedTrip(
             WhatsappSessionResponse session,
             String messageText) {
         if (!WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
@@ -529,6 +534,8 @@ public class WhatsappCommandService {
             String reply = """
                     Olá %s, encontrei seus dados salvos:
 
+                    %s
+
                     Passageiro: %s
                     %s: %s
 
@@ -539,6 +546,7 @@ public class WhatsappCommandService {
                     3. Alterar meus dados
                     """.formatted(
                     firstName,
+                    buildCountryContextFromMetadata(metadata),
                     passenger.getFullName(),
                     documentLabel,
                     maskedDocument);
@@ -556,9 +564,14 @@ public class WhatsappCommandService {
                 """
                         Antes de finalizar sua reserva, preciso dos dados do passageiro.
 
+                        %s
+
                         Qual é o nome completo do passageiro?
-                        """.trim());
+                        """.formatted(
+                        buildCountryContextFromMetadata(metadata)).trim());
     }
+
+
 
     private WhatsappCommandResult payBookingFromWhatsapp(
             WhatsappSessionResponse session,
@@ -967,7 +980,7 @@ public class WhatsappCommandService {
         return menu(session);
     }
 
-    private WhatsappCommandResult fallback(WhatsappSessionResponse session, String messageText) {
+            private WhatsappCommandResult fallback(WhatsappSessionResponse session, String messageText) {
         Optional<String> faqAnswer = whatsappFaqAnswerService.answer(
                 messageText,
                 session != null ? session.getSessionType() : null);
@@ -975,6 +988,7 @@ public class WhatsappCommandService {
         if (faqAnswer.isPresent()) {
             return allowed("FAQ", faqAnswer.get());
         }
+
         if (WhatsappSessionType.USER.equals(session.getSessionType())) {
             return allowed(
                     "FALLBACK",
@@ -996,12 +1010,15 @@ public class WhatsappCommandService {
                         Para comprar passagem, envie:
                         Comprar passagem
 
-                        Ou envie direto no formato:
-                        Origem: São Paulo
-                        Destino: Rio de Janeiro
-                        Data: 25/06/2026
-                        """);
+                        %s
+
+                        %s
+                        """.formatted(
+                        buildSupportedCountriesCard(),
+                        buildTripSearchExamplesCard()).trim());
     }
+
+
 
     private TripSearchInput parseTripSearch(String messageText) {
         if (messageText == null || messageText.isBlank()) {
@@ -1296,7 +1313,7 @@ public class WhatsappCommandService {
                         """.trim());
     }
 
-    private WhatsappCommandResult handlePassengerNameAnswer(
+            private WhatsappCommandResult handlePassengerNameAnswer(
             WhatsappSessionResponse session,
             String messageText) {
         String fullName = messageText == null ? "" : messageText.trim();
@@ -1328,11 +1345,15 @@ public class WhatsappCommandService {
         String reply = """
                 Obrigado, %s.
 
-                Agora informe o %s do passageiro.
-                """.formatted(firstName, documentLabel);
+                %s
+                """.formatted(
+                firstName,
+                buildDocumentInstructionFromMetadata(metadata, documentLabel));
 
         return allowed("ASK_PASSENGER_DOCUMENT", reply.trim());
     }
+
+
 
     private WhatsappCommandResult handlePassengerDocumentAnswer(
             WhatsappSessionResponse session,
@@ -1513,7 +1534,7 @@ public class WhatsappCommandService {
                         """.trim());
     }
 
-    private WhatsappCommandResult createBookingWithPassenger(
+            private WhatsappCommandResult createBookingWithPassenger(
             WhatsappSessionResponse session,
             Passenger passenger) {
         UUID tripId = extractSelectedTripIdFromMetadata(session.getMetadata());
@@ -1564,6 +1585,8 @@ public class WhatsappCommandService {
             String reply = """
                     ✅ Reserva criada
 
+                    %s
+
                     🎫 Código: %s
                     🧍 Passageiro: %s
                     🪪 %s: %s
@@ -1577,6 +1600,7 @@ public class WhatsappCommandService {
                     1️⃣ Pagar agora
                     2️⃣ Fazer nova busca
                     """.formatted(
+                    buildCountryContextFromMetadata(metadata),
                     booking.getBookingCode(),
                     booking.getPassengerName(),
                     documentLabel,
@@ -1603,6 +1627,8 @@ public class WhatsappCommandService {
                             + "\n\nFaça uma nova busca ou tente novamente.");
         }
     }
+
+
 
     private Optional<Passenger> findPassengerForWhatsapp(WhatsappSessionResponse session) {
         if (session == null) {
@@ -1774,6 +1800,100 @@ public class WhatsappCommandService {
         whatsappSessionRepository.save(whatsappSession);
     }
 
+    private String buildSupportedCountriesCard() {
+        return """
+                🌍 O VaiRápido atende viagens no Brasil e em Angola.
+
+                🇦🇴 Angola
+                Documento: BI ou Passaporte
+                Moeda: AOA
+                Pagamento: Multicaixa, Unitel Money, Afrimoney ou dinheiro
+
+                🇧🇷 Brasil
+                Documento: CPF ou Passaporte
+                Moeda: BRL
+                Pagamento: Pix ou dinheiro
+
+                Eu identifico o país automaticamente pela cidade de origem e destino.
+                """.trim();
+    }
+
+    private String buildTripSearchExamplesCard() {
+        return """
+                Exemplos de busca:
+
+                🇦🇴 Angola
+                Origem: Luanda
+                Destino: Benguela
+                Data: 25/06/2026
+
+                🇧🇷 Brasil
+                Origem: São Paulo
+                Destino: Rio de Janeiro
+                Data: 25/06/2026
+                """.trim();
+    }
+
+    private String buildCountryContextFromMetadata(String metadata) {
+        String country = extractMetadataValue(metadata, "country");
+
+        if ("AO".equalsIgnoreCase(country)) {
+            return """
+                    🇦🇴 Viagem identificada: Angola
+                    Documento: BI ou Passaporte
+                    Moeda: AOA
+                    Pagamento: Multicaixa, Unitel Money, Afrimoney ou dinheiro
+                    """.trim();
+        }
+
+        if ("BR".equalsIgnoreCase(country)) {
+            return """
+                    🇧🇷 Viagem identificada: Brasil
+                    Documento: CPF ou Passaporte
+                    Moeda: BRL
+                    Pagamento: Pix ou dinheiro
+                    """.trim();
+        }
+
+        return buildSupportedCountriesCard();
+    }
+
+    private String buildDocumentInstructionFromMetadata(String metadata, String documentLabel) {
+        String country = extractMetadataValue(metadata, "country");
+
+        if ("AO".equalsIgnoreCase(country)) {
+            return """
+                    🇦🇴 Para viagens em Angola, informe o BI do passageiro.
+                    Também aceitaremos Passaporte em versão futura do fluxo.
+                    """.trim();
+        }
+
+        if ("BR".equalsIgnoreCase(country)) {
+            return """
+                    🇧🇷 Para viagens no Brasil, informe o CPF do passageiro.
+                    Também aceitaremos Passaporte em versão futura do fluxo.
+                    """.trim();
+        }
+
+        return "Agora informe o " + documentLabel + " do passageiro.";
+    }
+
+    private String buildNewSearchInstructionCard() {
+        return """
+                Para mudar a busca, envie novamente origem, destino e data.
+
+                🇦🇴 Exemplo Angola:
+                Origem: Luanda
+                Destino: Benguela
+                Data: 25/06/2026
+
+                🇧🇷 Exemplo Brasil:
+                Origem: São Paulo
+                Destino: Rio de Janeiro
+                Data: 25/06/2026
+                """.trim();
+    }
+
     private String buildCountryMetadata(CountryResolutionResponse resolution) {
         if (resolution == null || resolution.country() == null) {
             return "";
@@ -1862,7 +1982,7 @@ public class WhatsappCommandService {
         return metadata.toString().trim();
     }
 
-    private PassengerDocumentType resolveDocumentTypeFromMetadata(String metadata) {
+            private PassengerDocumentType resolveDocumentTypeFromMetadata(String metadata) {
         String rawType = extractMetadataValue(metadata, "document_type");
 
         if (rawType != null && !rawType.isBlank()) {
@@ -1886,11 +2006,13 @@ public class WhatsappCommandService {
         String documentTypes = extractMetadataValue(metadata, "document_types");
 
         if (documentTypes != null && !documentTypes.isBlank()) {
-            if (documentTypes.toUpperCase(Locale.ROOT).contains("BI")) {
+            String upperDocumentTypes = documentTypes.toUpperCase(Locale.ROOT);
+
+            if (upperDocumentTypes.contains("BI")) {
                 return PassengerDocumentType.BI;
             }
 
-            if (documentTypes.toUpperCase(Locale.ROOT).contains("CPF")) {
+            if (upperDocumentTypes.contains("CPF")) {
                 return PassengerDocumentType.CPF;
             }
         }
@@ -1898,13 +2020,17 @@ public class WhatsappCommandService {
         return documentValidatorService.defaultDocumentType();
     }
 
-private PassengerDocumentType getPassengerDocumentType(Passenger passenger) {
-    if (passenger == null || passenger.getDocumentType() == null) {
-        return documentValidatorService.defaultDocumentType();
+
+
+            private PassengerDocumentType getPassengerDocumentType(Passenger passenger) {
+        if (passenger == null || passenger.getDocumentType() == null) {
+            return documentValidatorService.defaultDocumentType();
+        }
+
+        return passenger.getDocumentType();
     }
 
-    return passenger.getDocumentType();
-}
+
 
     private boolean isAllowedToValidateTickets(WhatsappSessionResponse session) {
         if (session == null || session.getUserRole() == null) {
@@ -2053,3 +2179,4 @@ private PassengerDocumentType getPassengerDocumentType(Passenger passenger) {
             LocalDate date) {
     }
 }
+
