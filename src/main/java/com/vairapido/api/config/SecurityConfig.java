@@ -132,9 +132,9 @@ public class SecurityConfig {
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/health").permitAll()
                                                 .requestMatchers("/error").permitAll()
                                                 .requestMatchers("/actuator/**").permitAll()
-
+                                                
                                                 .requestMatchers("/api/v1/public/**").permitAll()
-
+                                                .requestMatchers("/api/v1/multi-country/**").permitAll()
                                                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
                                                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
 
@@ -170,6 +170,7 @@ public class SecurityConfig {
                                 .addFilterBefore(
                                                 jwtAuthenticationFilter,
                                                 UsernamePasswordAuthenticationFilter.class);
+                                                
 
                 return http.build();
         }
