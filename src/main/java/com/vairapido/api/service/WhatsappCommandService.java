@@ -620,7 +620,7 @@ public class WhatsappCommandService {
 
 
 
-    private WhatsappCommandResult payBookingFromWhatsapp(
+        private WhatsappCommandResult payBookingFromWhatsapp(
             WhatsappSessionResponse session,
             String messageText) {
         if (!WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
@@ -709,9 +709,13 @@ public class WhatsappCommandService {
                 return allowed("PAY_BOOKING", reply.trim());
             }
 
+            PaymentMethod paymentMethod = resolvePaymentMethodForBooking(
+                    session.getMetadata(),
+                    booking);
+
             PaymentRequest paymentRequest = new PaymentRequest()
                     .setBookingId(booking.getId())
-                    .setMethod(PaymentMethod.PIX);
+                    .setMethod(paymentMethod);
 
             PaymentResponse createdPayment = paymentService.create(paymentRequest);
             PaymentResponse confirmedPayment = paymentService.confirm(createdPayment.getId());
@@ -721,6 +725,7 @@ public class WhatsappCommandService {
                     "payment_id=" + confirmedPayment.getId(),
                     "payment_code=" + confirmedPayment.getPaymentCode(),
                     "payment_method=" + confirmedPayment.getMethod(),
+                    "payment_method_label=" + paymentMethodLabel(confirmedPayment.getMethod()),
                     "payment_status=" + confirmedPayment.getStatus(),
                     "booking_status=" + confirmedPayment.getBookingStatus());
 
@@ -732,7 +737,10 @@ public class WhatsappCommandService {
             String reply = """
                     💳 Pagamento confirmado
 
+                    %s
+
                     🎫 Reserva: %s
+                    💳 Método: %s
                     💰 Valor: %s %s
                     ✅ Status: %s
                     📍 Trecho: %s → %s
@@ -743,7 +751,9 @@ public class WhatsappCommandService {
                     1️⃣ Emitir bilhete agora
                     2️⃣ Fazer nova busca
                     """.formatted(
+                    buildCountryContextFromMetadata(metadata),
                     confirmedPayment.getBookingCode(),
+                    paymentMethodLabel(confirmedPayment.getMethod()),
                     confirmedPayment.getCurrency(),
                     confirmedPayment.getAmount() != null
                             ? confirmedPayment.getAmount().toPlainString()
@@ -766,6 +776,7 @@ public class WhatsappCommandService {
                             + "\n\nTente novamente ou envie uma nova busca.");
         }
     }
+
 
     private WhatsappCommandResult issueTicketFromWhatsapp(
             WhatsappSessionResponse session,
@@ -900,6 +911,58 @@ public class WhatsappCommandService {
         }
     }
 
+    private PaymentMethod resolvePaymentMethodForBooking(
+            String metadata,
+            Booking booking) {
+        String rawMethod = extractMetadataValue(metadata, "payment_method");
+
+        if (rawMethod != null && !rawMethod.isBlank()) {
+            try {
+                return PaymentMethod.valueOf(rawMethod.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                // Continua para resolver pelo país/moeda.
+            }
+        }
+
+        String country = extractMetadataValue(metadata, "country");
+
+        if ("AO".equalsIgnoreCase(country)) {
+            return PaymentMethod.MULTICAIXA_EXPRESS;
+        }
+
+        if ("BR".equalsIgnoreCase(country)) {
+            return PaymentMethod.PIX;
+        }
+
+        String currency = booking != null ? booking.getCurrency() : null;
+
+        if ("AOA".equalsIgnoreCase(currency)) {
+            return PaymentMethod.MULTICAIXA_EXPRESS;
+        }
+
+        if ("BRL".equalsIgnoreCase(currency)) {
+            return PaymentMethod.PIX;
+        }
+
+        return PaymentMethod.PIX;
+    }
+
+    private String paymentMethodLabel(PaymentMethod method) {
+        if (method == null) {
+            return "-";
+        }
+
+        return switch (method) {
+            case PIX -> "Pix";
+            case CREDIT_CARD -> "Cartão de crédito";
+            case DEBIT_CARD -> "Cartão de débito";
+            case CASH -> "Dinheiro";
+            case BANK_TRANSFER -> "Transferência bancária";
+            case MULTICAIXA_EXPRESS -> "Multicaixa Express";
+            case UNITEL_MONEY -> "Unitel Money";
+            case AFRIMONEY -> "Afrimoney";
+        };
+    }
     private String formatTicketIssuedReply(TicketResponse ticket, boolean alreadyIssued) {
         String title = alreadyIssued
                 ? "🎫 Bilhete já emitido para esta reserva."
@@ -2239,6 +2302,7 @@ public class WhatsappCommandService {
             LocalDate date) {
     }
 }
+
 
 
 
