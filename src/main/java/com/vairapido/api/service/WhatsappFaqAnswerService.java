@@ -35,23 +35,31 @@ public class WhatsappFaqAnswerService {
                 "cartao",
                 "cartão",
                 "transferencia",
-                "transferência"
-        )) {
-            return Optional.of(paymentAnswer());
-        }
-
-        if (containsAny(
-                normalizedMessage,
+                "transferência",
                 "multicaixa",
                 "unitel money",
                 "afrimoney",
                 "aoa",
                 "kwanza",
                 "kz",
-                "angola",
                 "pagamento angola"
         )) {
-            return Optional.of(angolaPaymentAnswer());
+            return Optional.of(paymentAnswer());
+        }
+
+        if (containsAny(
+                normalizedMessage,
+                "angola",
+                "brasil",
+                "pais",
+                "país",
+                "bi",
+                "cpf",
+                "passaporte",
+                "documento",
+                "documentos"
+        )) {
+            return Optional.of(countryAndDocumentAnswer());
         }
 
         if (containsAny(
@@ -179,12 +187,32 @@ public class WhatsappFaqAnswerService {
         return """
                 Olá. Bem-vindo ao VaiRápido.
 
-                Posso ajudar você a comprar sua passagem pelo WhatsApp.
+                Posso ajudar você a comprar passagem pelo WhatsApp no Brasil e em Angola.
+
+                🌍 Como funciona:
+                Eu identifico o país automaticamente pela cidade de origem e destino.
+
+                🇦🇴 Angola
+                Documento: BI ou Passaporte
+                Moeda: AOA
+                Pagamento: Multicaixa, Unitel Money, Afrimoney ou dinheiro
+
+                🇧🇷 Brasil
+                Documento: CPF ou Passaporte
+                Moeda: BRL
+                Pagamento: Pix ou dinheiro
 
                 Para começar, envie:
                 Comprar passagem
 
                 Ou envie direto:
+
+                🇦🇴 Exemplo Angola:
+                Origem: Luanda
+                Destino: Benguela
+                Data: 25/06/2026
+
+                🇧🇷 Exemplo Brasil:
                 Origem: São Paulo
                 Destino: Rio de Janeiro
                 Data: 25/06/2026
@@ -193,34 +221,46 @@ public class WhatsappFaqAnswerService {
 
     private String paymentAnswer() {
         return """
-                No ambiente de teste atual, o VaiRápido está usando pagamento simulado via PIX.
+                Formas de pagamento disponíveis no VaiRápido:
 
-                Fluxo de teste:
-                1. Escolha a viagem
-                2. O sistema cria uma reserva
-                3. Envie: Pagar reserva
-                4. O pagamento será confirmado automaticamente
-                5. Depois envie: Emitir bilhete
+                🇦🇴 Angola
+                - Multicaixa
+                - Unitel Money
+                - Afrimoney
+                - Dinheiro
 
-                Em produção, poderemos integrar pagamento real.
+                🇧🇷 Brasil
+                - Pix
+                - Dinheiro
+
+                No ambiente atual, o pagamento ainda é confirmado de forma simulada para testes.
+                Depois da reserva, envie:
+                Pagar reserva
+
+                Em seguida, o sistema libera a emissão do bilhete digital.
                 """.trim();
     }
 
-    private String angolaPaymentAnswer() {
+    private String countryAndDocumentAnswer() {
         return """
-                Ainda estamos em fase de teste usando o modelo Brasil com BRL e PIX simulado.
+                O VaiRápido trabalha com regras por país.
 
-                Depois que o fluxo completo estiver estável, vamos adaptar para Angola com:
-                - AOA / Kwanza
-                - Multicaixa
-                - Transferência bancária
-                - Unitel Money
-                - Afrimoney
+                🇦🇴 Angola
+                Documento principal: BI
+                Documento alternativo: Passaporte
+                Moeda: AOA
+                Pagamentos: Multicaixa, Unitel Money, Afrimoney ou dinheiro
 
-                Por enquanto, para testar a compra, use:
-                Origem: São Paulo
-                Destino: Rio de Janeiro
-                Data: 25/06/2026
+                🇧🇷 Brasil
+                Documento principal: CPF
+                Documento alternativo: Passaporte
+                Moeda: BRL
+                Pagamentos: Pix ou dinheiro
+
+                O país é identificado automaticamente pelas cidades informadas.
+                Exemplo:
+                Luanda → Benguela identifica Angola.
+                São Paulo → Rio de Janeiro identifica Brasil.
                 """.trim();
     }
 
@@ -228,13 +268,19 @@ public class WhatsappFaqAnswerService {
         return """
                 O valor depende da rota, data, horário e empresa de transporte.
 
-                Para consultar preço e horários, envie no formato:
+                Para consultar preço e horários, envie origem, destino e data.
 
+                🇦🇴 Exemplo Angola:
+                Origem: Luanda
+                Destino: Benguela
+                Data: 25/06/2026
+
+                🇧🇷 Exemplo Brasil:
                 Origem: São Paulo
                 Destino: Rio de Janeiro
                 Data: 25/06/2026
 
-                O sistema vai listar as viagens disponíveis com preço e lugares.
+                O sistema vai listar as viagens disponíveis com preço, moeda e lugares.
                 """.trim();
     }
 
@@ -242,12 +288,19 @@ public class WhatsappFaqAnswerService {
         return """
                 Para consultar rotas, horários e viagens disponíveis, envie:
 
+                🇦🇴 Exemplo Angola:
+                Origem: Luanda
+                Destino: Benguela
+                Data: 25/06/2026
+
+                🇧🇷 Exemplo Brasil:
                 Origem: São Paulo
                 Destino: Rio de Janeiro
                 Data: 25/06/2026
 
-                Depois responda:
-                Viagem 1
+                Depois responda apenas com o número da viagem.
+                Exemplo:
+                1
 
                 O sistema cria uma reserva provisória para você.
                 """.trim();
@@ -258,12 +311,19 @@ public class WhatsappFaqAnswerService {
                 Para comprar sua passagem pelo VaiRápido:
 
                 1. Envie origem, destino e data
-                2. Escolha uma viagem
-                3. Confirme o pagamento
-                4. Emita o bilhete
-                5. Receba o PDF no WhatsApp
+                2. O sistema identifica se é Brasil ou Angola
+                3. Escolha uma viagem
+                4. Informe os dados do passageiro
+                5. Confirme o pagamento
+                6. Emita o bilhete digital
+                7. Receba o PDF no WhatsApp
 
-                Exemplo:
+                🇦🇴 Exemplo Angola:
+                Origem: Luanda
+                Destino: Benguela
+                Data: 25/06/2026
+
+                🇧🇷 Exemplo Brasil:
                 Origem: São Paulo
                 Destino: Rio de Janeiro
                 Data: 25/06/2026
@@ -281,6 +341,7 @@ public class WhatsappFaqAnswerService {
                 - Trecho
                 - Data e horário da viagem
                 - Poltrona
+                - Valor e moeda
                 - QR Code de validação
                 - PDF do bilhete
 
@@ -313,8 +374,8 @@ public class WhatsappFaqAnswerService {
                 - Comprar passagem
                 - Consultar horários
                 - Formas de pagamento
+                - Documentos aceitos
                 - Emitir bilhete
-                - Como integrar com a API
                 """.trim();
     }
 
@@ -325,6 +386,8 @@ public class WhatsappFaqAnswerService {
                 Recursos já validados:
                 - Webhook WhatsApp
                 - Busca de viagens
+                - Resolução automática de país por cidade
+                - Brasil e Angola no mesmo backend
                 - Criação de reserva
                 - Pagamento simulado
                 - Emissão de bilhete
@@ -359,8 +422,13 @@ public class WhatsappFaqAnswerService {
                 - Comprar passagem
                 - Consultar horários
                 - Formas de pagamento
+                - Documentos aceitos
                 - Emitir bilhete
                 - Falar com suporte
+
+                Países suportados:
+                🇦🇴 Angola
+                🇧🇷 Brasil
                 """.trim();
     }
 
