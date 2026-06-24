@@ -81,7 +81,7 @@ public class TicketPdfService {
                 drawHeader(content, ticket);
                 drawMainTicketCard(content);
                 drawSuccessBanner(content);
-                drawTicketMeta(content, ticket, booking);
+                drawTicketMeta(content, ticket, booking, company);
                 drawRouteSection(content, route, trip, booking);
                 drawPassengerCard(content, passenger);
                 drawQrCard(content, qrImage);
@@ -102,12 +102,16 @@ public class TicketPdfService {
     private PDImageXObject createQrImage(PDDocument document, String validationUrl)
             throws WriterException, IOException {
 
+        String qrValue = validationUrl == null || validationUrl.isBlank()
+                ? "https://vairapido.com/validar"
+                : validationUrl;
+
         QRCodeWriter qrCodeWriter = new QRCodeWriter();
         BitMatrix bitMatrix = qrCodeWriter.encode(
-                validationUrl,
+                qrValue,
                 BarcodeFormat.QR_CODE,
-                320,
-                320
+                360,
+                360
         );
 
         BufferedImage bufferedImage = MatrixToImageWriter.toBufferedImage(bitMatrix);
@@ -221,14 +225,15 @@ public class TicketPdfService {
     private void drawTicketMeta(
             PDPageContentStream content,
             Ticket ticket,
-            Booking booking
+            Booking booking,
+            TransportCompany company
     ) throws IOException {
         float y = 615;
 
-        drawMetaItem(content, "CODIGO DO BILHETE", ticket.getTicketCode(), 45, y, 150);
-        drawMetaItem(content, "CODIGO DA RESERVA", booking.getBookingCode(), 205, y, 120);
-        drawMetaItem(content, "DATA DA EMISSAO", formatDateTime(ticket.getIssuedAt()), 340, y, 105);
-        drawMetaItem(content, "TIPO", "Convencional", 465, y, 75);
+        drawMetaItem(content, "CODIGO DO BILHETE", ticket.getTicketCode(), 45, y, 130);
+        drawMetaItem(content, "CODIGO DA RESERVA", booking.getBookingCode(), 180, y, 105);
+        drawMetaItem(content, "EMPRESA", getCompanyName(company), 295, y, 125);
+        drawMetaItem(content, "DATA DA EMISSAO", formatDateTime(ticket.getIssuedAt()), 430, y, 105);
     }
 
     private void drawRouteSection(
@@ -379,19 +384,23 @@ public class TicketPdfService {
         content.showText("QR CODE DE VALIDACAO");
         content.endText();
 
-        content.drawImage(qrImage, x + 72, y + 60, 110, 110);
+        float qrSize = 96;
+        float qrX = x + ((width - qrSize) / 2);
+        float qrY = y + 60;
+
+        content.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
 
         content.beginText();
         content.setNonStrokingColor(15, 23, 42);
-        content.setFont(PDType1Font.HELVETICA_BOLD, 9);
-        content.newLineAtOffset(x + 78, y + 40);
-        content.showText("QR Code de validacao");
+        content.setFont(PDType1Font.HELVETICA_BOLD, 8);
+        content.newLineAtOffset(x + 78, y + 43);
+        content.showText("Validacao do bilhete");
         content.endText();
 
         content.beginText();
         content.setNonStrokingColor(71, 85, 105);
         content.setFont(PDType1Font.HELVETICA, 7);
-        content.newLineAtOffset(x + 60, y + 25);
+        content.newLineAtOffset(x + 56, y + 27);
         content.showText("Escaneie para consultar este bilhete.");
         content.endText();
     }
