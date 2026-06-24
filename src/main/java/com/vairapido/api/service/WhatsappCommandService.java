@@ -483,7 +483,7 @@ public class WhatsappCommandService {
 
 
 
-            private WhatsappCommandResult createBookingFromSelectedTrip(
+                private WhatsappCommandResult createBookingFromSelectedTrip(
             WhatsappSessionResponse session,
             String messageText) {
         if (!WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
@@ -520,6 +520,52 @@ public class WhatsappCommandService {
 
         if (optionalPassenger.isPresent()) {
             Passenger passenger = optionalPassenger.get();
+
+            PassengerDocumentType requiredDocumentType = resolveDocumentTypeFromMetadata(metadata);
+
+            if (passenger == null || passenger.getDocumentType() == null || !passenger.getDocumentType().equals(requiredDocumentType)) {
+                String adjustedMetadata = appendMetadata(
+                        metadata,
+                        "pending_passenger_name=" + passenger.getFullName(),
+                        "saved_passenger_id=" + passenger.getId(),
+                        "saved_passenger_document_mismatch=true",
+                        "required_document_type=" + requiredDocumentType);
+
+                updateSessionStep(
+                        session,
+                        WhatsappConversationStep.ASKING_DOCUMENT,
+                        adjustedMetadata);
+
+                String firstName = extractFirstName(passenger.getFullName());
+                String requiredDocumentLabel = documentValidatorService.label(requiredDocumentType);
+                String currentDocumentLabel = passenger.getDocumentType() != null
+                        ? documentValidatorService.label(passenger.getDocumentType())
+                        : "documento";
+                String currentMaskedDocument = passenger.getDocumentType() != null
+                        ? documentValidatorService.mask(passenger.getDocumentType(), passenger.getDocumentNumber())
+                        : (passenger.getDocumentNumber() != null ? passenger.getDocumentNumber() : "***");
+
+                String reply = """
+                        Olá %s, encontrei seus dados salvos:
+
+                        Passageiro: %s
+                        Documento salvo: %s %s
+
+                        Mas esta viagem exige outro documento:
+
+                        %s
+
+                        Para continuar, informe o %s do passageiro.
+                        """.formatted(
+                        firstName,
+                        passenger.getFullName(),
+                        currentDocumentLabel,
+                        currentMaskedDocument,
+                        buildCountryContextFromMetadata(metadata),
+                        requiredDocumentLabel);
+
+                return allowed("ASK_PASSENGER_DOCUMENT", reply.trim());
+            }
 
             updateSessionStep(
                     session,
@@ -570,6 +616,7 @@ public class WhatsappCommandService {
                         """.formatted(
                         buildCountryContextFromMetadata(metadata)).trim());
     }
+
 
 
 
@@ -1377,7 +1424,7 @@ public class WhatsappCommandService {
 
         if (!documentValidatorService.isValid(documentType, documentNumber)) {
             String example = PassengerDocumentType.BI.equals(documentType)
-                    ? "Exemplo: 006543219LA042"
+                    ? "Exemplo: 001058899UE035"
                     : "Exemplo: 52998224725";
 
             return allowed(
@@ -1800,6 +1847,19 @@ public class WhatsappCommandService {
         whatsappSessionRepository.save(whatsappSession);
     }
 
+    private boolean isPassengerDocumentCompatibleWithTrip(
+            Passenger passenger,
+            PassengerDocumentType requiredDocumentType) {
+        if (passenger == null || requiredDocumentType == null) {
+            return false;
+        }
+
+        if (passenger.getDocumentType() == null) {
+            return false;
+        }
+
+        return passenger.getDocumentType().equals(requiredDocumentType);
+    }
     private String buildSupportedCountriesCard() {
         return """
                 🌍 O VaiRápido atende viagens no Brasil e em Angola.
@@ -2179,4 +2239,11 @@ public class WhatsappCommandService {
             LocalDate date) {
     }
 }
+
+
+
+
+
+
+
 

@@ -112,7 +112,7 @@ public class DocumentValidatorService {
         PassengerDocumentType resolvedType = resolveType(type);
 
         if (PassengerDocumentType.BI.equals(resolvedType)) {
-            return "006543219LA042";
+            return "001058899UE035";
         }
 
         if (PassengerDocumentType.PASSPORT.equals(resolvedType)) {
@@ -163,14 +163,17 @@ public class DocumentValidatorService {
             return false;
         }
 
-        if (!bi.matches("[A-Z0-9]{6,20}")) {
-            return false;
-        }
+        String normalized = normalize(PassengerDocumentType.BI, bi);
 
-        boolean hasDigit = bi.matches(".*\\d.*");
-        boolean hasLetter = bi.matches(".*[A-Z].*");
-
-        return hasDigit && hasLetter;
+        /*
+         * Padrão BI Angola:
+         * 9 números + 2 letras + 3 números
+         *
+         * Exemplo:
+         * 001058899UE035
+         * 006543219LA042
+         */
+        return normalized.matches("\\d{9}[A-Z]{2}\\d{3}");
     }
 
     private boolean isValidPassport(String passport) {
