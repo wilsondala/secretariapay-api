@@ -478,7 +478,6 @@ public class WhatsappCommandService {
         return allowed("SEARCH_TRIPS", reply.toString().trim());
     }
 
-
     private WhatsappCommandResult createBookingFromSelectedTrip(
             WhatsappSessionResponse session,
             String messageText) {
@@ -1866,24 +1865,46 @@ public class WhatsappCommandService {
     private PassengerDocumentType resolveDocumentTypeFromMetadata(String metadata) {
         String rawType = extractMetadataValue(metadata, "document_type");
 
-        if (rawType == null || rawType.isBlank()) {
-            return documentValidatorService.defaultDocumentType();
+        if (rawType != null && !rawType.isBlank()) {
+            try {
+                return PassengerDocumentType.valueOf(rawType.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                // Continua para resolver pelo país.
+            }
         }
 
-        try {
-            return PassengerDocumentType.valueOf(rawType.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException exception) {
-            return documentValidatorService.defaultDocumentType();
-        }
-    }
+        String country = extractMetadataValue(metadata, "country");
 
-    private PassengerDocumentType getPassengerDocumentType(Passenger passenger) {
-        if (passenger == null || passenger.getDocumentType() == null) {
+        if ("AO".equalsIgnoreCase(country)) {
+            return PassengerDocumentType.BI;
+        }
+
+        if ("BR".equalsIgnoreCase(country)) {
             return PassengerDocumentType.CPF;
         }
 
-        return passenger.getDocumentType();
+        String documentTypes = extractMetadataValue(metadata, "document_types");
+
+        if (documentTypes != null && !documentTypes.isBlank()) {
+            if (documentTypes.toUpperCase(Locale.ROOT).contains("BI")) {
+                return PassengerDocumentType.BI;
+            }
+
+            if (documentTypes.toUpperCase(Locale.ROOT).contains("CPF")) {
+                return PassengerDocumentType.CPF;
+            }
+        }
+
+        return documentValidatorService.defaultDocumentType();
     }
+
+private PassengerDocumentType getPassengerDocumentType(Passenger passenger) {
+    if (passenger == null || passenger.getDocumentType() == null) {
+        return documentValidatorService.defaultDocumentType();
+    }
+
+    return passenger.getDocumentType();
+}
 
     private boolean isAllowedToValidateTickets(WhatsappSessionResponse session) {
         if (session == null || session.getUserRole() == null) {
