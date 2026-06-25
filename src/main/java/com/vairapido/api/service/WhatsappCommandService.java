@@ -187,11 +187,17 @@ if (containsAny(normalizedMessage, "menu", "ajuda", "inicio", "começar", "comec
 
         if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 && WhatsappConversationStep.CHOOSING_TRIP.equals(session.getCurrentStep())
+                && isReturnTripSelectionPending(session.getMetadata())
                 && isTripOptionSelection(messageText)) {
-            return createBookingFromSelectedTrip(session, messageText);
+            return confirmReturnTripSelectionAndAskPassenger(session, messageText);
         }
 
         if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
+                && WhatsappConversationStep.CHOOSING_TRIP.equals(session.getCurrentStep())
+                && isTripOptionSelection(messageText)) {
+            return createBookingFromSelectedTrip(session, messageText);
+        }
+if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 && WhatsappConversationStep.WAITING_PAYMENT.equals(session.getCurrentStep())
                 && isPaymentMethodSelectionPending(session.getMetadata())
                 && isPaymentMethodOption(normalizedMessage)) {
@@ -723,6 +729,10 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             return allowed(
                     "CREATE_BOOKING",
                     "Não consegui identificar a viagem escolhida.\n\nResponda no formato:\nViagem 1");
+        }
+
+        if (isReturnTripSelectionPending(session.getMetadata())) {
+            return confirmReturnTripSelectionAndAskPassenger(session, messageText);
         }
 
         UUID tripId = extractTripIdFromMetadata(session.getMetadata(), optionNumber);
