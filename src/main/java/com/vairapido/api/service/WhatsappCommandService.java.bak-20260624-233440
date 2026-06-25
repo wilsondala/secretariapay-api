@@ -685,13 +685,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
         StringBuilder reply = new StringBuilder();
 
         reply.append(buildCountryDetectedMessage(countryResolution)).append("\n\n");
-
-        String roundTripIntro = buildRoundTripSearchIntro(input);
-
-        if (!roundTripIntro.isBlank()) {
-            reply.append(roundTripIntro).append("\n\n");
-        }
-
         reply.append("🚌 Encontrei viagens disponíveis\n\n");
 
         for (int i = 0; i < options.size(); i++) {
@@ -1974,13 +1967,12 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
 
 
-        private TripSearchInput parseTripSearch(String messageText) {
+    private TripSearchInput parseTripSearch(String messageText) {
         if (messageText == null || messageText.isBlank()) {
             return null;
         }
 
         LocalDate date = extractSearchDate(messageText);
-        LocalDate returnDate = extractReturnDate(messageText);
 
         if (date == null) {
             return null;
@@ -1993,8 +1985,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             return new TripSearchInput(
                     cleanSearchTerm(origin),
                     cleanSearchTerm(destination),
-                    date,
-                    returnDate);
+                    date);
         }
 
         List<String> lines = extractMeaningfulLinesWithoutDate(messageText);
@@ -2010,102 +2001,9 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             return null;
         }
 
-        return new TripSearchInput(origin, destination, date, returnDate);
+        return new TripSearchInput(origin, destination, date);
     }
 
-
-    private boolean isRoundTripRequest(String normalizedMessage) {
-        if (normalizedMessage == null || normalizedMessage.isBlank()) {
-            return false;
-        }
-
-        return normalizedMessage.contains("ida e volta")
-                || normalizedMessage.contains("ida volta")
-                || normalizedMessage.contains("volta")
-                || normalizedMessage.contains("retorno")
-                || normalizedMessage.contains("regresso");
-    }
-
-    private LocalDate extractReturnDate(String messageText) {
-        if (messageText == null || messageText.isBlank()) {
-            return null;
-        }
-
-        String[] labels = {"volta", "retorno", "regresso"};
-
-        for (String label : labels) {
-            for (String line : splitLines(messageText)) {
-                String normalizedLine = normalizeText(line);
-
-                if (!normalizedLine.startsWith(label)) {
-                    continue;
-                }
-
-                Matcher matcher = TRIP_SEARCH_DATE_PATTERN.matcher(line);
-
-                if (matcher.find()) {
-                    String rawDate = matcher.group(1).replace("-", "/");
-
-                    try {
-                        return LocalDate.parse(rawDate, DATE_FORMATTER);
-                    } catch (DateTimeParseException exception) {
-                        return null;
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private boolean isRoundTripSearch(TripSearchInput input) {
-        return input != null && input.returnDate() != null;
-    }
-
-    private String buildRoundTripSearchIntro(TripSearchInput input) {
-        if (!isRoundTripSearch(input)) {
-            return "";
-        }
-
-        return """
-                🔁 Ida e volta identificada.
-
-                Primeiro escolha a viagem de ida.
-                Depois da reserva da ida, eu vou te orientar para reservar a volta.
-
-                Retorno previsto: %s
-                """.formatted(input.returnDate().format(DATE_FORMATTER)).trim();
-    }
-
-    private String buildRoundTripReturnInstructionFromMetadata(String metadata) {
-        String tripType = extractMetadataValue(metadata, "trip_type");
-
-        if (!"ROUND_TRIP".equalsIgnoreCase(tripType)) {
-            return "";
-        }
-
-        String origin = extractMetadataValue(metadata, "origin");
-        String destination = extractMetadataValue(metadata, "destination");
-        String returnDate = extractMetadataValue(metadata, "return_date");
-
-        if (origin == null || destination == null || returnDate == null) {
-            return "";
-        }
-
-        return """
-                
-                🔁 Próximo passo: reservar a volta
-
-                Para reservar o trecho de volta, envie:
-
-                Origem: %s
-                Destino: %s
-                Data: %s
-                """.formatted(
-                destination,
-                origin,
-                returnDate);
-    }
     private LocalDate extractSearchDate(String messageText) {
         Matcher matcher = TRIP_SEARCH_DATE_PATTERN.matcher(messageText);
 
@@ -2906,7 +2804,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                     Escolha uma opção:
                     1️⃣ Pagar agora
                     2️⃣ Fazer nova busca
-                    %s
                     """.formatted(
                     buildCountryContextFromMetadata(metadata),
                     booking.getBookingCode(),
@@ -2923,8 +2820,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                     booking.getAmount() != null ? booking.getAmount().toPlainString() : "0.00",
                     booking.getExpiresAt() != null
                             ? booking.getExpiresAt().format(DATE_TIME_FORMATTER)
-                            : "-",
-                    buildRoundTripReturnInstructionFromMetadata(metadata));
+                            : "-");
 
             return allowed("CREATE_BOOKING", reply.trim());
 
@@ -3266,7 +3162,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 .orElse("");
     }
 
-        private String buildTripSearchMetadata(
+    private String buildTripSearchMetadata(
             TripSearchInput input,
             List<Trip> options) {
         StringBuilder metadata = new StringBuilder();
@@ -3275,13 +3171,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
         metadata.append("origin=").append(input.origin()).append("\n");
         metadata.append("destination=").append(input.destination()).append("\n");
         metadata.append("date=").append(input.date().format(DATE_FORMATTER)).append("\n");
-
-        if (input.returnDate() != null) {
-            metadata.append("trip_type=ROUND_TRIP\n");
-            metadata.append("return_date=").append(input.returnDate().format(DATE_FORMATTER)).append("\n");
-        } else {
-            metadata.append("trip_type=ONE_WAY\n");
-        }
 
         for (int i = 0; i < options.size(); i++) {
             metadata
@@ -3294,7 +3183,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
         return metadata.toString().trim();
     }
-
 
     private String appendMetadata(String currentMetadata, String... linesToAppend) {
         StringBuilder metadata = new StringBuilder();
@@ -3509,7 +3397,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             LocalDate date) {
     }
 }
-
 
 
 
