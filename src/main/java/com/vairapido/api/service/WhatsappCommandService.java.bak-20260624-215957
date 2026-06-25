@@ -129,20 +129,7 @@ public class WhatsappCommandService {
             return defaultHelp(session);
         }
 
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && isGreetingNamePending(session.getMetadata())) {
-            return handleGreetingNameAnswer(session, messageText);
-        }
-
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && isSmartGreeting(normalizedMessage)) {
-            if (hasCustomerName(session.getMetadata())) {
-                return handleKnownCustomerGreeting(session, normalizedMessage);
-            }
-
-            return askCustomerNameFromGreeting(session, normalizedMessage);
-        }
-if (containsAny(normalizedMessage, "menu", "ajuda", "inicio", "começar", "comecar")) {
+        if (containsAny(normalizedMessage, "menu", "ajuda", "inicio", "começar", "comecar")) {
             return menu(session);
         }
 
@@ -3092,7 +3079,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             LocalDate date) {
     }
 }
-
 
 
 
