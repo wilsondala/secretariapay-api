@@ -118,7 +118,6 @@ public class WhatsappCommandService {
         this.documentValidatorService = documentValidatorService;
         this.countryResolverService = countryResolverService;
     }
-
     @Transactional
     public WhatsappCommandResult handleCommand(
             WhatsappSessionResponse session,
@@ -129,46 +128,94 @@ public class WhatsappCommandService {
             return defaultHelp(session);
         }
 
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && isGreetingNamePending(session.getMetadata())) {
-            return handleGreetingNameAnswer(session, messageText);
-        }
+        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
 
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && isSmartGreeting(normalizedMessage)) {
-            if (hasCustomerName(session.getMetadata())) {
-                return handleKnownCustomerGreeting(session, normalizedMessage);
+            if (isAngolaTermsAcceptancePending(session.getMetadata())) {
+                return handlePassengerDataConfirmation(session, normalizedMessage);
             }
 
-            return askCustomerNameFromGreeting(session, normalizedMessage);
+            if (WhatsappConversationStep.CONFIRMING_SAVED_PASSENGER.equals(session.getCurrentStep())) {
+                return handleSavedPassengerConfirmation(session, normalizedMessage);
+            }
+
+            if (WhatsappConversationStep.CONFIRMING_PASSENGER_DATA.equals(session.getCurrentStep())) {
+                return handlePassengerDataConfirmation(session, normalizedMessage);
+            }
+
+            if (WhatsappConversationStep.ASKING_FULL_NAME.equals(session.getCurrentStep())) {
+                return handlePassengerNameAnswer(session, messageText);
+            }
+
+            if (WhatsappConversationStep.ASKING_DOCUMENT.equals(session.getCurrentStep())) {
+                return handlePassengerDocumentAnswer(session, messageText);
+            }
+
+            if (WhatsappConversationStep.CHOOSING_TRIP.equals(session.getCurrentStep())
+                    && isReturnTripSelectionPending(session.getMetadata())
+                    && isTripOptionSelection(messageText)) {
+                return confirmReturnTripSelectionAndAskPassenger(session, messageText);
+            }
+
+            if (WhatsappConversationStep.CHOOSING_TRIP.equals(session.getCurrentStep())
+                    && isTripOptionSelection(messageText)) {
+                return createBookingFromSelectedTrip(session, messageText);
+            }
+
+            if (WhatsappConversationStep.WAITING_PAYMENT.equals(session.getCurrentStep())
+                    && isPaymentMethodSelectionPending(session.getMetadata())
+                    && isPaymentMethodOption(normalizedMessage)) {
+                return payBookingWithSelectedPaymentMethod(session, normalizedMessage);
+            }
+
+            if (WhatsappConversationStep.WAITING_PAYMENT.equals(session.getCurrentStep())
+                    && isOptionOne(normalizedMessage)) {
+                return askPaymentMethodFromWhatsapp(session, "Pagar reserva");
+            }
+
+            if (WhatsappConversationStep.CONFIRMING_BOOKING.equals(session.getCurrentStep())
+                    && isPaidBookingSelectionPending(session.getMetadata())
+                    && isIssueTicketSelection(normalizedMessage)) {
+                return issueTicketFromPaidBookingSelection(session, normalizedMessage);
+            }
+
+            if (WhatsappConversationStep.CONFIRMING_BOOKING.equals(session.getCurrentStep())
+                    && isOptionOne(normalizedMessage)) {
+                return issueTicketFromWhatsapp(session, "Emitir bilhete");
+            }
+
+            if (isGreetingNamePending(session.getMetadata())) {
+                return handleGreetingNameAnswer(session, messageText);
+            }
+
+            if (isSmartGreeting(normalizedMessage)) {
+                if (hasCustomerName(session.getMetadata())) {
+                    return handleKnownCustomerGreeting(session, normalizedMessage);
+                }
+
+                return askCustomerNameFromGreeting(session, normalizedMessage);
+            }
+
+            if (isIssueTicketCommand(normalizedMessage)) {
+                return issueTicketFromWhatsapp(session, messageText);
+            }
+
+            if (isPaymentCommand(normalizedMessage)) {
+                return payBookingFromWhatsapp(session, messageText);
+            }
+
+            if (isRecoverTicketCommand(normalizedMessage)) {
+                return recoverPaidTicketFromWhatsapp(session);
+            }
+
+            TripSearchInput tripSearchInput = parseTripSearch(messageText);
+
+            if (tripSearchInput != null) {
+                return searchTripsForPassenger(session, tripSearchInput);
+            }
         }
-if (containsAny(normalizedMessage, "menu", "ajuda", "inicio", "começar", "comecar")) {
+
+        if (containsAny(normalizedMessage, "menu", "ajuda", "inicio", "começar", "comecar")) {
             return menu(session);
-        }
-
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && WhatsappConversationStep.CONFIRMING_SAVED_PASSENGER.equals(session.getCurrentStep())) {
-            return handleSavedPassengerConfirmation(session, normalizedMessage);
-        }
-
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && WhatsappConversationStep.CONFIRMING_PASSENGER_DATA.equals(session.getCurrentStep())) {
-            return handlePassengerDataConfirmation(session, normalizedMessage);
-        }
-
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && WhatsappConversationStep.ASKING_FULL_NAME.equals(session.getCurrentStep())) {
-            return handlePassengerNameAnswer(session, messageText);
-        }
-
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && WhatsappConversationStep.ASKING_DOCUMENT.equals(session.getCurrentStep())) {
-            return handlePassengerDocumentAnswer(session, messageText);
-        }
-
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && isIssueTicketCommand(normalizedMessage)) {
-            return issueTicketFromWhatsapp(session, messageText);
         }
 
         if (WhatsappSessionType.USER.equals(session.getSessionType())
@@ -180,55 +227,13 @@ if (containsAny(normalizedMessage, "menu", "ajuda", "inicio", "começar", "comec
             return dashboard(session);
         }
 
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && isPaymentCommand(normalizedMessage)) {
-            return payBookingFromWhatsapp(session, messageText);
-        }
-
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && WhatsappConversationStep.CHOOSING_TRIP.equals(session.getCurrentStep())
-                && isReturnTripSelectionPending(session.getMetadata())
-                && isTripOptionSelection(messageText)) {
-            return confirmReturnTripSelectionAndAskPassenger(session, messageText);
-        }
-
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && WhatsappConversationStep.CHOOSING_TRIP.equals(session.getCurrentStep())
-                && isTripOptionSelection(messageText)) {
-            return createBookingFromSelectedTrip(session, messageText);
-        }
-if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && WhatsappConversationStep.WAITING_PAYMENT.equals(session.getCurrentStep())
-                && isPaymentMethodSelectionPending(session.getMetadata())
-                && isPaymentMethodOption(normalizedMessage)) {
-            return payBookingWithSelectedPaymentMethod(session, normalizedMessage);
-        }
-
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && WhatsappConversationStep.WAITING_PAYMENT.equals(session.getCurrentStep())
-                && isOptionOne(normalizedMessage)) {
-            return askPaymentMethodFromWhatsapp(session, "Pagar reserva");
-        }
-if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
-                && WhatsappConversationStep.CONFIRMING_BOOKING.equals(session.getCurrentStep())
-                && isOptionOne(normalizedMessage)) {
-            return issueTicketFromWhatsapp(session, "Emitir bilhete");
-        }
-
         if (isBuyTicketCommand(normalizedMessage)) {
             return buyTicket(session);
         }
 
-        if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
-            TripSearchInput tripSearchInput = parseTripSearch(messageText);
-
-            if (tripSearchInput != null) {
-                return searchTripsForPassenger(session, tripSearchInput);
-            }
-        }
-
         return fallback(session, messageText);
     }
+
 
     private WhatsappCommandResult validateTicket(
             WhatsappSessionResponse session,
@@ -1485,11 +1490,11 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
         String pending = extractMetadataValue(metadata, "payment_method_selection_pending");
         return "true".equalsIgnoreCase(pending);
     }
-
     private boolean isPaymentMethodOption(String normalizedMessage) {
         Integer optionNumber = extractSimpleOptionNumber(normalizedMessage);
         return optionNumber != null && optionNumber >= 1 && optionNumber <= 4;
     }
+
 
     private PaymentMethod resolveSelectedPaymentMethod(
             String metadata,
@@ -1828,7 +1833,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
     private boolean isIssueTicketSelection(String normalizedMessage) {
         return normalizedMessage != null && normalizedMessage.matches("[1-5]");
     }
-
     private Integer extractSimpleOptionNumber(String normalizedMessage) {
         if (normalizedMessage == null || normalizedMessage.isBlank()) {
             return null;
@@ -1843,26 +1847,19 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             return null;
         }
 
-        if (cleaned.matches("\\d+")) {
-            try {
-                return Integer.parseInt(cleaned);
-            } catch (NumberFormatException exception) {
-                return null;
-            }
-        }
-
-        Matcher matcher = Pattern.compile("^\\D*(\\d+)").matcher(cleaned);
+        Matcher matcher = Pattern.compile("(^|\\s)(\\d+)(\\s|$)").matcher(cleaned);
 
         if (!matcher.find()) {
             return null;
         }
 
         try {
-            return Integer.parseInt(matcher.group(1));
+            return Integer.parseInt(matcher.group(2));
         } catch (NumberFormatException exception) {
             return null;
         }
     }
+
 
     private String buildPaidBookingSelectionMetadata(
             String currentMetadata,
@@ -2672,10 +2669,19 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
     private boolean isTripOptionSelection(String messageText) {
         return extractSelectedOptionNumber(messageText) != null;
     }
-
     private Integer extractSelectedOptionNumber(String messageText) {
         if (messageText == null || messageText.isBlank()) {
             return null;
+        }
+
+        Matcher optionMatcher = TRIP_OPTION_PATTERN.matcher(messageText);
+
+        if (optionMatcher.find()) {
+            try {
+                return Integer.parseInt(optionMatcher.group(1));
+            } catch (NumberFormatException exception) {
+                return null;
+            }
         }
 
         String cleaned = normalizeText(messageText)
@@ -2687,36 +2693,19 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             return null;
         }
 
-        if (cleaned.matches("\\d+")) {
-            try {
-                return Integer.parseInt(cleaned);
-            } catch (NumberFormatException exception) {
-                return null;
-            }
-        }
+        Matcher numberMatcher = Pattern.compile("(^|\\s)(\\d+)(\\s|$)").matcher(cleaned);
 
-        Matcher leadingNumberMatcher = Pattern.compile("^\\D*(\\d+)").matcher(cleaned);
-
-        if (leadingNumberMatcher.find()) {
-            try {
-                return Integer.parseInt(leadingNumberMatcher.group(1));
-            } catch (NumberFormatException exception) {
-                return null;
-            }
-        }
-
-        Matcher matcher = TRIP_OPTION_PATTERN.matcher(cleaned);
-
-        if (!matcher.find()) {
+        if (!numberMatcher.find()) {
             return null;
         }
 
         try {
-            return Integer.parseInt(matcher.group(1));
+            return Integer.parseInt(numberMatcher.group(2));
         } catch (NumberFormatException exception) {
             return null;
         }
     }
+
 
     private UUID extractTripIdFromMetadata(String metadata, int optionNumber) {
         if (metadata == null || metadata.isBlank()) {
@@ -2741,13 +2730,12 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
         return null;
     }
-
     private WhatsappCommandResult handleSavedPassengerConfirmation(
             WhatsappSessionResponse session,
             String normalizedMessage) {
         Optional<Passenger> optionalPassenger = findRealPassengerForWhatsapp(session);
 
-        if (isOptionOne(normalizedMessage) || containsAny(normalizedMessage, "sim", "confirmar", "continuar")) {
+        if (isOptionOne(normalizedMessage) || containsAny(normalizedMessage, "sim", "confirmar", "confirmo", "continuar")) {
             if (optionalPassenger.isEmpty()) {
                 updateSessionStep(
                         session,
@@ -2759,7 +2747,41 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                         "Não encontrei mais seus dados salvos.\n\nQual é o nome completo do passageiro?");
             }
 
-            return createBookingWithPassenger(session, optionalPassenger.get());
+            Passenger passenger = optionalPassenger.get();
+            PassengerDocumentType documentType = getPassengerDocumentType(passenger);
+
+            String metadata = appendMetadata(
+                    session.getMetadata(),
+                    "confirmed_passenger_id=" + passenger.getId(),
+                    "confirmed_passenger_name=" + passenger.getFullName(),
+                    "confirmed_document_type=" + documentType,
+                    "confirmed_document_number=" + passenger.getDocumentNumber(),
+                    "passenger_id=" + passenger.getId(),
+                    "passenger_name=" + passenger.getFullName(),
+                    "passenger_document_type=" + documentType,
+                    "passenger_document=" + passenger.getDocumentNumber());
+
+            updateSessionPassenger(session, passenger);
+
+            if (isAngolaTermsRequired(metadata) && !isAngolaTermsAccepted(metadata)) {
+                String termsMetadata = appendMetadata(
+                        metadata,
+                        "angola_terms_acceptance_pending=true",
+                        "angola_terms_version=AO-2026-001");
+
+                updateSessionStep(
+                        session,
+                        WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                        termsMetadata);
+
+                return allowed(
+                        "ANGOLA_TERMS",
+                        buildAngolaTermsCard());
+            }
+
+            session.setMetadata(metadata);
+
+            return createBookingWithPassenger(session, passenger);
         }
 
         if (isOptionTwo(normalizedMessage)
@@ -2814,6 +2836,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                         3. Alterar meus dados
                         """.trim());
     }
+
 
             private WhatsappCommandResult handlePassengerNameAnswer(
             WhatsappSessionResponse session,
@@ -3304,6 +3327,37 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                     "Não encontrei a viagem escolhida na sessão.\n\nFaça uma nova busca enviando origem, destino e data.");
         }
 
+        PassengerDocumentType documentType = getPassengerDocumentType(passenger);
+
+        String preBookingMetadata = appendMetadata(
+                session.getMetadata(),
+                "confirmed_passenger_id=" + passenger.getId(),
+                "confirmed_passenger_name=" + passenger.getFullName(),
+                "confirmed_document_type=" + documentType,
+                "confirmed_document_number=" + passenger.getDocumentNumber(),
+                "passenger_id=" + passenger.getId(),
+                "passenger_name=" + passenger.getFullName(),
+                "passenger_document_type=" + documentType,
+                "passenger_document=" + passenger.getDocumentNumber());
+
+        if (isAngolaTermsRequired(preBookingMetadata) && !isAngolaTermsAccepted(preBookingMetadata)) {
+            String termsMetadata = appendMetadata(
+                    preBookingMetadata,
+                    "angola_terms_acceptance_pending=true",
+                    "angola_terms_version=AO-2026-001");
+
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                    termsMetadata);
+
+            return allowed(
+                    "ANGOLA_TERMS",
+                    buildAngolaTermsCard());
+        }
+
+        session.setMetadata(preBookingMetadata);
+
         try {
             Trip trip = tripRepository.findById(tripId)
                     .orElseThrow(() -> new IllegalArgumentException("Viagem não encontrada."));
@@ -3317,19 +3371,17 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
             BookingResponse booking = bookingService.create(request);
 
-            PassengerDocumentType documentType = getPassengerDocumentType(passenger);
             String documentLabel = documentValidatorService.label(documentType);
             String maskedDocument = documentValidatorService.mask(documentType, passenger.getDocumentNumber());
 
             String metadata = appendMetadata(
-                    session.getMetadata(),
+                    preBookingMetadata,
+                    "angola_terms_acceptance_pending=false",
                     "booking_id=" + booking.getId(),
                     "booking_code=" + booking.getBookingCode(),
                     "seat_number=" + booking.getSeatNumber(),
-                    "passenger_id=" + passenger.getId(),
-                    "passenger_name=" + passenger.getFullName(),
-                    "passenger_document_type=" + documentType,
-                    "passenger_document=" + passenger.getDocumentNumber());
+                    "booking_status=" + booking.getStatus(),
+                    "currency=" + booking.getCurrency());
 
             updateSessionStep(
                     session,
@@ -3386,6 +3438,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
 
 
+
     private Optional<Passenger> findPassengerForWhatsapp(WhatsappSessionResponse session) {
         if (session == null) {
             return Optional.empty();
@@ -3413,7 +3466,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 .filter(passenger -> !passenger.getFullName().startsWith("Passageiro WhatsApp"))
                 .filter(passenger -> !passenger.getDocumentNumber().startsWith("WPP"));
     }
-
     private void updateSessionPassenger(
             WhatsappSessionResponse session,
             Passenger passenger) {
@@ -3426,7 +3478,13 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                     whatsappSession.setPassenger(passenger);
                     whatsappSessionRepository.save(whatsappSession);
                 });
+
+        session
+                .setPassengerId(passenger.getId())
+                .setPassengerFullName(passenger.getFullName())
+                .setPassengerDocumentNumber(passenger.getDocumentNumber());
     }
+
 
     private UUID extractSelectedTripIdFromMetadata(String metadata) {
         String selectedTripId = extractMetadataValue(metadata, "selected_trip_id");
@@ -3532,7 +3590,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
         throw new IllegalArgumentException("Não há poltronas disponíveis para esta viagem.");
     }
-
     private void updateSessionStep(
             WhatsappSessionResponse session,
             WhatsappConversationStep step,
@@ -3554,7 +3611,12 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 .setMetadata(metadata);
 
         whatsappSessionRepository.save(whatsappSession);
+
+        session
+                .setCurrentStep(step)
+                .setMetadata(metadata);
     }
+
 
     private boolean isPassengerDocumentCompatibleWithTrip(
             Passenger passenger,
@@ -3867,21 +3929,19 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 .trim()
                 .toUpperCase(Locale.ROOT);
     }
-
     private boolean isOptionOne(String normalizedMessage) {
         Integer optionNumber = extractSimpleOptionNumber(normalizedMessage);
         return optionNumber != null && optionNumber == 1;
     }
-
     private boolean isOptionTwo(String normalizedMessage) {
         Integer optionNumber = extractSimpleOptionNumber(normalizedMessage);
         return optionNumber != null && optionNumber == 2;
     }
-
     private boolean isOptionThree(String normalizedMessage) {
         Integer optionNumber = extractSimpleOptionNumber(normalizedMessage);
         return optionNumber != null && optionNumber == 3;
     }
+
 
     private String extractFirstName(String fullName) {
         if (fullName == null || fullName.isBlank()) {
@@ -3890,7 +3950,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
         return fullName.trim().split("\\s+")[0];
     }
-
     private boolean containsAny(String text, String... words) {
         if (text == null || words == null) {
             return false;
@@ -3904,6 +3963,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
         return false;
     }
+
 
     private String normalizeText(String text) {
         if (text == null) {
