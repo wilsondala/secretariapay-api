@@ -362,6 +362,43 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
         return allowed("ASK_CUSTOMER_NAME", reply.trim());
     }
 
+    private WhatsappCommandResult handleKnownCustomerGreeting(
+            WhatsappSessionResponse session,
+            String normalizedMessage) {
+        String greeting = resolveGreetingLabel(normalizedMessage);
+        String customerName = extractMetadataValue(session.getMetadata(), "customer_name");
+
+        if (customerName == null || customerName.isBlank()) {
+            return askCustomerNameFromGreeting(session, normalizedMessage);
+        }
+
+        String reply = """
+                %s, %s. 😊
+
+                Bem-vindo novamente ao VaiRápido.
+
+                Posso ajudar você a comprar passagem pelo WhatsApp no Brasil e em Angola.
+
+                %s
+
+                O que deseja fazer agora?
+
+                1️⃣ Comprar passagem
+                2️⃣ Consultar horários
+                3️⃣ Recuperar/Reemitir meu bilhete
+                4️⃣ Ver formas de pagamento
+
+                Você também pode enviar direto:
+                Origem: Luanda
+                Destino: Benguela
+                Data: 25/06/2026
+                """.formatted(
+                greeting,
+                customerName,
+                buildSupportedCountriesCard());
+
+        return allowed("GREETING_MENU", reply.trim());
+    }
     private WhatsappCommandResult handleGreetingNameAnswer(
             WhatsappSessionResponse session,
             String messageText) {
@@ -418,20 +455,37 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
         return allowed("GREETING_MENU", reply.trim());
     }
 
-    private boolean isSmartGreeting(String normalizedMessage) {
+        private boolean isSmartGreeting(String normalizedMessage) {
         if (normalizedMessage == null || normalizedMessage.isBlank()) {
             return false;
         }
 
-        return normalizedMessage.equals("oi")
-                || normalizedMessage.equals("ola")
-                || normalizedMessage.equals("olá")
-                || normalizedMessage.equals("bom dia")
-                || normalizedMessage.equals("boa tarde")
-                || normalizedMessage.equals("boa noite")
-                || normalizedMessage.equals("hello")
-                || normalizedMessage.equals("hi");
+        String text = normalizedMessage.trim().toLowerCase();
+
+        return text.equals("oi")
+                || text.equals("ola")
+                || text.equals("olá")
+                || text.equals("hello")
+                || text.equals("hi")
+                || text.equals("bom dia")
+                || text.equals("boa dia")
+                || text.equals("boa manha")
+                || text.equals("boa manhã")
+                || text.equals("manha")
+                || text.equals("manhã")
+                || text.equals("boa tarde")
+                || text.equals("tarde")
+                || text.equals("boa noite")
+                || text.equals("noite")
+                || text.equals("bom noite")
+                || text.equals("boa madrugada")
+                || text.contains("bom dia")
+                || text.contains("boa tarde")
+                || text.contains("boa noite")
+                || text.contains("boa manha")
+                || text.contains("boa manhã");
     }
+
 
     private boolean isGreetingNamePending(String metadata) {
         String pending = extractMetadataValue(metadata, "greeting_name_pending");
@@ -443,21 +497,28 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
         return customerName != null && !customerName.isBlank();
     }
 
-    private String resolveGreetingLabel(String normalizedMessage) {
-        if ("bom dia".equals(normalizedMessage)) {
-            return "Bom dia";
+        private String resolveGreetingLabel(String normalizedMessage) {
+        if (normalizedMessage == null) {
+            return "Olá";
         }
 
-        if ("boa tarde".equals(normalizedMessage)) {
+        String text = normalizedMessage.trim().toLowerCase();
+
+        if (text.contains("tarde")) {
             return "Boa tarde";
         }
 
-        if ("boa noite".equals(normalizedMessage)) {
+        if (text.contains("noite") || text.contains("madrugada")) {
             return "Boa noite";
+        }
+
+        if (text.contains("manha") || text.contains("manhã") || text.contains("bom dia") || text.contains("boa dia")) {
+            return "Bom dia";
         }
 
         return "Olá";
     }
+
 
     private String sanitizeCustomerName(String value) {
         if (value == null) {
@@ -3018,6 +3079,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             LocalDate date) {
     }
 }
+
 
 
 
