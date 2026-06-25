@@ -993,11 +993,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 return allowed("PAY_BOOKING", reply.trim());
             }
 
-            if (isAngolaPaymentContext(session.getMetadata(), booking)
-                    && PaymentMethod.CASH.equals(selectedMethod)) {
-                return confirmAngolaCashReservationAtCounter(session, booking);
-            }
-
             PaymentRequest paymentRequest = new PaymentRequest()
                     .setBookingId(booking.getId())
                     .setMethod(selectedMethod);
@@ -1063,54 +1058,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
         }
     }
 
-    private WhatsappCommandResult confirmAngolaCashReservationAtCounter(
-            WhatsappSessionResponse session,
-            Booking booking) {
-        String metadata = appendMetadata(
-                session.getMetadata(),
-                "payment_method_selection_pending=false",
-                "payment_method=CASH",
-                "payment_method_label=Dinheiro",
-                "counter_payment_pending=true",
-                "booking_code=" + booking.getBookingCode(),
-                "booking_status=" + booking.getStatus());
-
-        updateSessionStep(
-                session,
-                WhatsappConversationStep.START,
-                metadata);
-
-        String reply = """
-                ✅ Reserva confirmada.
-
-                %s
-
-                🎫 Reserva: %s
-                📍 Trecho: %s → %s
-                🕒 Saída: %s
-                💺 Poltrona: %s
-                💰 Valor: %s %s
-                💳 Pagamento: Dinheiro no guichê
-
-                Para esta opção de pagamento, apresente-se 30 minutos antes no guichê da empresa para efetuar o pagamento e validar seu bilhete.
-
-                Após o pagamento no guichê, a empresa poderá confirmar a reserva e emitir/validar o bilhete.
-
-                Boa viagem. 🚌
-                """.formatted(
-                buildCountryContextFromMetadata(metadata),
-                booking.getBookingCode(),
-                resolveBookingOriginCity(booking),
-                resolveBookingDestinationCity(booking),
-                booking.getTrip() != null && booking.getTrip().getDepartureAt() != null
-                        ? booking.getTrip().getDepartureAt().format(DATE_TIME_FORMATTER)
-                        : "-",
-                booking.getSeatNumber() != null ? booking.getSeatNumber().toString() : "-",
-                booking.getCurrency() != null ? booking.getCurrency() : "AOA",
-                booking.getAmount() != null ? booking.getAmount().toPlainString() : "0.00");
-
-        return allowed("COUNTER_PAYMENT_RESERVATION", reply.trim());
-    }
     private String resolveBookingOriginCity(Booking booking) {
         if (booking == null
                 || booking.getTrip() == null
@@ -3145,7 +3092,6 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             LocalDate date) {
     }
 }
-
 
 
 
