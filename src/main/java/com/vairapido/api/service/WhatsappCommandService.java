@@ -708,7 +708,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
 
 
-                private WhatsappCommandResult createBookingFromSelectedTrip(
+                    private WhatsappCommandResult createBookingFromSelectedTrip(
             WhatsappSessionResponse session,
             String messageText) {
         if (!WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
@@ -740,6 +740,10 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                 session.getMetadata(),
                 "selected_option=" + optionNumber,
                 "selected_trip_id=" + trip.getId());
+
+        if (isRoundTripMetadata(metadata) && !isReturnTripSelected(metadata)) {
+            return askReturnTripSelection(session, metadata);
+        }
 
         Optional<Passenger> optionalPassenger = findRealPassengerForWhatsapp(session);
 
@@ -807,6 +811,8 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
                     %s
 
+                    %s
+
                     Passageiro: %s
                     %s: %s
 
@@ -818,6 +824,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
                     """.formatted(
                     firstName,
                     buildCountryContextFromMetadata(metadata),
+                    buildSelectedReturnTripSummary(metadata),
                     passenger.getFullName(),
                     documentLabel,
                     maskedDocument);
@@ -837,15 +844,259 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
 
                         %s
 
+                        %s
+
                         Qual é o nome completo do passageiro?
                         """.formatted(
-                        buildCountryContextFromMetadata(metadata)).trim());
+                        buildCountryContextFromMetadata(metadata),
+                        buildSelectedReturnTripSummary(metadata)).trim());
     }
 
 
 
 
-        private WhatsappCommandResult askPaymentMethodFromWhatsapp(
+
+        private WhatsappCommandResult askReturnTripSelection(
+            WhatsappSessionResponse session,
+            String metadata) {
+        String origin = extractMetadataValue(metadata, "origin");
+        String destination = extractMetadataValue(metadata, "destination");
+        String returnDateText = extractMetadataValue(metadata, "return_date");
+
+        if (origin == null || destination == null || returnDateText == null) {
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.ASKING_FULL_NAME,
+                    metadata);
+
+            return allowed(
+                    "ASK_PASSENGER_NAME",
+                    "Não consegui carregar os dados da volta. Vamos continuar com a ida.\n\nQual é o nome completo do passageiro?");
+        }
+
+        LocalDate returnDate;
+
+        try {
+            returnDate = LocalDate.parse(returnDateText, DATE_FORMATTER);
+        } catch (DateTimeParseException exception) {
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.ASKING_FULL_NAME,
+                    metadata);
+
+            return allowed(
+                    "ASK_PASSENGER_NAME",
+                    "A data de volta ficou inválida na sessão. Vamos continuar com a ida.\n\nQual é o nome completo do passageiro?");
+        }
+
+        LocalDateTime startDateTime = returnDate.atStartOfDay();
+        LocalDateTime endDateTime = returnDate.plusDays(1).atStartOfDay();
+
+        List<Trip> returnTrips = tripRepository.searchAvailableTrips(
+                destination,
+                origin,
+                startDateTime,
+                endDateTime,
+                TripStatus.SCHEDULED);
+
+        List<Trip> options = returnTrips.stream()
+                .sorted(Comparator.comparing(Trip::getDepartureAt))
+                .limit(5)
+                .toList();
+
+        if (options.isEmpty()) {
+            String adjustedMetadata = appendMetadata(
+                    metadata,
+                    "return_trip_selection_pending=false",
+                    "return_trip_available=false");
+
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.ASKING_FULL_NAME,
+                    adjustedMetadata);
+
+            return allowed(
+                    "ASK_PASSENGER_NAME",
+                    """
+                            🔁 Ida e volta identificada.
+
+                            Não encontrei ônibus disponíveis para a volta:
+
+                            Origem: %s
+                            Destino: %s
+                            Data: %s
+
+                            Vamos continuar com a reserva da ida.
+
+                            Qual é o nome completo do passageiro?
+                            """.formatted(
+                            destination,
+                            origin,
+                            returnDate.format(DATE_FORMATTER)).trim());
+        }
+
+        String returnMetadata = buildReturnTripOptionsMetadata(metadata, options);
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CHOOSING_TRIP,
+                returnMetadata);
+
+        StringBuilder reply = new StringBuilder();
+
+        reply.append("🔁 Agora escolha a viagem de volta\n\n");
+        reply.append("Origem: ").append(destination).append("\n");
+        reply.append("Destino: ").append(origin).append("\n");
+        reply.append("Data: ").append(returnDate.format(DATE_FORMATTER)).append("\n\n");
+
+        for (int i = 0; i < options.size(); i++) {
+            Trip trip = options.get(i);
+            reply.append(formatTripOption(i + 1, trip)).append("\n\n");
+        }
+
+        reply.append("Escolha a volta respondendo apenas com o número.\n\n");
+        reply.append("Exemplo: 1");
+
+        return allowed("CHOOSE_RETURN_TRIP", reply.toString().trim());
+    }
+
+    private WhatsappCommandResult confirmReturnTripSelectionAndAskPassenger(
+            WhatsappSessionResponse session,
+            String messageText) {
+        Integer optionNumber = extractSelectedOptionNumber(messageText);
+
+        if (optionNumber == null || optionNumber < 1) {
+            return allowed(
+                    "CHOOSE_RETURN_TRIP",
+                    "Não consegui identificar a viagem de volta escolhida.\n\nResponda apenas com o número. Exemplo: 1");
+        }
+
+        UUID returnTripId = extractReturnTripIdFromMetadata(session.getMetadata(), optionNumber);
+
+        if (returnTripId == null) {
+            return allowed(
+                    "CHOOSE_RETURN_TRIP",
+                    "Não encontrei esta opção de volta na sessão atual. Faça uma nova busca de ida e volta.");
+        }
+
+        Trip returnTrip = tripRepository.findById(returnTripId)
+                .orElseThrow(() -> new IllegalArgumentException("Viagem de volta não encontrada."));
+
+        String metadata = appendMetadata(
+                session.getMetadata(),
+                "return_selected_option=" + optionNumber,
+                "return_selected_trip_id=" + returnTrip.getId(),
+                "return_trip_selection_pending=false",
+                "return_trip_selected=true");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.ASKING_FULL_NAME,
+                metadata);
+
+        String reply = """
+                ✅ Viagem de volta escolhida.
+
+                %s
+
+                Agora vamos finalizar a compra ida e volta.
+
+                Qual é o nome completo do passageiro?
+                """.formatted(
+                buildSelectedReturnTripSummary(metadata)).trim();
+
+        return allowed("ASK_PASSENGER_NAME", reply);
+    }
+
+    private boolean isRoundTripMetadata(String metadata) {
+        String tripType = extractMetadataValue(metadata, "trip_type");
+        return "ROUND_TRIP".equalsIgnoreCase(tripType);
+    }
+
+    private boolean isReturnTripSelectionPending(String metadata) {
+        String pending = extractMetadataValue(metadata, "return_trip_selection_pending");
+        return "true".equalsIgnoreCase(pending);
+    }
+
+    private boolean isReturnTripSelected(String metadata) {
+        String selected = extractMetadataValue(metadata, "return_trip_selected");
+        String returnTripId = extractMetadataValue(metadata, "return_selected_trip_id");
+
+        return "true".equalsIgnoreCase(selected)
+                || (returnTripId != null && !returnTripId.isBlank());
+    }
+
+    private String buildReturnTripOptionsMetadata(
+            String metadata,
+            List<Trip> options) {
+        StringBuilder builder = new StringBuilder();
+
+        if (metadata != null && !metadata.isBlank()) {
+            builder.append(metadata.trim()).append("\n");
+        }
+
+        builder.append("return_trip_selection_pending=true\n");
+
+        for (int i = 0; i < options.size(); i++) {
+            builder
+                    .append("return_option_")
+                    .append(i + 1)
+                    .append("=")
+                    .append(options.get(i).getId())
+                    .append("\n");
+        }
+
+        return builder.toString().trim();
+    }
+
+    private UUID extractReturnTripIdFromMetadata(String metadata, int optionNumber) {
+        if (metadata == null || metadata.isBlank()) {
+            return null;
+        }
+
+        String key = "return_option_" + optionNumber + "=";
+
+        for (String line : splitLines(metadata)) {
+            if (!line.startsWith(key)) {
+                continue;
+            }
+
+            String rawId = line.substring(key.length()).trim();
+
+            try {
+                return UUID.fromString(rawId);
+            } catch (IllegalArgumentException exception) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private String buildSelectedReturnTripSummary(String metadata) {
+        String returnTripId = extractMetadataValue(metadata, "return_selected_trip_id");
+
+        if (returnTripId == null || returnTripId.isBlank()) {
+            return "";
+        }
+
+        try {
+            Trip trip = tripRepository.findById(UUID.fromString(returnTripId)).orElse(null);
+
+            if (trip == null) {
+                return "";
+            }
+
+            return """
+                    🔁 Volta escolhida:
+                    %s
+                    """.formatted(formatTripOption(1, trip)).trim();
+
+        } catch (Exception exception) {
+            return "";
+        }
+    }
+    private WhatsappCommandResult askPaymentMethodFromWhatsapp(
             WhatsappSessionResponse session,
             String messageText) {
         String bookingCode = extractBookingCode(messageText);
@@ -3510,6 +3761,7 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             LocalDate returnDate) {
     }
 }
+
 
 
 
