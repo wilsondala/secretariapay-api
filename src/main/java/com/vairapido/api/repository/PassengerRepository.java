@@ -13,4 +13,6 @@ public interface PassengerRepository extends JpaRepository<Passenger, UUID> {
     boolean existsByDocumentNumber(String documentNumber);
 
     Optional<Passenger> findByWhatsapp(String whatsapp);
+
+    Optional<Passenger> findFirstByWhatsappOrderByUpdatedAtDesc(String whatsapp);
 }

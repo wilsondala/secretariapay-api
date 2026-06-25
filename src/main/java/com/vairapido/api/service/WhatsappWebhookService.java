@@ -297,7 +297,7 @@ public class WhatsappWebhookService {
         String normalizedPhone = normalizePhoneNumber(phoneNumber);
 
         boolean userExists = userRepository
-                .findByWhatsappAndStatus(normalizedPhone, UserStatus.ACTIVE)
+                .findFirstByWhatsappAndStatusOrderByUpdatedAtDesc(normalizedPhone, UserStatus.ACTIVE)
                 .isPresent();
 
         return userExists

@@ -17,6 +17,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     Optional<User> findByWhatsappAndStatus(String whatsapp, UserStatus status);
 
+    Optional<User> findFirstByWhatsappAndStatusOrderByUpdatedAtDesc(String whatsapp, UserStatus status);
+
     boolean existsByEmail(String email);
 
     boolean existsByEmailIgnoreCase(String email);

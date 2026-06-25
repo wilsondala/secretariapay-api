@@ -148,7 +148,7 @@ public class WhatsappSessionService {
     }
 
     private void linkUser(WhatsappSession session, String phoneNumber) {
-        User user = userRepository.findByWhatsappAndStatus(
+        User user = userRepository.findFirstByWhatsappAndStatusOrderByUpdatedAtDesc(
                         phoneNumber,
                         UserStatus.ACTIVE
                 )
@@ -163,7 +163,7 @@ public class WhatsappSessionService {
     }
 
     private void linkPassenger(WhatsappSession session, String phoneNumber) {
-        Passenger passenger = passengerRepository.findByWhatsapp(phoneNumber)
+        Passenger passenger = passengerRepository.findFirstByWhatsappOrderByUpdatedAtDesc(phoneNumber)
                 .orElse(null);
 
         session.setPassenger(passenger);
