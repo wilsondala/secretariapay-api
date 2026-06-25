@@ -3506,7 +3506,8 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
     private record TripSearchInput(
             String origin,
             String destination,
-            LocalDate date) {
+            LocalDate date,
+            LocalDate returnDate) {
     }
 }
 
