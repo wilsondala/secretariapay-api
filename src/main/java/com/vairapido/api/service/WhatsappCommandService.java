@@ -118,7 +118,7 @@ public class WhatsappCommandService {
         this.documentValidatorService = documentValidatorService;
         this.countryResolverService = countryResolverService;
     }
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public WhatsappCommandResult handleCommand(
             WhatsappSessionResponse session,
             String messageText) {
@@ -4074,6 +4074,7 @@ public class WhatsappCommandService {
             LocalDate returnDate) {
     }
 }
+
 
 
 
