@@ -124,27 +124,70 @@ public class WhatsappCommandService {
             String messageText) {
         String normalizedMessage = normalizeText(messageText);
 
+        if (session == null) {
+            return allowed(
+                    "FALLBACK",
+                    "Não consegui carregar sua sessão. Envie: Comprar passagem");
+        }
+
         if (normalizedMessage.isBlank()) {
             return defaultHelp(session);
         }
 
+        /*
+         * Fluxo WhatsApp organizado por estado.
+         * Regra principal: a resposta "1" só vale para o estado atual.
+         * Isso impede que o mesmo "1" seja interpretado como aceite de termos,
+         * pagamento, emissão de bilhete ou escolha de viagem ao mesmo tempo.
+         */
         if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
 
-            if (isAngolaTermsAcceptanceIntent(normalizedMessage)
-                    && hasAngolaTermsContext(session.getMetadata())) {
-                return acceptAngolaTermsAndCreateBooking(session);
+            if (isGreetingNamePending(session.getMetadata())) {
+                return handleGreetingNameAnswer(session, messageText);
             }
 
-            if (isAngolaTermsAcceptancePending(session.getMetadata())) {
-                return handlePassengerDataConfirmation(session, normalizedMessage);
+            if (containsAny(normalizedMessage, "menu", "ajuda", "inicio", "começar", "comecar")) {
+                return menu(session);
+            }
+
+            if (isBuyTicketCommand(normalizedMessage)
+                    && !WhatsappConversationStep.ASKING_FULL_NAME.equals(session.getCurrentStep())
+                    && !WhatsappConversationStep.ASKING_DOCUMENT.equals(session.getCurrentStep())
+                    && !WhatsappConversationStep.CONFIRMING_PASSENGER_DATA.equals(session.getCurrentStep())
+                    && !WhatsappConversationStep.CONFIRMING_SAVED_PASSENGER.equals(session.getCurrentStep())
+                    && !WhatsappConversationStep.WAITING_PAYMENT.equals(session.getCurrentStep())
+                    && !WhatsappConversationStep.CONFIRMING_BOOKING.equals(session.getCurrentStep())) {
+                return buyTicket(session);
+            }
+
+            if (WhatsappConversationStep.CHOOSING_TRIP.equals(session.getCurrentStep())) {
+                if (isReturnTripSelectionPending(session.getMetadata())) {
+                    if (isTripOptionSelection(messageText)) {
+                        return confirmReturnTripSelectionAndAskPassenger(session, messageText);
+                    }
+
+                    return allowed(
+                            "CHOOSE_RETURN_TRIP",
+                            "Não consegui identificar a viagem de volta escolhida.\n\nResponda apenas com o número da volta. Exemplo: 1");
+                }
+
+                if (isTripOptionSelection(messageText)) {
+                    return createBookingFromSelectedTrip(session, messageText);
+                }
+
+                TripSearchInput newSearch = parseTripSearch(messageText);
+
+                if (newSearch != null) {
+                    return searchTripsForPassenger(session, newSearch);
+                }
+
+                return allowed(
+                        "CHOOSE_TRIP",
+                        "Não consegui identificar a viagem escolhida.\n\nResponda apenas com o número da viagem. Exemplo: 1");
             }
 
             if (WhatsappConversationStep.CONFIRMING_SAVED_PASSENGER.equals(session.getCurrentStep())) {
                 return handleSavedPassengerConfirmation(session, normalizedMessage);
-            }
-
-            if (WhatsappConversationStep.CONFIRMING_PASSENGER_DATA.equals(session.getCurrentStep())) {
-                return handlePassengerDataConfirmation(session, normalizedMessage);
             }
 
             if (WhatsappConversationStep.ASKING_FULL_NAME.equals(session.getCurrentStep())) {
@@ -155,41 +198,55 @@ public class WhatsappCommandService {
                 return handlePassengerDocumentAnswer(session, messageText);
             }
 
-            if (WhatsappConversationStep.CHOOSING_TRIP.equals(session.getCurrentStep())
-                    && isReturnTripSelectionPending(session.getMetadata())
-                    && isTripOptionSelection(messageText)) {
-                return confirmReturnTripSelectionAndAskPassenger(session, messageText);
+            if (WhatsappConversationStep.CONFIRMING_PASSENGER_DATA.equals(session.getCurrentStep())) {
+                return handlePassengerDataConfirmation(session, normalizedMessage);
             }
 
-            if (WhatsappConversationStep.CHOOSING_TRIP.equals(session.getCurrentStep())
-                    && isTripOptionSelection(messageText)) {
-                return createBookingFromSelectedTrip(session, messageText);
+            if (WhatsappConversationStep.WAITING_PAYMENT.equals(session.getCurrentStep())) {
+                if (isPaymentMethodSelectionPending(session.getMetadata())) {
+                    if (isPaymentMethodOption(normalizedMessage)) {
+                        return payBookingWithSelectedPaymentMethod(session, normalizedMessage);
+                    }
+
+                    String bookingCode = extractMetadataValue(session.getMetadata(), "booking_code");
+                    Booking booking = bookingCode != null
+                            ? bookingRepository.findByBookingCode(bookingCode).orElse(null)
+                            : null;
+
+                    return allowed(
+                            "PAYMENT_METHOD",
+                            "Opção de pagamento inválida.\n\n"
+                                    + buildPaymentMethodOptionsCard(session.getMetadata(), booking));
+                }
+
+                if (isOptionOne(normalizedMessage) || isPaymentCommand(normalizedMessage)) {
+                    return askPaymentMethodFromWhatsapp(session, "Pagar reserva");
+                }
+
+                TripSearchInput newSearch = parseTripSearch(messageText);
+
+                if (newSearch != null) {
+                    return searchTripsForPassenger(session, newSearch);
+                }
+
+                return allowed(
+                        "WAITING_PAYMENT",
+                        "Sua reserva está criada e aguardando pagamento.\n\nResponda:\n1️⃣ Pagar agora\n2️⃣ Fazer nova busca");
             }
 
-            if (WhatsappConversationStep.WAITING_PAYMENT.equals(session.getCurrentStep())
-                    && isPaymentMethodSelectionPending(session.getMetadata())
-                    && isPaymentMethodOption(normalizedMessage)) {
-                return payBookingWithSelectedPaymentMethod(session, normalizedMessage);
-            }
+            if (WhatsappConversationStep.CONFIRMING_BOOKING.equals(session.getCurrentStep())) {
+                if (isPaidBookingSelectionPending(session.getMetadata())
+                        && isIssueTicketSelection(normalizedMessage)) {
+                    return issueTicketFromPaidBookingSelection(session, normalizedMessage);
+                }
 
-            if (WhatsappConversationStep.WAITING_PAYMENT.equals(session.getCurrentStep())
-                    && isOptionOne(normalizedMessage)) {
-                return askPaymentMethodFromWhatsapp(session, "Pagar reserva");
-            }
+                if (isOptionOne(normalizedMessage) || isIssueTicketCommand(normalizedMessage)) {
+                    return issueTicketFromWhatsapp(session, "Emitir bilhete");
+                }
 
-            if (WhatsappConversationStep.CONFIRMING_BOOKING.equals(session.getCurrentStep())
-                    && isPaidBookingSelectionPending(session.getMetadata())
-                    && isIssueTicketSelection(normalizedMessage)) {
-                return issueTicketFromPaidBookingSelection(session, normalizedMessage);
-            }
-
-            if (WhatsappConversationStep.CONFIRMING_BOOKING.equals(session.getCurrentStep())
-                    && isOptionOne(normalizedMessage)) {
-                return issueTicketFromWhatsapp(session, "Emitir bilhete");
-            }
-
-            if (isGreetingNamePending(session.getMetadata())) {
-                return handleGreetingNameAnswer(session, messageText);
+                return allowed(
+                        "CONFIRMING_BOOKING",
+                        "Pagamento confirmado.\n\nResponda:\n1️⃣ Emitir bilhete agora\n2️⃣ Fazer nova busca");
             }
 
             if (isSmartGreeting(normalizedMessage)) {
@@ -200,16 +257,16 @@ public class WhatsappCommandService {
                 return askCustomerNameFromGreeting(session, normalizedMessage);
             }
 
+            if (isRecoverTicketCommand(normalizedMessage)) {
+                return recoverPaidTicketFromWhatsapp(session);
+            }
+
             if (isIssueTicketCommand(normalizedMessage)) {
                 return issueTicketFromWhatsapp(session, messageText);
             }
 
             if (isPaymentCommand(normalizedMessage)) {
                 return payBookingFromWhatsapp(session, messageText);
-            }
-
-            if (isRecoverTicketCommand(normalizedMessage)) {
-                return recoverPaidTicketFromWhatsapp(session);
             }
 
             TripSearchInput tripSearchInput = parseTripSearch(messageText);
@@ -3120,9 +3177,7 @@ public class WhatsappCommandService {
         return value == null || value.isBlank() ? null : value;
     }
     private boolean hasAngolaTermsContext(String metadata) {
-        return isAngolaTermsAcceptancePending(metadata)
-                || extractMetadataValue(metadata, "angola_terms_version") != null
-                || extractMetadataValue(metadata, "booking_cancelled_by_terms") != null;
+        return isAngolaTermsAcceptancePending(metadata) && !isAngolaTermsAccepted(metadata);
     }
 
     private boolean isAngolaTermsAcceptanceIntent(String normalizedMessage) {
@@ -3378,6 +3433,27 @@ public class WhatsappCommandService {
             return allowed(
                     "CREATE_BOOKING",
                     "Não encontrei a viagem escolhida na sessão.\n\nFaça uma nova busca enviando origem, destino e data.");
+        }
+
+        String existingBookingCode = extractMetadataValue(session.getMetadata(), "booking_code");
+
+        if (existingBookingCode != null && !existingBookingCode.isBlank()) {
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.WAITING_PAYMENT,
+                    session.getMetadata());
+
+            return allowed(
+                    "CREATE_BOOKING",
+                    """
+                            ✅ Reserva já criada.
+
+                            🎫 Código: %s
+
+                            Escolha uma opção:
+                            1️⃣ Pagar agora
+                            2️⃣ Fazer nova busca
+                            """.formatted(existingBookingCode).trim());
         }
 
         PassengerDocumentType documentType = getPassengerDocumentType(passenger);
@@ -4074,7 +4150,6 @@ public class WhatsappCommandService {
             LocalDate returnDate) {
     }
 }
-
 
 
 
