@@ -1487,7 +1487,8 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
     }
 
     private boolean isPaymentMethodOption(String normalizedMessage) {
-        return normalizedMessage != null && normalizedMessage.matches("[1-4]");
+        Integer optionNumber = extractSimpleOptionNumber(normalizedMessage);
+        return optionNumber != null && optionNumber >= 1 && optionNumber <= 4;
     }
 
     private PaymentMethod resolveSelectedPaymentMethod(
@@ -1829,12 +1830,35 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
     }
 
     private Integer extractSimpleOptionNumber(String normalizedMessage) {
-        if (normalizedMessage == null || !normalizedMessage.matches("\\d+")) {
+        if (normalizedMessage == null || normalizedMessage.isBlank()) {
+            return null;
+        }
+
+        String cleaned = normalizeText(normalizedMessage)
+                .replaceAll("[^0-9a-z ]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        if (cleaned.isBlank()) {
+            return null;
+        }
+
+        if (cleaned.matches("\\d+")) {
+            try {
+                return Integer.parseInt(cleaned);
+            } catch (NumberFormatException exception) {
+                return null;
+            }
+        }
+
+        Matcher matcher = Pattern.compile("^\\D*(\\d+)").matcher(cleaned);
+
+        if (!matcher.find()) {
             return null;
         }
 
         try {
-            return Integer.parseInt(normalizedMessage);
+            return Integer.parseInt(matcher.group(1));
         } catch (NumberFormatException exception) {
             return null;
         }
@@ -2654,7 +2678,14 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             return null;
         }
 
-        String cleaned = messageText.trim();
+        String cleaned = normalizeText(messageText)
+                .replaceAll("[^0-9a-z ]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        if (cleaned.isBlank()) {
+            return null;
+        }
 
         if (cleaned.matches("\\d+")) {
             try {
@@ -2664,7 +2695,17 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
             }
         }
 
-        Matcher matcher = TRIP_OPTION_PATTERN.matcher(messageText);
+        Matcher leadingNumberMatcher = Pattern.compile("^\\D*(\\d+)").matcher(cleaned);
+
+        if (leadingNumberMatcher.find()) {
+            try {
+                return Integer.parseInt(leadingNumberMatcher.group(1));
+            } catch (NumberFormatException exception) {
+                return null;
+            }
+        }
+
+        Matcher matcher = TRIP_OPTION_PATTERN.matcher(cleaned);
 
         if (!matcher.find()) {
             return null;
@@ -3828,18 +3869,18 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
     }
 
     private boolean isOptionOne(String normalizedMessage) {
-        return "1".equals(normalizedMessage)
-                || normalizedMessage.startsWith("1 ");
+        Integer optionNumber = extractSimpleOptionNumber(normalizedMessage);
+        return optionNumber != null && optionNumber == 1;
     }
 
     private boolean isOptionTwo(String normalizedMessage) {
-        return "2".equals(normalizedMessage)
-                || normalizedMessage.startsWith("2 ");
+        Integer optionNumber = extractSimpleOptionNumber(normalizedMessage);
+        return optionNumber != null && optionNumber == 2;
     }
 
     private boolean isOptionThree(String normalizedMessage) {
-        return "3".equals(normalizedMessage)
-                || normalizedMessage.startsWith("3 ");
+        Integer optionNumber = extractSimpleOptionNumber(normalizedMessage);
+        return optionNumber != null && optionNumber == 3;
     }
 
     private String extractFirstName(String fullName) {
@@ -3851,8 +3892,12 @@ if (WhatsappSessionType.PASSENGER.equals(session.getSessionType())
     }
 
     private boolean containsAny(String text, String... words) {
+        if (text == null || words == null) {
+            return false;
+        }
+
         for (String word : words) {
-            if (text.contains(word)) {
+            if (word != null && !word.isBlank() && text.contains(word)) {
                 return true;
             }
         }
