@@ -38,6 +38,11 @@ public class BookingResponse {
     private TripSegmentType tripSegmentType;
     private String childGuardianName;
     private String childGuardianPhone;
+
+    private String minorGuardianName;
+    private String minorGuardianPhone;
+    private String minorPickupResponsibleName;
+    private String minorPickupResponsiblePhone;
     private BookingStatus status;
     private BigDecimal amount;
     private String currency;
@@ -269,6 +274,42 @@ public class BookingResponse {
 
     public BookingResponse setTripSegmentType(TripSegmentType tripSegmentType) {
         this.tripSegmentType = tripSegmentType;
+        return this;
+    }
+
+    public String getMinorGuardianName() {
+        return minorGuardianName;
+    }
+
+    public BookingResponse setMinorGuardianName(String minorGuardianName) {
+        this.minorGuardianName = minorGuardianName;
+        return this;
+    }
+
+    public String getMinorGuardianPhone() {
+        return minorGuardianPhone;
+    }
+
+    public BookingResponse setMinorGuardianPhone(String minorGuardianPhone) {
+        this.minorGuardianPhone = minorGuardianPhone;
+        return this;
+    }
+
+    public String getMinorPickupResponsibleName() {
+        return minorPickupResponsibleName;
+    }
+
+    public BookingResponse setMinorPickupResponsibleName(String minorPickupResponsibleName) {
+        this.minorPickupResponsibleName = minorPickupResponsibleName;
+        return this;
+    }
+
+    public String getMinorPickupResponsiblePhone() {
+        return minorPickupResponsiblePhone;
+    }
+
+    public BookingResponse setMinorPickupResponsiblePhone(String minorPickupResponsiblePhone) {
+        this.minorPickupResponsiblePhone = minorPickupResponsiblePhone;
         return this;
     }
 

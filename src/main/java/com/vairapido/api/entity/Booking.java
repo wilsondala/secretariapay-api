@@ -48,6 +48,18 @@ public class Booking {
     @Column(name = "child_guardian_phone", length = 40)
     private String childGuardianPhone;
 
+    @Column(name = "minor_guardian_name", length = 160)
+    private String minorGuardianName;
+
+    @Column(name = "minor_guardian_phone", length = 40)
+    private String minorGuardianPhone;
+
+    @Column(name = "minor_pickup_responsible_name", length = 160)
+    private String minorPickupResponsibleName;
+
+    @Column(name = "minor_pickup_responsible_phone", length = 40)
+    private String minorPickupResponsiblePhone;
+
     @Column(name = "booking_code", nullable = false, unique = true, length = 40)
     private String bookingCode;
 
@@ -191,6 +203,42 @@ public class Booking {
 
     public Booking setTripSegmentType(TripSegmentType tripSegmentType) {
         this.tripSegmentType = tripSegmentType;
+        return this;
+    }
+
+    public String getMinorGuardianName() {
+        return minorGuardianName;
+    }
+
+    public Booking setMinorGuardianName(String minorGuardianName) {
+        this.minorGuardianName = minorGuardianName;
+        return this;
+    }
+
+    public String getMinorGuardianPhone() {
+        return minorGuardianPhone;
+    }
+
+    public Booking setMinorGuardianPhone(String minorGuardianPhone) {
+        this.minorGuardianPhone = minorGuardianPhone;
+        return this;
+    }
+
+    public String getMinorPickupResponsibleName() {
+        return minorPickupResponsibleName;
+    }
+
+    public Booking setMinorPickupResponsibleName(String minorPickupResponsibleName) {
+        this.minorPickupResponsibleName = minorPickupResponsibleName;
+        return this;
+    }
+
+    public String getMinorPickupResponsiblePhone() {
+        return minorPickupResponsiblePhone;
+    }
+
+    public Booking setMinorPickupResponsiblePhone(String minorPickupResponsiblePhone) {
+        this.minorPickupResponsiblePhone = minorPickupResponsiblePhone;
         return this;
     }
 

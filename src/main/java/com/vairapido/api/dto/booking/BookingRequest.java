@@ -27,6 +27,11 @@ public class BookingRequest {
     private String childGuardianName;
     private String childGuardianPhone;
 
+    private String minorGuardianName;
+    private String minorGuardianPhone;
+    private String minorPickupResponsibleName;
+    private String minorPickupResponsiblePhone;
+
     public String getChildGuardianName() {
         return childGuardianName;
     }
@@ -51,6 +56,42 @@ public class BookingRequest {
 
     public BookingRequest setTripSegmentType(TripSegmentType tripSegmentType) {
         this.tripSegmentType = tripSegmentType;
+        return this;
+    }
+
+    public String getMinorGuardianName() {
+        return minorGuardianName;
+    }
+
+    public BookingRequest setMinorGuardianName(String minorGuardianName) {
+        this.minorGuardianName = minorGuardianName;
+        return this;
+    }
+
+    public String getMinorGuardianPhone() {
+        return minorGuardianPhone;
+    }
+
+    public BookingRequest setMinorGuardianPhone(String minorGuardianPhone) {
+        this.minorGuardianPhone = minorGuardianPhone;
+        return this;
+    }
+
+    public String getMinorPickupResponsibleName() {
+        return minorPickupResponsibleName;
+    }
+
+    public BookingRequest setMinorPickupResponsibleName(String minorPickupResponsibleName) {
+        this.minorPickupResponsibleName = minorPickupResponsibleName;
+        return this;
+    }
+
+    public String getMinorPickupResponsiblePhone() {
+        return minorPickupResponsiblePhone;
+    }
+
+    public BookingRequest setMinorPickupResponsiblePhone(String minorPickupResponsiblePhone) {
+        this.minorPickupResponsiblePhone = minorPickupResponsiblePhone;
         return this;
     }
 

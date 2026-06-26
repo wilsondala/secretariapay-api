@@ -186,6 +186,10 @@ public class WhatsappCommandService {
                 return handleChildGuardianDataAnswer(session, messageText);
             }
 
+            if (isMinorUnaccompaniedDataPending(session.getMetadata())) {
+                return handleMinorUnaccompaniedDataAnswer(session, messageText);
+            }
+
             if (isPassengerFareTypeSelectionPending(session.getMetadata())) {
                 return handlePassengerFareTypeSelection(session, normalizedMessage);
             }
@@ -2781,7 +2785,11 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
                     .setPassengerFareType(resolvePassengerFareTypeFromMetadata(metadata))
                     .setTripSegmentType(TripSegmentType.RETURN)
                     .setChildGuardianName(extractMetadataValue(metadata, "child_guardian_name"))
-                    .setChildGuardianPhone(extractMetadataValue(metadata, "child_guardian_phone"));
+                    .setChildGuardianPhone(extractMetadataValue(metadata, "child_guardian_phone"))
+                    .setMinorGuardianName(extractMetadataValue(metadata, "minor_guardian_name"))
+                    .setMinorGuardianPhone(extractMetadataValue(metadata, "minor_guardian_phone"))
+                    .setMinorPickupResponsibleName(extractMetadataValue(metadata, "minor_pickup_responsible_name"))
+                    .setMinorPickupResponsiblePhone(extractMetadataValue(metadata, "minor_pickup_responsible_phone"));
 
             return bookingService.create(returnRequest);
 
@@ -4875,6 +4883,11 @@ private TripSearchInput parseTripSearch(String messageText) {
             return askChildGuardianName(session, metadata);
         }
 
+        if (PassengerFareType.MINOR_UNACCOMPANIED.equals(fareType)
+                && !hasMinorUnaccompaniedData(metadata)) {
+            return askMinorGuardianName(session, metadata);
+        }
+
         return createBookingWithPassenger(session, childPassenger);
     }
 
@@ -5077,6 +5090,222 @@ private TripSearchInput parseTripSearch(String messageText) {
         return "👨‍👩‍👧 Responsável: " + guardianName + " | " + phone;
     }
 
+
+    private boolean isMinorUnaccompaniedDataPending(String metadata) {
+        String pending = extractMetadataValue(metadata, "minor_unaccompanied_data_pending");
+        return "true".equalsIgnoreCase(pending);
+    }
+
+    private boolean hasMinorUnaccompaniedData(String metadata) {
+        String guardianName = extractMetadataValue(metadata, "minor_guardian_name");
+        String guardianPhone = extractMetadataValue(metadata, "minor_guardian_phone");
+        String pickupName = extractMetadataValue(metadata, "minor_pickup_responsible_name");
+        String pickupPhone = extractMetadataValue(metadata, "minor_pickup_responsible_phone");
+
+        return guardianName != null && !guardianName.isBlank()
+                && guardianPhone != null && !guardianPhone.isBlank()
+                && pickupName != null && !pickupName.isBlank()
+                && pickupPhone != null && !pickupPhone.isBlank();
+    }
+
+    private WhatsappCommandResult askMinorGuardianName(
+            WhatsappSessionResponse session,
+            String metadata) {
+        String adjustedMetadata = appendMetadata(
+                metadata,
+                "minor_unaccompanied_data_pending=true",
+                "minor_unaccompanied_step=GUARDIAN_NAME");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                adjustedMetadata);
+
+        return allowed(
+                "ASK_MINOR_GUARDIAN_NAME",
+                String.join("\n",
+                        "🧒 Menor desacompanhado",
+                        "",
+                        "Informe o nome completo do responsável que autoriza a viagem.",
+                        "",
+                        "Exemplo:",
+                        "Manuel António Responsável"));
+    }
+
+    private WhatsappCommandResult handleMinorUnaccompaniedDataAnswer(
+            WhatsappSessionResponse session,
+            String messageText) {
+        String step = extractMetadataValue(session.getMetadata(), "minor_unaccompanied_step");
+
+        if ("GUARDIAN_NAME".equalsIgnoreCase(step)) {
+            return handleMinorGuardianNameAnswer(session, messageText);
+        }
+
+        if ("GUARDIAN_PHONE".equalsIgnoreCase(step)) {
+            return handleMinorGuardianPhoneAnswer(session, messageText);
+        }
+
+        if ("PICKUP_NAME".equalsIgnoreCase(step)) {
+            return handleMinorPickupNameAnswer(session, messageText);
+        }
+
+        if ("PICKUP_PHONE".equalsIgnoreCase(step)) {
+            return handleMinorPickupPhoneAnswer(session, messageText);
+        }
+
+        return askMinorGuardianName(session, session.getMetadata());
+    }
+
+    private WhatsappCommandResult handleMinorGuardianNameAnswer(
+            WhatsappSessionResponse session,
+            String messageText) {
+        String fullName = messageText == null ? "" : messageText.trim();
+
+        if (fullName.length() < 5 || !fullName.contains(" ")) {
+            return allowed(
+                    "ASK_MINOR_GUARDIAN_NAME",
+                    String.join("\n",
+                            "Informe o nome completo do responsável que autoriza a viagem.",
+                            "",
+                            "Exemplo:",
+                            "Manuel António Responsável"));
+        }
+
+        String metadata = appendMetadata(
+                session.getMetadata(),
+                "minor_guardian_name=" + fullName,
+                "minor_unaccompanied_step=GUARDIAN_PHONE");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                metadata);
+
+        return allowed(
+                "ASK_MINOR_GUARDIAN_PHONE",
+                String.join("\n",
+                        "Agora informe o telefone/WhatsApp do responsável que autoriza a viagem.",
+                        "",
+                        "Exemplo:",
+                        "+244923000000"));
+    }
+
+    private WhatsappCommandResult handleMinorGuardianPhoneAnswer(
+            WhatsappSessionResponse session,
+            String messageText) {
+        String phone = normalizeGuardianPhone(messageText);
+
+        if (phone == null || phone.isBlank()) {
+            return allowed(
+                    "ASK_MINOR_GUARDIAN_PHONE",
+                    String.join("\n",
+                            "Telefone inválido.",
+                            "",
+                            "Informe o telefone/WhatsApp do responsável que autoriza.",
+                            "",
+                            "Exemplo:",
+                            "+244923000000"));
+        }
+
+        String metadata = appendMetadata(
+                session.getMetadata(),
+                "minor_guardian_phone=" + phone,
+                "minor_unaccompanied_step=PICKUP_NAME");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                metadata);
+
+        return allowed(
+                "ASK_MINOR_PICKUP_NAME",
+                String.join("\n",
+                        "Agora informe o nome completo da pessoa que receberá o menor no destino.",
+                        "",
+                        "Exemplo:",
+                        "Maria António Destino"));
+    }
+
+    private WhatsappCommandResult handleMinorPickupNameAnswer(
+            WhatsappSessionResponse session,
+            String messageText) {
+        String fullName = messageText == null ? "" : messageText.trim();
+
+        if (fullName.length() < 5 || !fullName.contains(" ")) {
+            return allowed(
+                    "ASK_MINOR_PICKUP_NAME",
+                    String.join("\n",
+                            "Informe o nome completo da pessoa que receberá o menor no destino.",
+                            "",
+                            "Exemplo:",
+                            "Maria António Destino"));
+        }
+
+        String metadata = appendMetadata(
+                session.getMetadata(),
+                "minor_pickup_responsible_name=" + fullName,
+                "minor_unaccompanied_step=PICKUP_PHONE");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                metadata);
+
+        return allowed(
+                "ASK_MINOR_PICKUP_PHONE",
+                String.join("\n",
+                        "Agora informe o telefone/WhatsApp da pessoa que receberá o menor no destino.",
+                        "",
+                        "Exemplo:",
+                        "+244924000000"));
+    }
+
+    private WhatsappCommandResult handleMinorPickupPhoneAnswer(
+            WhatsappSessionResponse session,
+            String messageText) {
+        String phone = normalizeGuardianPhone(messageText);
+
+        if (phone == null || phone.isBlank()) {
+            return allowed(
+                    "ASK_MINOR_PICKUP_PHONE",
+                    String.join("\n",
+                            "Telefone inválido.",
+                            "",
+                            "Informe o telefone/WhatsApp da pessoa que receberá o menor no destino.",
+                            "",
+                            "Exemplo:",
+                            "+244924000000"));
+        }
+
+        String metadata = appendMetadata(
+                session.getMetadata(),
+                "minor_pickup_responsible_phone=" + phone,
+                "minor_unaccompanied_data_pending=false",
+                "minor_unaccompanied_step=DONE");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                metadata);
+
+        session.setMetadata(metadata);
+
+        Passenger passenger = resolveConfirmedPassengerFromMetadata(session, metadata);
+
+        if (passenger == null) {
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.ASKING_FULL_NAME,
+                    metadata);
+
+            return allowed(
+                    "ASK_PASSENGER_NAME",
+                    "Não encontrei os dados do menor.\\n\\nQual é o nome completo do passageiro?");
+        }
+
+        return createBookingWithPassenger(session, passenger);
+    }
+
     private WhatsappCommandResult createBookingWithPassenger(
             WhatsappSessionResponse session,
             Passenger passenger) {
@@ -5136,6 +5365,11 @@ private TripSearchInput parseTripSearch(String messageText) {
             return askChildGuardianName(session, preBookingMetadata);
         }
 
+        if (PassengerFareType.MINOR_UNACCOMPANIED.equals(resolvePassengerFareTypeFromMetadata(preBookingMetadata))
+                && !hasMinorUnaccompaniedData(preBookingMetadata)) {
+            return askMinorGuardianName(session, preBookingMetadata);
+        }
+
         if (isAngolaTermsRequired(preBookingMetadata) && !isAngolaTermsAccepted(preBookingMetadata)) {
             String termsMetadata = appendMetadata(
                     preBookingMetadata,
@@ -5167,7 +5401,11 @@ private TripSearchInput parseTripSearch(String messageText) {
                     .setPassengerFareType(resolvePassengerFareTypeFromMetadata(preBookingMetadata))
                     .setTripSegmentType(resolveOutboundTripSegmentType(preBookingMetadata))
                     .setChildGuardianName(extractMetadataValue(preBookingMetadata, "child_guardian_name"))
-                    .setChildGuardianPhone(extractMetadataValue(preBookingMetadata, "child_guardian_phone"));
+                    .setChildGuardianPhone(extractMetadataValue(preBookingMetadata, "child_guardian_phone"))
+                    .setMinorGuardianName(extractMetadataValue(preBookingMetadata, "minor_guardian_name"))
+                    .setMinorGuardianPhone(extractMetadataValue(preBookingMetadata, "minor_guardian_phone"))
+                    .setMinorPickupResponsibleName(extractMetadataValue(preBookingMetadata, "minor_pickup_responsible_name"))
+                    .setMinorPickupResponsiblePhone(extractMetadataValue(preBookingMetadata, "minor_pickup_responsible_phone"));
 
             BookingResponse booking = bookingService.create(request);
             BookingResponse returnBooking = createReturnBookingIfNeeded(session, passenger);
