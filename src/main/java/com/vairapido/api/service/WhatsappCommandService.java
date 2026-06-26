@@ -659,7 +659,18 @@ public class WhatsappCommandService {
 
         session.setMetadata(metadata);
 
-        return buyTicket(session);
+        WhatsappCommandResult result = buyTicket(session);
+
+        String prefix = "inactivity_timeout".equalsIgnoreCase(reason)
+                ? "⏱️ Sua compra anterior foi reiniciada por inatividade.\n\nVamos começar uma nova compra."
+                : "🔄 Iniciei uma nova compra para você.";
+
+        String reply = String.join(
+                "\n\n",
+                prefix,
+                result.getReplyMessage() != null ? result.getReplyMessage() : "");
+
+        return allowed("BUY_TICKET", reply.trim());
     }
 
 private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
