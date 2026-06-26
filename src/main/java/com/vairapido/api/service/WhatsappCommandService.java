@@ -176,6 +176,10 @@ public class WhatsappCommandService {
                 return handleChildPassengerDataAnswer(session, messageText);
             }
 
+            if (isChildGuardianDataPending(session.getMetadata())) {
+                return handleChildGuardianDataAnswer(session, messageText);
+            }
+
             if (isPassengerFareTypeSelectionPending(session.getMetadata())) {
                 return handlePassengerFareTypeSelection(session, normalizedMessage);
             }
@@ -4536,6 +4540,13 @@ private TripSearchInput parseTripSearch(String messageText) {
 
         session.setMetadata(metadata);
 
+        PassengerFareType fareType = resolvePassengerFareTypeFromMetadata(metadata);
+
+        if (PassengerFareType.CHILD_WITH_SEAT.equals(fareType)
+                && !hasChildGuardianData(metadata)) {
+            return askChildGuardianName(session, metadata);
+        }
+
         return createBookingWithPassenger(session, childPassenger);
     }
 
@@ -4557,6 +4568,185 @@ private TripSearchInput parseTripSearch(String messageText) {
         } catch (DateTimeParseException exception) {
             return null;
         }
+    }
+
+
+    private boolean isChildGuardianDataPending(String metadata) {
+        String pending = extractMetadataValue(metadata, "child_guardian_data_pending");
+        return "true".equalsIgnoreCase(pending);
+    }
+
+    private boolean hasChildGuardianData(String metadata) {
+        String name = extractMetadataValue(metadata, "child_guardian_name");
+        String phone = extractMetadataValue(metadata, "child_guardian_phone");
+
+        return name != null && !name.isBlank()
+                && phone != null && !phone.isBlank();
+    }
+
+    private WhatsappCommandResult askChildGuardianName(
+            WhatsappSessionResponse session,
+            String metadata) {
+        String adjustedMetadata = appendMetadata(
+                metadata,
+                "child_guardian_data_pending=true",
+                "child_guardian_step=NAME");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                adjustedMetadata);
+
+        return allowed(
+                "ASK_CHILD_GUARDIAN_NAME",
+                String.join("\n",
+                        "👨‍👩‍👧 Dados do acompanhante/responsável",
+                        "",
+                        "Para criança acompanhada, informe o nome completo do adulto responsável que viajará com a criança.",
+                        "",
+                        "Exemplo:",
+                        "Manuel António Responsável"));
+    }
+
+    private WhatsappCommandResult handleChildGuardianDataAnswer(
+            WhatsappSessionResponse session,
+            String messageText) {
+        String step = extractMetadataValue(session.getMetadata(), "child_guardian_step");
+
+        if ("NAME".equalsIgnoreCase(step)) {
+            return handleChildGuardianNameAnswer(session, messageText);
+        }
+
+        if ("PHONE".equalsIgnoreCase(step)) {
+            return handleChildGuardianPhoneAnswer(session, messageText);
+        }
+
+        return askChildGuardianName(session, session.getMetadata());
+    }
+
+    private WhatsappCommandResult handleChildGuardianNameAnswer(
+            WhatsappSessionResponse session,
+            String messageText) {
+        String fullName = messageText == null ? "" : messageText.trim();
+
+        if (fullName.length() < 5 || !fullName.contains(" ")) {
+            return allowed(
+                    "ASK_CHILD_GUARDIAN_NAME",
+                    String.join("\n",
+                            "Informe o nome completo do acompanhante/responsável.",
+                            "",
+                            "Exemplo:",
+                            "Manuel António Responsável"));
+        }
+
+        String metadata = appendMetadata(
+                session.getMetadata(),
+                "child_guardian_name=" + fullName,
+                "child_guardian_step=PHONE");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                metadata);
+
+        return allowed(
+                "ASK_CHILD_GUARDIAN_PHONE",
+                String.join("\n",
+                        "Agora informe o telefone/WhatsApp do acompanhante responsável.",
+                        "",
+                        "Exemplo:",
+                        "+244923000000"));
+    }
+
+    private WhatsappCommandResult handleChildGuardianPhoneAnswer(
+            WhatsappSessionResponse session,
+            String messageText) {
+        String phone = normalizeGuardianPhone(messageText);
+
+        if (phone == null || phone.isBlank()) {
+            return allowed(
+                    "ASK_CHILD_GUARDIAN_PHONE",
+                    String.join("\n",
+                            "Telefone inválido.",
+                            "",
+                            "Informe o telefone/WhatsApp do acompanhante responsável.",
+                            "",
+                            "Exemplo:",
+                            "+244923000000"));
+        }
+
+        String metadata = appendMetadata(
+                session.getMetadata(),
+                "child_guardian_phone=" + phone,
+                "child_guardian_data_pending=false",
+                "child_guardian_step=DONE");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                metadata);
+
+        session.setMetadata(metadata);
+
+        Passenger passenger = resolveConfirmedPassengerFromMetadata(session, metadata);
+
+        if (passenger == null) {
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.ASKING_FULL_NAME,
+                    metadata);
+
+            return allowed(
+                    "ASK_PASSENGER_NAME",
+                    "Não encontrei os dados da criança.\\n\\nQual é o nome completo do passageiro?");
+        }
+
+        return createBookingWithPassenger(session, passenger);
+    }
+
+    private String normalizeGuardianPhone(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        String cleaned = value.trim()
+                .replace(" ", "")
+                .replace("-", "")
+                .replace("(", "")
+                .replace(")", "");
+
+        String digits = cleaned.replaceAll("\\D", "");
+
+        if (digits.length() < 8) {
+            return null;
+        }
+
+        if (cleaned.startsWith("+")) {
+            return cleaned;
+        }
+
+        return "+" + digits;
+    }
+
+    private String buildChildGuardianSummaryLine(String metadata) {
+        String fareType = extractMetadataValue(metadata, "passenger_fare_type");
+
+        if (!"CHILD_WITH_SEAT".equalsIgnoreCase(fareType)) {
+            return "";
+        }
+
+        String guardianName = extractMetadataValue(metadata, "child_guardian_name");
+        String guardianPhone = extractMetadataValue(metadata, "child_guardian_phone");
+
+        if (guardianName == null || guardianName.isBlank()) {
+            return "";
+        }
+
+        String phone = guardianPhone != null && !guardianPhone.isBlank()
+                ? guardianPhone
+                : "-";
+
+        return "👨‍👩‍👧 Responsável: " + guardianName + " | " + phone;
     }
 
     private WhatsappCommandResult createBookingWithPassenger(
@@ -4611,6 +4801,11 @@ private TripSearchInput parseTripSearch(String messageText) {
 
         if (!hasPassengerFareType(preBookingMetadata)) {
             return askPassengerFareType(session, preBookingMetadata, passenger);
+        }
+
+        if (PassengerFareType.CHILD_WITH_SEAT.equals(resolvePassengerFareTypeFromMetadata(preBookingMetadata))
+                && !hasChildGuardianData(preBookingMetadata)) {
+            return askChildGuardianName(session, preBookingMetadata);
         }
 
         if (isAngolaTermsRequired(preBookingMetadata) && !isAngolaTermsAccepted(preBookingMetadata)) {
@@ -4677,6 +4872,7 @@ private TripSearchInput parseTripSearch(String messageText) {
                     💺 Poltrona: %d
                     💰 Valor: %s %s
                     ⏳ Expira em: %s
+                    %s
 
                     Escolha uma opção:
                     1️⃣ Pagar agora
@@ -4699,6 +4895,7 @@ private TripSearchInput parseTripSearch(String messageText) {
                     booking.getExpiresAt() != null
                             ? booking.getExpiresAt().format(DATE_TIME_FORMATTER)
                             : "-",
+                    buildChildGuardianSummaryLine(metadata),
                     buildRoundTripReturnInstructionFromMetadata(metadata));
 
             return allowed("CREATE_BOOKING", reply.trim());
