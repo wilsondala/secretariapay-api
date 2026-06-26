@@ -41,6 +41,7 @@ import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -169,6 +170,10 @@ public class WhatsappCommandService {
 
             if (isReturnTripSearchPending(session.getMetadata())) {
                 return handleReturnTripSearchAnswer(session, messageText);
+            }
+
+            if (isChildPassengerDataPending(session.getMetadata())) {
+                return handleChildPassengerDataAnswer(session, messageText);
             }
 
             if (isPassengerFareTypeSelectionPending(session.getMetadata())) {
@@ -4177,6 +4182,11 @@ private TripSearchInput parseTripSearch(String messageText) {
                 WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
                 metadata);
 
+        if (PassengerFareType.CHILD_WITH_SEAT.equals(passengerFareType)
+                || PassengerFareType.MINOR_UNACCOMPANIED.equals(passengerFareType)) {
+            return askChildPassengerFullName(session, metadata, passengerFareType);
+        }
+
         Passenger passenger = resolveConfirmedPassengerFromMetadata(session, metadata);
 
         if (passenger == null) {
@@ -4187,7 +4197,7 @@ private TripSearchInput parseTripSearch(String messageText) {
 
             return allowed(
                     "ASK_PASSENGER_NAME",
-                    "Não encontrei os dados do passageiro.\\n\\nQual é o nome completo do passageiro?");
+                    "Não encontrei os dados do passageiro.\n\nQual é o nome completo do passageiro?");
         }
 
         session.setMetadata(metadata);
@@ -4269,6 +4279,284 @@ private TripSearchInput parseTripSearch(String messageText) {
         }
 
         return findRealPassengerForWhatsapp(session).orElse(null);
+    }
+
+
+    private boolean isChildPassengerDataPending(String metadata) {
+        String pending = extractMetadataValue(metadata, "child_passenger_data_pending");
+        return "true".equalsIgnoreCase(pending);
+    }
+
+    private WhatsappCommandResult askChildPassengerFullName(
+            WhatsappSessionResponse session,
+            String metadata,
+            PassengerFareType passengerFareType) {
+        String adjustedMetadata = appendMetadata(
+                metadata,
+                "child_passenger_data_pending=true",
+                "child_data_step=FULL_NAME");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                adjustedMetadata);
+
+        String label = PassengerFareType.MINOR_UNACCOMPANIED.equals(passengerFareType)
+                ? "menor"
+                : "criança";
+
+        return allowed(
+                "ASK_CHILD_NAME",
+                String.join("\n",
+                        "👶 Dados da " + label,
+                        "",
+                        "Informe o nome completo da " + label + ".",
+                        "",
+                        "Exemplo:",
+                        "Ana Manuel Teste"));
+    }
+
+    private WhatsappCommandResult handleChildPassengerDataAnswer(
+            WhatsappSessionResponse session,
+            String messageText) {
+        String step = extractMetadataValue(session.getMetadata(), "child_data_step");
+
+        if ("FULL_NAME".equalsIgnoreCase(step)) {
+            return handleChildFullNameAnswer(session, messageText);
+        }
+
+        if ("BIRTH_DATE".equalsIgnoreCase(step)) {
+            return handleChildBirthDateAnswer(session, messageText);
+        }
+
+        if ("DOCUMENT".equalsIgnoreCase(step)) {
+            return handleChildDocumentAnswer(session, messageText);
+        }
+
+        String metadata = appendMetadata(
+                session.getMetadata(),
+                "child_passenger_data_pending=true",
+                "child_data_step=FULL_NAME");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                metadata);
+
+        return allowed(
+                "ASK_CHILD_NAME",
+                "Informe o nome completo da criança.\\n\\nExemplo:\\nAna Manuel Teste");
+    }
+
+    private WhatsappCommandResult handleChildFullNameAnswer(
+            WhatsappSessionResponse session,
+            String messageText) {
+        String fullName = messageText == null ? "" : messageText.trim();
+
+        if (fullName.length() < 5 || !fullName.contains(" ")) {
+            return allowed(
+                    "ASK_CHILD_NAME",
+                    String.join("\n",
+                            "Informe o nome completo da criança.",
+                            "",
+                            "Exemplo:",
+                            "Ana Manuel Teste"));
+        }
+
+        String metadata = appendMetadata(
+                session.getMetadata(),
+                "child_full_name=" + fullName,
+                "child_data_step=BIRTH_DATE");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                metadata);
+
+        return allowed(
+                "ASK_CHILD_BIRTH_DATE",
+                String.join("\n",
+                        "Obrigado.",
+                        "",
+                        "Agora informe a data de nascimento da criança.",
+                        "",
+                        "Exemplo:",
+                        "10/05/2017"));
+    }
+
+    private WhatsappCommandResult handleChildBirthDateAnswer(
+            WhatsappSessionResponse session,
+            String messageText) {
+        LocalDate birthDate = parseChildBirthDate(messageText);
+
+        if (birthDate == null) {
+            return allowed(
+                    "ASK_CHILD_BIRTH_DATE",
+                    String.join("\n",
+                            "Data de nascimento inválida.",
+                            "",
+                            "Envie no formato:",
+                            "dd/MM/aaaa",
+                            "",
+                            "Exemplo:",
+                            "10/05/2017"));
+        }
+
+        if (birthDate.isAfter(LocalDate.now())) {
+            return allowed(
+                    "ASK_CHILD_BIRTH_DATE",
+                    "A data de nascimento não pode ser futura.\\n\\nExemplo: 10/05/2017");
+        }
+
+        Integer age = Period.between(birthDate, LocalDate.now()).getYears();
+        PassengerFareType fareType = resolvePassengerFareTypeFromMetadata(session.getMetadata());
+
+        if (PassengerFareType.CHILD_WITH_SEAT.equals(fareType)
+                && (age < 6 || age > 11)) {
+            return allowed(
+                    "ASK_CHILD_BIRTH_DATE",
+                    String.join("\n",
+                            "Pela regra atual, criança acompanhada com poltrona deve ter de 6 a 11 anos.",
+                            "",
+                            "Idade calculada: " + age + " anos.",
+                            "",
+                            "Se for menor desacompanhado, volte e escolha a opção 3.",
+                            "Se for adulto, volte e escolha a opção 1."));
+        }
+
+        if (PassengerFareType.MINOR_UNACCOMPANIED.equals(fareType)
+                && (age < 12 || age > 17)) {
+            return allowed(
+                    "ASK_CHILD_BIRTH_DATE",
+                    String.join("\n",
+                            "Pela regra atual, menor desacompanhado deve ter de 12 a 17 anos.",
+                            "",
+                            "Idade calculada: " + age + " anos.",
+                            "",
+                            "Se for criança acompanhada com poltrona, volte e escolha a opção 2."));
+        }
+
+        String metadata = appendMetadata(
+                session.getMetadata(),
+                "child_birth_date=" + birthDate.format(DATE_FORMATTER),
+                "child_age=" + age,
+                "child_data_step=DOCUMENT");
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                metadata);
+
+        PassengerDocumentType documentType = resolveDocumentTypeFromMetadata(metadata);
+        String documentLabel = documentValidatorService.label(documentType);
+
+        return allowed(
+                "ASK_CHILD_DOCUMENT",
+                String.join("\n",
+                        "Agora informe o " + documentLabel + " da criança.",
+                        "",
+                        buildDocumentInstructionFromMetadata(metadata, documentLabel)));
+    }
+
+    private WhatsappCommandResult handleChildDocumentAnswer(
+            WhatsappSessionResponse session,
+            String messageText) {
+        String fullName = extractMetadataValue(session.getMetadata(), "child_full_name");
+        String birthDateText = extractMetadataValue(session.getMetadata(), "child_birth_date");
+
+        if (fullName == null || fullName.isBlank()) {
+            return handleChildFullNameAnswer(session, messageText);
+        }
+
+        LocalDate birthDate = parseChildBirthDate(birthDateText);
+
+        if (birthDate == null) {
+            String metadata = appendMetadata(
+                    session.getMetadata(),
+                    "child_data_step=BIRTH_DATE");
+
+            updateSessionStep(
+                    session,
+                    WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                    metadata);
+
+            return allowed(
+                    "ASK_CHILD_BIRTH_DATE",
+                    "Informe a data de nascimento da criança.\\n\\nExemplo: 10/05/2017");
+        }
+
+        PassengerDocumentType documentType = resolveDocumentTypeFromMetadata(session.getMetadata());
+        String documentNumber = documentValidatorService.normalize(documentType, messageText);
+        String documentLabel = documentValidatorService.label(documentType);
+
+        if (!documentValidatorService.isValid(documentType, documentNumber)) {
+            String example = PassengerDocumentType.BI.equals(documentType)
+                    ? "Exemplo: 001058899UE035"
+                    : "Exemplo: 52998224725";
+
+            return allowed(
+                    "ASK_CHILD_DOCUMENT",
+                    String.join("\n",
+                            documentLabel + " inválido.",
+                            "",
+                            example));
+        }
+
+        Passenger childPassenger = passengerRepository.findByDocumentNumber(documentNumber)
+                .orElseGet(Passenger::new);
+
+        childPassenger
+                .setFullName(fullName)
+                .setDocumentType(documentType)
+                .setDocumentNumber(documentNumber)
+                .setBirthDate(birthDate)
+                .setPhone(session.getPhoneNumber());
+
+        childPassenger = passengerRepository.save(childPassenger);
+
+        updateSessionPassenger(session, childPassenger);
+
+        String metadata = appendMetadata(
+                session.getMetadata(),
+                "child_passenger_data_pending=false",
+                "child_data_step=DONE",
+                "confirmed_passenger_id=" + childPassenger.getId(),
+                "confirmed_passenger_name=" + childPassenger.getFullName(),
+                "confirmed_document_type=" + documentType,
+                "confirmed_document_number=" + childPassenger.getDocumentNumber(),
+                "passenger_id=" + childPassenger.getId(),
+                "passenger_name=" + childPassenger.getFullName(),
+                "passenger_document_type=" + documentType,
+                "passenger_document=" + childPassenger.getDocumentNumber());
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.CONFIRMING_PASSENGER_DATA,
+                metadata);
+
+        session.setMetadata(metadata);
+
+        return createBookingWithPassenger(session, childPassenger);
+    }
+
+    private LocalDate parseChildBirthDate(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        String cleaned = value.trim();
+
+        try {
+            return LocalDate.parse(cleaned, DATE_FORMATTER);
+        } catch (DateTimeParseException ignored) {
+            // tenta ISO abaixo
+        }
+
+        try {
+            return LocalDate.parse(cleaned);
+        } catch (DateTimeParseException exception) {
+            return null;
+        }
     }
 
     private WhatsappCommandResult createBookingWithPassenger(

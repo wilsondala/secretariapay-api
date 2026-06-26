@@ -146,7 +146,7 @@ public class WhatsappSessionService {
             return;
         }
 
-        if (!session.getUpdatedAt().isBefore(now.minusMinutes(1))) {
+        if (!session.getUpdatedAt().isBefore(now.minusMinutes(5))) {
             return;
         }
 
@@ -161,7 +161,7 @@ public class WhatsappSessionService {
                 .setCurrentStep(WhatsappConversationStep.PASSENGER_IDENTIFICATION)
                 .setMetadata(
                         "auto_reset_due_to_inactivity=true\n"
-                                + "auto_reset_minutes=1\n"
+                                + "auto_reset_minutes=5\n"
                                 + "auto_reset_at=" + now);
     }
 
