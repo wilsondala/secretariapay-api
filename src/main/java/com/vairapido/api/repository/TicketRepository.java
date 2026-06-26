@@ -15,6 +15,8 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 
     Optional<Ticket> findByBooking_Id(UUID bookingId);
 
+    List<Ticket> findByBooking_Passenger_IdOrderByIssuedAtDesc(UUID passengerId);
+
     List<Ticket> findByStatus(TicketStatus status);
 
     boolean existsByBooking_Id(UUID bookingId);

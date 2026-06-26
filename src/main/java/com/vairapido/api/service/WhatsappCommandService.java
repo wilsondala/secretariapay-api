@@ -16,6 +16,7 @@ import com.vairapido.api.entity.Booking;
 import com.vairapido.api.entity.Passenger;
 import com.vairapido.api.entity.TransportCompany;
 import com.vairapido.api.entity.TravelRoute;
+import com.vairapido.api.entity.Ticket;
 import com.vairapido.api.entity.Trip;
 import com.vairapido.api.entity.User;
 import com.vairapido.api.entity.WhatsappSession;
@@ -160,6 +161,10 @@ public class WhatsappCommandService {
                 return restartPassengerPurchase(session, "inactivity_timeout");
             }
 
+            if (isRecoverTicketCommand(normalizedMessage)) {
+                return recoverOrReissueTicketFromWhatsapp(session, messageText);
+            }
+
             if (isTripTypeSelectionPending(session.getMetadata())) {
                 return handleTripTypeSelection(session, normalizedMessage);
             }
@@ -282,7 +287,7 @@ public class WhatsappCommandService {
             }
 
             if (isRecoverTicketCommand(normalizedMessage)) {
-                return recoverPaidTicketFromWhatsapp(session);
+                return recoverOrReissueTicketFromWhatsapp(session, messageText);
             }
 
             if (isIssueTicketCommand(normalizedMessage)) {
@@ -2121,21 +2126,79 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
 
 
     private WhatsappCommandResult recoverPaidTicketFromWhatsapp(WhatsappSessionResponse session) {
+        return recoverOrReissueTicketFromWhatsapp(session, "");
+    }
+
+    private WhatsappCommandResult recoverOrReissueTicketFromWhatsapp(
+            WhatsappSessionResponse session,
+            String messageText) {
+        if (!WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
+            return denied(
+                    "RECOVER_TICKET",
+                    "Este comando é destinado ao passageiro.");
+        }
+
+        String ticketCode = extractTicketCode(messageText);
+
+        if (ticketCode != null && !ticketCode.isBlank()) {
+            return recoverTicketByTicketCode(session, ticketCode);
+        }
+
+        String bookingCode = extractBookingCode(messageText);
+
+        if (bookingCode != null && !bookingCode.isBlank()) {
+            return recoverTicketByBookingCode(session, bookingCode);
+        }
+
         Optional<Passenger> optionalPassenger = findRealPassengerForWhatsapp(session);
 
         if (optionalPassenger.isEmpty()) {
             return allowed(
                     "RECOVER_TICKET",
-                    """
-                            Não encontrei seus dados de passageiro neste WhatsApp.
-
-                            Para recuperar ou emitir um bilhete pago, envie o código da reserva:
-
-                            Emitir bilhete VR123456
-                            """.trim());
+                    String.join("\n",
+                            "🎫 Recuperar/Reemitir bilhete",
+                            "",
+                            "Para reenviar seu bilhete, informe o código da reserva ou o código do bilhete.",
+                            "",
+                            "Exemplos:",
+                            "Reemitir bilhete VR1782459007528",
+                            "Reemitir bilhete VRTK-VR1782459007528-..."));
         }
 
         Passenger passenger = optionalPassenger.get();
+
+        List<Ticket> issuedTickets = ticketRepository
+                .findByBooking_Passenger_IdOrderByIssuedAtDesc(passenger.getId())
+                .stream()
+                .limit(5)
+                .toList();
+
+        if (issuedTickets.size() == 1) {
+            TicketResponse ticket = ticketService.findById(issuedTickets.get(0).getId());
+
+            updateRecoveredTicketSessionMetadata(session, ticket);
+
+            return allowed(
+                    "ISSUE_TICKET",
+                    formatRecoveredTicketReply(ticket, "🎫 Bilhete recuperado com sucesso."));
+        }
+
+        if (issuedTickets.size() > 1) {
+            StringBuilder reply = new StringBuilder();
+
+            reply.append("🎫 Encontrei estes bilhetes emitidos para este WhatsApp.\\n\\n");
+            reply.append("Para reenviar o PDF, envie o código do bilhete ou da reserva.\\n\\n");
+
+            for (int i = 0; i < issuedTickets.size(); i++) {
+                TicketResponse ticket = ticketService.findById(issuedTickets.get(i).getId());
+                reply.append(formatRecoveredTicketOption(i + 1, ticket)).append("\\n\\n");
+            }
+
+            reply.append("Exemplo:\\n");
+            reply.append("Reemitir bilhete ").append(issuedTickets.get(0).getTicketCode());
+
+            return allowed("RECOVER_TICKET", reply.toString().trim());
+        }
 
         List<Booking> paidBookings = bookingRepository.findByPassenger_IdAndStatusOrderByCreatedAtDesc(
                 passenger.getId(),
@@ -2144,27 +2207,17 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
         if (paidBookings.isEmpty()) {
             return allowed(
                     "RECOVER_TICKET",
-                    """
-                            Não encontrei reserva paga aguardando emissão para este WhatsApp.
-
-                            Se você tiver o código da reserva, envie:
-
-                            Emitir bilhete VR123456
-                            """.trim());
+                    String.join("\n",
+                            "Não encontrei bilhete emitido para este WhatsApp.",
+                            "",
+                            "Se você tiver o código da reserva ou do bilhete, envie assim:",
+                            "",
+                            "Reemitir bilhete VR1782459007528",
+                            "Reemitir bilhete VRTK-VR1782459007528-..."));
         }
 
         if (paidBookings.size() == 1) {
             Booking booking = paidBookings.get(0);
-
-            String metadata = appendMetadata(
-                    session.getMetadata(),
-                    "booking_id=" + booking.getId(),
-                    "booking_code=" + booking.getBookingCode());
-
-            updateSessionStep(
-                    session,
-                    WhatsappConversationStep.CONFIRMING_BOOKING,
-                    metadata);
 
             return issueTicketFromWhatsapp(session, "Emitir bilhete " + booking.getBookingCode());
         }
@@ -2182,19 +2235,225 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
 
         StringBuilder reply = new StringBuilder();
 
-        reply.append("🎫 Encontrei reservas pagas aguardando emissão.\n\n");
-        reply.append("Escolha qual bilhete deseja emitir:\n\n");
+        reply.append("🎫 Encontrei reservas pagas aguardando emissão.\\n\\n");
+        reply.append("Escolha qual bilhete deseja emitir:\\n\\n");
 
         for (int i = 0; i < options.size(); i++) {
             Booking booking = options.get(i);
-            reply.append(formatPaidBookingOption(i + 1, booking)).append("\n\n");
+            reply.append(formatPaidBookingOption(i + 1, booking)).append("\\n\\n");
         }
 
-        reply.append("Responda apenas com o número.\n");
+        reply.append("Responda apenas com o número.\\n");
         reply.append("Exemplo: 1");
 
         return allowed("RECOVER_TICKET", reply.toString().trim());
     }
+
+    private WhatsappCommandResult recoverTicketByTicketCode(
+            WhatsappSessionResponse session,
+            String ticketCode) {
+        try {
+            Ticket ticket = ticketRepository.findByTicketCode(ticketCode)
+                    .orElseThrow(() -> new IllegalArgumentException("Bilhete não encontrado."));
+
+            if (!isTicketAccessibleBySession(ticket, session)) {
+                return denied(
+                        "RECOVER_TICKET",
+                        "Este bilhete pertence a outro passageiro.");
+            }
+
+            TicketResponse ticketResponse = ticketService.findById(ticket.getId());
+
+            updateRecoveredTicketSessionMetadata(session, ticketResponse);
+
+            return allowed(
+                    "ISSUE_TICKET",
+                    formatRecoveredTicketReply(ticketResponse, "🎫 Bilhete recuperado com sucesso."));
+
+        } catch (Exception exception) {
+            return allowed(
+                    "RECOVER_TICKET",
+                    "Não foi possível recuperar este bilhete.\\n\\nMotivo: "
+                            + exception.getMessage()
+                            + "\\n\\nConfira o código e tente novamente.");
+        }
+    }
+
+    private WhatsappCommandResult recoverTicketByBookingCode(
+            WhatsappSessionResponse session,
+            String bookingCode) {
+        try {
+            Booking booking = bookingRepository.findByBookingCode(bookingCode)
+                    .orElseThrow(() -> new IllegalArgumentException("Reserva não encontrada."));
+
+            if (!isBookingAccessibleBySession(booking, session)) {
+                return denied(
+                        "RECOVER_TICKET",
+                        "Esta reserva pertence a outro passageiro.");
+            }
+
+            if (BookingStatus.TICKET_ISSUED.equals(booking.getStatus())) {
+                Optional<Ticket> optionalTicket = ticketRepository.findByBooking_Id(booking.getId());
+
+                if (optionalTicket.isEmpty()) {
+                    return allowed(
+                            "RECOVER_TICKET",
+                            "Esta reserva está marcada como bilhete emitido, mas não encontrei o bilhete vinculado. Fale com o suporte.");
+                }
+
+                TicketResponse ticketResponse = ticketService.findById(optionalTicket.get().getId());
+
+                updateRecoveredTicketSessionMetadata(session, ticketResponse);
+
+                return allowed(
+                        "ISSUE_TICKET",
+                        formatRecoveredTicketReply(ticketResponse, "🎫 Bilhete reemitido com sucesso."));
+            }
+
+            if (BookingStatus.PAID.equals(booking.getStatus())) {
+                return issueTicketFromWhatsapp(session, "Emitir bilhete " + booking.getBookingCode());
+            }
+
+            if (BookingStatus.PENDING_PAYMENT.equals(booking.getStatus())) {
+                return allowed(
+                        "RECOVER_TICKET",
+                        String.join("\n",
+                                "Esta reserva ainda está pendente de pagamento.",
+                                "",
+                                "Reserva: " + booking.getBookingCode(),
+                                "Status: " + booking.getStatus(),
+                                "",
+                                "Para pagar, envie:",
+                                "Pagar reserva " + booking.getBookingCode()));
+            }
+
+            return allowed(
+                    "RECOVER_TICKET",
+                    String.join("\n",
+                            "Não é possível reemitir bilhete para esta reserva.",
+                            "",
+                            "Reserva: " + booking.getBookingCode(),
+                            "Status atual: " + booking.getStatus()));
+
+        } catch (Exception exception) {
+            return allowed(
+                    "RECOVER_TICKET",
+                    "Não foi possível recuperar esta reserva.\\n\\nMotivo: "
+                            + exception.getMessage()
+                            + "\\n\\nConfira o código e tente novamente.");
+        }
+    }
+
+    private boolean isTicketAccessibleBySession(
+            Ticket ticket,
+            WhatsappSessionResponse session) {
+        if (ticket == null || ticket.getBooking() == null) {
+            return false;
+        }
+
+        return isBookingAccessibleBySession(ticket.getBooking(), session);
+    }
+
+    private boolean isBookingAccessibleBySession(
+            Booking booking,
+            WhatsappSessionResponse session) {
+        if (booking == null
+                || booking.getPassenger() == null
+                || session == null
+                || session.getPhoneNumber() == null) {
+            return false;
+        }
+
+        Passenger passenger = booking.getPassenger();
+        String sessionPhone = session.getPhoneNumber();
+
+        String passengerWhatsapp = passenger.getWhatsapp();
+        String passengerPhone = passenger.getPhone();
+
+        return (passengerWhatsapp != null && passengerWhatsapp.equals(sessionPhone))
+                || (passengerPhone != null && passengerPhone.equals(sessionPhone));
+    }
+
+    private void updateRecoveredTicketSessionMetadata(
+            WhatsappSessionResponse session,
+            TicketResponse ticket) {
+        if (session == null || ticket == null) {
+            return;
+        }
+
+        String metadata = appendMetadata(
+                session.getMetadata(),
+                "ticket_id=" + ticket.getId(),
+                "ticket_code=" + ticket.getTicketCode(),
+                "ticket_status=" + ticket.getStatus(),
+                "ticket_pdf_url=" + buildTicketPdfUrl(ticket.getId()),
+                "booking_code=" + ticket.getBookingCode());
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.TICKET_ISSUED,
+                metadata);
+
+        session.setMetadata(metadata);
+    }
+
+    private String formatRecoveredTicketReply(
+            TicketResponse ticket,
+            String title) {
+        return """
+                %s
+
+                Código do bilhete: %s
+                Reserva: %s
+                Passageiro: %s
+                Trecho: %s → %s
+                Saída: %s
+                Poltrona: %s
+                Valor: %s %s
+                Status: %s
+
+                PDF:
+                %s
+
+                Apresente este bilhete no embarque.
+                """.formatted(
+                title,
+                ticket.getTicketCode(),
+                ticket.getBookingCode(),
+                ticket.getPassengerName(),
+                ticket.getOriginCity(),
+                ticket.getDestinationCity(),
+                ticket.getDepartureAt() != null
+                        ? ticket.getDepartureAt().format(DATE_TIME_FORMATTER)
+                        : "-",
+                ticket.getSeatNumber() != null ? ticket.getSeatNumber().toString() : "-",
+                ticket.getCurrency(),
+                ticket.getAmount() != null ? ticket.getAmount().toPlainString() : "0.00",
+                ticket.getStatus(),
+                buildTicketPdfUrl(ticket.getId())).trim();
+    }
+
+    private String formatRecoveredTicketOption(
+            int option,
+            TicketResponse ticket) {
+        return """
+                %d️⃣ Bilhete: %s
+                Reserva: %s
+                Passageiro: %s
+                Trecho: %s → %s
+                Saída: %s
+                """.formatted(
+                option,
+                ticket.getTicketCode(),
+                ticket.getBookingCode(),
+                ticket.getPassengerName(),
+                ticket.getOriginCity(),
+                ticket.getDestinationCity(),
+                ticket.getDepartureAt() != null
+                        ? ticket.getDepartureAt().format(DATE_TIME_FORMATTER)
+                        : "-").trim();
+    }
+
 
     private WhatsappCommandResult issueTicketFromPaidBookingSelection(
             WhatsappSessionResponse session,
@@ -2219,19 +2478,32 @@ private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
     }
 
     private boolean isRecoverTicketCommand(String normalizedMessage) {
+        if (normalizedMessage == null || normalizedMessage.isBlank()) {
+            return false;
+        }
+
         return containsAny(
                 normalizedMessage,
-                "reemitir bilhete",
-                "reimprimir bilhete",
                 "recuperar bilhete",
+                "recuperar meu bilhete",
+                "recuperar ticket",
+                "recuperar meu ticket",
+                "reemitir bilhete",
+                "reemitir meu bilhete",
+                "reemitir ticket",
+                "reemitir meu ticket",
+                "reimprimir bilhete",
                 "reenviar bilhete",
+                "reenviar meu bilhete",
                 "segunda via",
+                "segunda via bilhete",
+                "segunda via do bilhete",
                 "2 via",
                 "2ª via",
                 "meu bilhete",
-                "meu ticket",
-                "emitir bilhete",
-                "emitir ticket");
+                "meu ticket")
+                || normalizedMessage.matches(".*\\b(recuperar|reemitir|reenviar|reimprimir).*\\b(bilhete|ticket).*")
+                || normalizedMessage.matches(".*\\bsegunda\\s+via.*\\b(bilhete|ticket).*");
     }
 
     private boolean isPaidBookingSelectionPending(String metadata) {
