@@ -43,6 +43,7 @@ public class WhatsappSessionService {
         expireOverdueSessions();
 
         String phoneNumber = normalizePhoneNumber(request.getPhoneNumber());
+        LocalDateTime now = LocalDateTime.now();
 
         WhatsappSession session = whatsappSessionRepository
                 .findFirstByPhoneNumberAndSessionTypeAndStatusOrderByUpdatedAtDesc(
@@ -50,12 +51,14 @@ public class WhatsappSessionService {
                         request.getSessionType(),
                         WhatsappSessionStatus.ACTIVE
                 )
-                .filter(existing -> existing.getExpiresAt().isAfter(LocalDateTime.now()))
+                .filter(existing -> existing.getExpiresAt().isAfter(now))
                 .orElseGet(() -> createNewSession(phoneNumber, request.getSessionType()));
+
+        resetPassengerFlowAfterInactivityIfNeeded(session, request.getSessionType(), now);
 
         session
                 .setLastMessageText(request.getMessageText())
-                .setExpiresAt(LocalDateTime.now().plusHours(24));
+                .setExpiresAt(now.plusHours(24));
 
         if (WhatsappSessionType.USER.equals(request.getSessionType())) {
             linkUser(session, phoneNumber);
@@ -129,6 +132,37 @@ public class WhatsappSessionService {
         whatsappSessionRepository.saveAll(overdueSessions);
 
         return overdueSessions.size();
+    }
+
+    private void resetPassengerFlowAfterInactivityIfNeeded(
+            WhatsappSession session,
+            WhatsappSessionType sessionType,
+            LocalDateTime now) {
+        if (session == null || !WhatsappSessionType.PASSENGER.equals(sessionType)) {
+            return;
+        }
+
+        if (session.getUpdatedAt() == null) {
+            return;
+        }
+
+        if (!session.getUpdatedAt().isBefore(now.minusMinutes(1))) {
+            return;
+        }
+
+        if (WhatsappConversationStep.PASSENGER_IDENTIFICATION.equals(session.getCurrentStep())
+                || WhatsappConversationStep.START.equals(session.getCurrentStep())
+                || WhatsappConversationStep.TICKET_ISSUED.equals(session.getCurrentStep())
+                || WhatsappConversationStep.FINISHED.equals(session.getCurrentStep())) {
+            return;
+        }
+
+        session
+                .setCurrentStep(WhatsappConversationStep.PASSENGER_IDENTIFICATION)
+                .setMetadata(
+                        "auto_reset_due_to_inactivity=true\n"
+                                + "auto_reset_minutes=1\n"
+                                + "auto_reset_at=" + now);
     }
 
     private WhatsappSession createNewSession(

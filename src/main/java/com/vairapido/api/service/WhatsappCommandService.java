@@ -151,14 +151,12 @@ public class WhatsappCommandService {
                 return menu(session);
             }
 
-            if (isBuyTicketCommand(normalizedMessage)
-                    && !WhatsappConversationStep.ASKING_FULL_NAME.equals(session.getCurrentStep())
-                    && !WhatsappConversationStep.ASKING_DOCUMENT.equals(session.getCurrentStep())
-                    && !WhatsappConversationStep.CONFIRMING_PASSENGER_DATA.equals(session.getCurrentStep())
-                    && !WhatsappConversationStep.CONFIRMING_SAVED_PASSENGER.equals(session.getCurrentStep())
-                    && !WhatsappConversationStep.WAITING_PAYMENT.equals(session.getCurrentStep())
-                    && !WhatsappConversationStep.CONFIRMING_BOOKING.equals(session.getCurrentStep())) {
-                return buyTicket(session);
+            if (isBuyTicketCommand(normalizedMessage)) {
+                return restartPassengerPurchase(session, "buy_ticket_command");
+            }
+
+            if (isAutoResetDueToInactivity(session.getMetadata())) {
+                return restartPassengerPurchase(session, "inactivity_timeout");
             }
 
             if (isTripTypeSelectionPending(session.getMetadata())) {
@@ -641,6 +639,29 @@ public class WhatsappCommandService {
         return cleaned;
     }
     
+    private boolean isAutoResetDueToInactivity(String metadata) {
+        String autoReset = extractMetadataValue(metadata, "auto_reset_due_to_inactivity");
+        return "true".equalsIgnoreCase(autoReset);
+    }
+
+    private WhatsappCommandResult restartPassengerPurchase(
+            WhatsappSessionResponse session,
+            String reason) {
+        String metadata = appendMetadata(
+                null,
+                "conversation_reset_at=" + LocalDateTime.now(),
+                "conversation_reset_reason=" + reason);
+
+        updateSessionStep(
+                session,
+                WhatsappConversationStep.PASSENGER_IDENTIFICATION,
+                metadata);
+
+        session.setMetadata(metadata);
+
+        return buyTicket(session);
+    }
+
 private WhatsappCommandResult buyTicket(WhatsappSessionResponse session) {
         if (!WhatsappSessionType.PASSENGER.equals(session.getSessionType())) {
             return allowed(
