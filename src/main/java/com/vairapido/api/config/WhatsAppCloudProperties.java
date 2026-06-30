@@ -1,61 +1,44 @@
 package com.vairapido.api.config;
 
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConfigurationProperties(prefix = "vairapido.whatsapp.cloud")
 public class WhatsAppCloudProperties {
 
-    private boolean enabled = false;
+    @Value("${vairapido.whatsapp.enabled:false}")
+    private boolean enabled;
+
+    @Value("${vairapido.whatsapp.access-token:}")
     private String accessToken;
+
+    @Value("${vairapido.whatsapp.phone-number-id:}")
     private String phoneNumberId;
-    private String graphApiVersion = "v20.0";
-    private String baseUrl = "https://graph.facebook.com";
+
+    @Value("${vairapido.whatsapp.graph-api-version:v20.0}")
+    private String graphApiVersion;
+
+    @Value("${vairapido.whatsapp.graph-api-base-url:https://graph.facebook.com}")
+    private String baseUrl;
 
     public boolean isEnabled() {
         return enabled;
-    }
-
-    public WhatsAppCloudProperties setEnabled(boolean enabled) {
-        this.enabled = enabled;
-        return this;
     }
 
     public String getAccessToken() {
         return accessToken;
     }
 
-    public WhatsAppCloudProperties setAccessToken(String accessToken) {
-        this.accessToken = accessToken;
-        return this;
-    }
-
     public String getPhoneNumberId() {
         return phoneNumberId;
-    }
-
-    public WhatsAppCloudProperties setPhoneNumberId(String phoneNumberId) {
-        this.phoneNumberId = phoneNumberId;
-        return this;
     }
 
     public String getGraphApiVersion() {
         return graphApiVersion;
     }
 
-    public WhatsAppCloudProperties setGraphApiVersion(String graphApiVersion) {
-        this.graphApiVersion = graphApiVersion;
-        return this;
-    }
-
     public String getBaseUrl() {
         return baseUrl;
-    }
-
-    public WhatsAppCloudProperties setBaseUrl(String baseUrl) {
-        this.baseUrl = baseUrl;
-        return this;
     }
 
     public boolean hasAccessToken() {
