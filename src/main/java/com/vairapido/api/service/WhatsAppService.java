@@ -1,6 +1,8 @@
 package com.vairapido.api.service;
 
 import com.vairapido.api.dto.whatsapp.WhatsAppBackfillResponse;
+import com.vairapido.api.dto.whatsapp.WhatsAppBulkSendRequest;
+import com.vairapido.api.dto.whatsapp.WhatsAppBulkSendResponse;
 import com.vairapido.api.dto.whatsapp.WhatsAppCloudSendResult;
 import com.vairapido.api.dto.whatsapp.WhatsAppCloudStatusResponse;
 import com.vairapido.api.dto.whatsapp.WhatsAppMessageResponse;
@@ -28,6 +30,9 @@ import java.util.UUID;
 
 @Service
 public class WhatsAppService {
+
+    private static final String BULK_CONFIRM_TEXT = "ENVIAR_WHATSAPP_REAL";
+    private static final int MAX_BULK_LIMIT = 10;
 
     private final WhatsAppMessageRepository whatsAppMessageRepository;
     private final BookingRepository bookingRepository;
@@ -190,38 +195,90 @@ public class WhatsAppService {
     }
 
     @Transactional
-    public List<WhatsAppMessageResponse> sendPendingRealMessages() {
+    public WhatsAppBulkSendResponse sendPendingRealMessages(WhatsAppBulkSendRequest request) {
         if (!whatsAppCloudClient.isReady()) {
             throw new IllegalStateException("WhatsApp Cloud API não está configurado para envio real.");
         }
 
-        return whatsAppMessageRepository.findByStatus(WhatsAppMessageStatus.PENDING)
+        if (request == null || !BULK_CONFIRM_TEXT.equals(String.valueOf(request.getConfirmText()).trim())) {
+            throw new IllegalArgumentException("Para envio em lote, confirme digitando exatamente: " + BULK_CONFIRM_TEXT);
+        }
+
+        boolean dryRun = request.getDryRun() == null || request.getDryRun();
+        int requestedLimit = request.getLimit() == null ? 1 : request.getLimit();
+
+        if (requestedLimit <= 0) {
+            throw new IllegalArgumentException("O limite precisa ser maior que zero.");
+        }
+
+        int limit = Math.min(requestedLimit, MAX_BULK_LIMIT);
+        String onlyToPhone = normalizePhone(request.getOnlyToPhone());
+
+        List<WhatsAppMessage> pendingMessages = whatsAppMessageRepository.findByStatus(WhatsAppMessageStatus.PENDING);
+
+        List<WhatsAppMessage> eligibleMessages = pendingMessages
                 .stream()
-                .map(message -> {
-                    WhatsAppCloudSendResult result = whatsAppCloudClient.sendTextMessage(
-                            message.getToPhone(),
-                            message.getMessageBody()
-                    );
-
-                    if (Boolean.TRUE.equals(result.getSuccess())) {
-                        message
-                                .setStatus(WhatsAppMessageStatus.SENT)
-                                .setSentAt(LocalDateTime.now())
-                                .setFailedAt(null)
-                                .setErrorMessage(null)
-                                .setProviderName(WhatsAppCloudClient.PROVIDER_NAME)
-                                .setProviderMessageId(result.getProviderMessageId());
-                    } else {
-                        message
-                                .setStatus(WhatsAppMessageStatus.FAILED)
-                                .setFailedAt(LocalDateTime.now())
-                                .setErrorMessage(result.getErrorMessage())
-                                .setProviderName(WhatsAppCloudClient.PROVIDER_NAME);
-                    }
-
-                    return toResponse(whatsAppMessageRepository.save(message));
-                })
+                .filter(message -> onlyToPhone == null || normalizePhone(message.getToPhone()).equals(onlyToPhone))
+                .limit(limit)
                 .toList();
+
+        if (dryRun) {
+            return new WhatsAppBulkSendResponse()
+                    .setDryRun(true)
+                    .setTotalPending(pendingMessages.size())
+                    .setEligible(eligibleMessages.size())
+                    .setSent(0)
+                    .setFailed(0)
+                    .setSkipped(Math.max(pendingMessages.size() - eligibleMessages.size(), 0))
+                    .setLimitApplied(limit)
+                    .setOnlyToPhone(request.getOnlyToPhone())
+                    .setProcessedAt(LocalDateTime.now())
+                    .setMessages(eligibleMessages.stream().map(this::toResponse).toList())
+                    .setMessage("Simulação concluída. Nenhuma mensagem foi enviada.");
+        }
+
+        int sent = 0;
+        int failed = 0;
+
+        for (WhatsAppMessage message : eligibleMessages) {
+            WhatsAppCloudSendResult result = whatsAppCloudClient.sendTextMessage(
+                    message.getToPhone(),
+                    message.getMessageBody()
+            );
+
+            if (Boolean.TRUE.equals(result.getSuccess())) {
+                message
+                        .setStatus(WhatsAppMessageStatus.SENT)
+                        .setSentAt(LocalDateTime.now())
+                        .setFailedAt(null)
+                        .setErrorMessage(null)
+                        .setProviderName(WhatsAppCloudClient.PROVIDER_NAME)
+                        .setProviderMessageId(result.getProviderMessageId());
+                sent++;
+            } else {
+                message
+                        .setStatus(WhatsAppMessageStatus.FAILED)
+                        .setFailedAt(LocalDateTime.now())
+                        .setErrorMessage(result.getErrorMessage())
+                        .setProviderName(WhatsAppCloudClient.PROVIDER_NAME);
+                failed++;
+            }
+
+            whatsAppMessageRepository.save(message);
+        }
+
+        return new WhatsAppBulkSendResponse()
+                .setDryRun(false)
+                .setTotalPending(pendingMessages.size())
+                .setEligible(eligibleMessages.size())
+                .setSent(sent)
+                .setFailed(failed)
+                .setSkipped(Math.max(pendingMessages.size() - eligibleMessages.size(), 0))
+                .setLimitApplied(limit)
+                .setOnlyToPhone(request.getOnlyToPhone())
+                .setProcessedAt(LocalDateTime.now())
+                .setMessages(eligibleMessages.stream().map(this::toResponse).toList())
+                .setMessage("Envio em lote processado com limite de segurança de " + MAX_BULK_LIMIT + " mensagens por execução.");
     }
 
     @Transactional(readOnly = true)
@@ -313,6 +370,14 @@ public class WhatsAppService {
         return passenger != null
                 && passenger.getWhatsapp() != null
                 && !passenger.getWhatsapp().isBlank();
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return null;
+        }
+
+        return phone.replaceAll("[^0-9]", "");
     }
 
     private String buildPaymentInstructionsMessage(Booking booking) {

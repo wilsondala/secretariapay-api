@@ -1,6 +1,8 @@
 package com.vairapido.api.controller;
 
 import com.vairapido.api.dto.whatsapp.WhatsAppBackfillResponse;
+import com.vairapido.api.dto.whatsapp.WhatsAppBulkSendRequest;
+import com.vairapido.api.dto.whatsapp.WhatsAppBulkSendResponse;
 import com.vairapido.api.dto.whatsapp.WhatsAppCloudStatusResponse;
 import com.vairapido.api.dto.whatsapp.WhatsAppMessageResponse;
 import com.vairapido.api.service.WhatsAppService;
@@ -45,8 +47,10 @@ public class WhatsAppController {
     }
 
     @PostMapping("/messages/send-pending-real")
-    public List<WhatsAppMessageResponse> sendPendingRealMessages() {
-        return service.sendPendingRealMessages();
+    public WhatsAppBulkSendResponse sendPendingRealMessages(
+            @RequestBody(required = false) WhatsAppBulkSendRequest request
+    ) {
+        return service.sendPendingRealMessages(request);
     }
 
     @GetMapping("/messages")
