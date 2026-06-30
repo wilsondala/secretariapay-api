@@ -1,3 +1,0 @@
-﻿Log ID;Código do bilhete;Ação;Sucesso;Mensagem;Status do bilhete;Status da reserva;IP;User-Agent;Criado em
-ab275e64-d609-4ed4-ac17-ae4f50e74442;VRTK-VR1781782312032-1781805286245;BOARDING;false;Bilhete já utilizado no embarque.;USED;TICKET_ISSUED;0:0:0:0:0:0:0:1;"Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.19045; pt-BR) PowerShell/7.5.5";2026-06-18 22:26:08
-dc78e62a-be2a-46bd-aa0c-db31aa735ec5;VRTK-VR1781782312032-1781805286245;PUBLIC_VALIDATION;false;Bilhete já utilizado no embarque.;USED;TICKET_ISSUED;0:0:0:0:0:0:0:1;"Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.19045; pt-BR) PowerShell/7.5.5";2026-06-18 22:14:57
