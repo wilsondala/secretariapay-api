@@ -1,0 +1,476 @@
+﻿Tipo;Código;Passageiro;Empresa;Rota;Status;Valor;Data
+Bilhete;VRTK-VR1782029058561-1782029462832;Manuel Dala;Atlântico Bus;Brasília → Goiânia;VALID;77.9;2026-06-21T05:11:02.834101
+Bilhete;VRTK-VR1782039749565-1782039836522;Manuel Dala;Atlântico Bus;São Paulo → Rio de Janeiro;VALID;107.9;2026-06-21T08:03:56.527846
+Bilhete;VRTK-VR1782062446845-1782062508518;Zumba Kieto;Atlântico Bus;São Paulo → Rio de Janeiro;VALID;107.9;2026-06-21T14:21:48.520134
+Bilhete;VRTK-VR1782072314116-1782072365718;Manuel Dala;Atlântico Bus;São Paulo → Rio de Janeiro;VALID;134.9;2026-06-21T17:06:05.72185
+Bilhete;VRTK-VR1782079952697-1782079979308;Manuel Dala;Atlântico Bus;Rio de Janeiro → São Paulo;VALID;107.9;2026-06-21T19:12:59.311994
+Embarque;VRTK-VR1782092255479-1782092301924;Zaqueu Ricardo;Atlântico Bus;São Paulo → Rio de Janeiro;USED;134.9;2026-06-22T02:10:06.840336
+Embarque;VRTK-VR1782055196429-1782055255254;Manuel Dala;Atlântico Bus;São Paulo → Rio de Janeiro;USED;134.9;2026-06-22T02:36:20.769712
+Bilhete;VRTK-VR1782141753206-1782141766882;Manuel Dala;Atlântico Bus;São Paulo → Rio de Janeiro;VALID;134.9;2026-06-22T12:22:46.888034
+Embarque;VRTK-VR1782144883015-1782144901554;Jerrmia ndetope;Atlântico Bus;São Paulo → Rio de Janeiro;USED;134.9;2026-06-22T16:06:18.24439
+Reserva;VR1782029058561;Manuel Dala;Atlântico Bus;Brasília → Goiânia;TICKET_ISSUED;77.9;2026-06-25T13:00:00
+Reserva;VR1782039749565;Manuel Dala;Atlântico Bus;São Paulo → Rio de Janeiro;TICKET_ISSUED;107.9;2026-06-25T13:00:00
+Reserva;VR1782043776905;Manuel Dala;Atlântico Bus;São Paulo → Rio de Janeiro;PENDING_PAYMENT;89.9;2026-06-24T06:30:00
+Reserva;VR1782055196429;Manuel Dala;Atlântico Bus;São Paulo → Rio de Janeiro;TICKET_ISSUED;134.9;2026-06-25T21:30:00
+Reserva;VR1782062446845;Zumba Kieto;Atlântico Bus;São Paulo → Rio de Janeiro;TICKET_ISSUED;107.9;2026-06-25T13:00:00
+Reserva;VR1782072314116;Manuel Dala;Atlântico Bus;São Paulo → Rio de Janeiro;TICKET_ISSUED;134.9;2026-06-25T21:30:00
+Reserva;VR1782079952697;Manuel Dala;Atlântico Bus;Rio de Janeiro → São Paulo;TICKET_ISSUED;107.9;2026-06-25T13:00:00
+Reserva;VR1782092255479;Zaqueu Ricardo;Atlântico Bus;São Paulo → Rio de Janeiro;TICKET_ISSUED;134.9;2026-06-25T21:30:00
+Reserva;VR1782141753206;Manuel Dala;Atlântico Bus;São Paulo → Rio de Janeiro;TICKET_ISSUED;134.9;2026-06-25T21:30:00
+Reserva;VR1782144883015;Jerrmia ndetope;Atlântico Bus;São Paulo → Rio de Janeiro;TICKET_ISSUED;134.9;2026-06-25T21:30:00
+Viagem;9deeb432-593e-45e5-b974-63cde2290bc3;-;Atlântico Bus;São Paulo → Rio de Janeiro;SCHEDULED;89.9;2026-07-02T06:30:00
+Viagem;c7eef86b-e5f1-4f9d-8840-94418a9c1ec5;-;Atlântico Bus;São Paulo → Rio de Janeiro;SCHEDULED;107.9;2026-07-03T13:00:00
+Viagem;aed777c1-aad4-4e52-a5cd-90c3299aad72;-;Atlântico Bus;São Paulo → Rio de Janeiro;SCHEDULED;134.9;2026-07-03T21:30:00
+Viagem;4ef9d19e-19e2-42ac-931a-92e6b57d96ff;-;Atlântico Bus;Brasília → Goiânia;SCHEDULED;77.9;2026-06-25T13:00:00
+Viagem;a2ff241d-62bc-45fd-9d01-cd15ce147759;-;Atlântico Bus;São Paulo → Rio de Janeiro;SCHEDULED;89.9;2026-06-24T06:30:00
+Viagem;6ea18f1e-bc69-4594-ac6c-553e4fd22176;-;Atlântico Bus;São Paulo → Rio de Janeiro;SCHEDULED;134.9;2026-06-25T21:30:00
+Viagem;b71892ea-e775-4dbb-89cb-67343b5ee3cf;-;Atlântico Bus;São Paulo → Rio de Janeiro;SCHEDULED;89.9;2026-07-10T06:30:00
+Viagem;4d1410e5-9820-44c1-a5ac-38085aae346f;-;Atlântico Bus;São Paulo → Rio de Janeiro;SCHEDULED;107.9;2026-07-11T13:00:00
+Viagem;e05ba3de-f8d4-4f18-922d-088d907f6bb8;-;Atlântico Bus;São Paulo → Rio de Janeiro;SCHEDULED;134.9;2026-07-11T21:30:00
+Viagem;9777a722-3c18-482a-82ed-65bdd6ddcf3e;-;Atlântico Bus;São Paulo → Rio de Janeiro;SCHEDULED;89.9;2026-07-18T06:30:00
+Viagem;f4298e75-9b9a-4650-a28c-f94cff0d5762;-;Atlântico Bus;São Paulo → Rio de Janeiro;SCHEDULED;107.9;2026-07-19T13:00:00
+Viagem;16a6b2bd-54b7-43b4-9b06-e4317eec47b1;-;Atlântico Bus;São Paulo → Rio de Janeiro;SCHEDULED;134.9;2026-07-19T21:30:00
+Viagem;77b7527e-a50d-4710-98ce-13bbaac08e7d;-;Atlântico Bus;Rio de Janeiro → São Paulo;SCHEDULED;89.9;2026-06-24T06:30:00
+Viagem;1c20ed4e-2b2d-4b27-a336-6bff3765c525;-;Atlântico Bus;Rio de Janeiro → São Paulo;SCHEDULED;134.9;2026-06-25T21:30:00
+Viagem;6aace9b4-a1b9-42ca-8a70-1654e7ab96bc;-;Atlântico Bus;Rio de Janeiro → São Paulo;SCHEDULED;89.9;2026-07-02T06:30:00
+Viagem;00556209-5f70-43dd-b7a9-6aaef4133682;-;Atlântico Bus;Rio de Janeiro → São Paulo;SCHEDULED;107.9;2026-07-03T13:00:00
+Viagem;e7ce14ce-3221-4ba3-bbc3-3699eb6d0618;-;Atlântico Bus;Rio de Janeiro → São Paulo;SCHEDULED;134.9;2026-07-03T21:30:00
+Viagem;bed3a484-35e8-4c6b-9bb0-93950019e2fd;-;Atlântico Bus;Rio de Janeiro → São Paulo;SCHEDULED;89.9;2026-07-10T06:30:00
+Viagem;2867ce16-575a-4fbb-85e7-f64a6fa607fa;-;Atlântico Bus;Rio de Janeiro → São Paulo;SCHEDULED;107.9;2026-07-11T13:00:00
+Viagem;0a53fa20-6eda-455d-aac0-9e62232d5aca;-;Atlântico Bus;Rio de Janeiro → São Paulo;SCHEDULED;134.9;2026-07-11T21:30:00
+Viagem;dfcf99f2-980c-43a1-8f4e-f9c89c2f135e;-;Atlântico Bus;Rio de Janeiro → São Paulo;SCHEDULED;89.9;2026-07-18T06:30:00
+Viagem;0547cfab-94dd-46bc-b252-66ea3431adec;-;Atlântico Bus;Rio de Janeiro → São Paulo;SCHEDULED;107.9;2026-07-19T13:00:00
+Viagem;3c8e253f-9e35-4e9a-a5c8-8293fddad36d;-;Atlântico Bus;Rio de Janeiro → São Paulo;SCHEDULED;134.9;2026-07-19T21:30:00
+Viagem;b095a3c9-c10f-41ef-8513-57f3ac971155;-;Atlântico Bus;São Paulo → Belo Horizonte;SCHEDULED;119.9;2026-06-24T06:30:00
+Viagem;ca4abd6e-7cd0-4562-8b14-691e7de5337b;-;Atlântico Bus;São Paulo → Belo Horizonte;SCHEDULED;137.9;2026-06-25T13:00:00
+Viagem;a151973d-5ef2-4228-bf60-f48f267af13c;-;Atlântico Bus;São Paulo → Belo Horizonte;SCHEDULED;164.9;2026-06-25T21:30:00
+Viagem;8f077245-83bc-4039-ae62-9fa7e459f459;-;Atlântico Bus;São Paulo → Belo Horizonte;SCHEDULED;119.9;2026-07-02T06:30:00
+Viagem;19425445-2355-4e86-b40c-e15a97444e7a;-;Atlântico Bus;São Paulo → Belo Horizonte;SCHEDULED;137.9;2026-07-03T13:00:00
+Viagem;3dc3ad42-bd83-4425-832f-b67c7be38393;-;Atlântico Bus;São Paulo → Belo Horizonte;SCHEDULED;164.9;2026-07-03T21:30:00
+Viagem;e1774566-a829-41ec-a356-f957f4f59a8e;-;Atlântico Bus;São Paulo → Belo Horizonte;SCHEDULED;119.9;2026-07-10T06:30:00
+Viagem;0e17d1d1-5271-44ca-9466-a73f02c68a1c;-;Atlântico Bus;São Paulo → Belo Horizonte;SCHEDULED;137.9;2026-07-11T13:00:00
+Viagem;99421f83-5296-4ab8-b6ea-14f64f485dd0;-;Atlântico Bus;São Paulo → Belo Horizonte;SCHEDULED;164.9;2026-07-11T21:30:00
+Viagem;6ef871dc-6180-4b8e-a94b-68d775ef28f5;-;Atlântico Bus;São Paulo → Belo Horizonte;SCHEDULED;119.9;2026-07-18T06:30:00
+Viagem;5bf12939-4933-4e6d-824f-0b8cf57a1192;-;Atlântico Bus;São Paulo → Belo Horizonte;SCHEDULED;137.9;2026-07-19T13:00:00
+Viagem;e1aa1953-1643-44fc-b3a3-c5b028051be5;-;Atlântico Bus;São Paulo → Belo Horizonte;SCHEDULED;164.9;2026-07-19T21:30:00
+Viagem;08f5d015-828f-4113-b523-dc733dc82aea;-;Atlântico Bus;Belo Horizonte → São Paulo;SCHEDULED;119.9;2026-06-24T06:30:00
+Viagem;83bb0f3b-83bb-455b-919a-cfd57c58d490;-;Atlântico Bus;Belo Horizonte → São Paulo;SCHEDULED;137.9;2026-06-25T13:00:00
+Viagem;baa46a4a-f94c-4529-91c2-89a072dd45f2;-;Atlântico Bus;Belo Horizonte → São Paulo;SCHEDULED;164.9;2026-06-25T21:30:00
+Viagem;acb3287d-2216-4ac5-8c99-22d6f3a5d16a;-;Atlântico Bus;Belo Horizonte → São Paulo;SCHEDULED;119.9;2026-07-02T06:30:00
+Viagem;0de26acd-ff15-4a06-8a71-e0e78859c4b2;-;Atlântico Bus;Belo Horizonte → São Paulo;SCHEDULED;137.9;2026-07-03T13:00:00
+Viagem;5434908b-b22e-459e-a4de-9527df2c344f;-;Atlântico Bus;Belo Horizonte → São Paulo;SCHEDULED;164.9;2026-07-03T21:30:00
+Viagem;7fc06dc9-2422-4c53-a023-46918483164d;-;Atlântico Bus;Belo Horizonte → São Paulo;SCHEDULED;119.9;2026-07-10T06:30:00
+Viagem;36fce65d-fa75-4c9a-ab2f-42ae237b2302;-;Atlântico Bus;Belo Horizonte → São Paulo;SCHEDULED;137.9;2026-07-11T13:00:00
+Viagem;7d3ce675-7189-4cd1-bfa0-c8a123c8a342;-;Atlântico Bus;Belo Horizonte → São Paulo;SCHEDULED;164.9;2026-07-11T21:30:00
+Viagem;aa5ba63e-7f51-4869-937f-1870bfab63c0;-;Atlântico Bus;Belo Horizonte → São Paulo;SCHEDULED;119.9;2026-07-18T06:30:00
+Viagem;e2c40d44-e02b-45ba-8330-9aa913327dfe;-;Atlântico Bus;Belo Horizonte → São Paulo;SCHEDULED;137.9;2026-07-19T13:00:00
+Viagem;8c548246-962d-4ba9-8331-94b07a8c7d50;-;Atlântico Bus;Belo Horizonte → São Paulo;SCHEDULED;164.9;2026-07-19T21:30:00
+Viagem;b1748a1c-5a2d-4f7a-b98a-15459a4f6a58;-;Atlântico Bus;São Paulo → Curitiba;SCHEDULED;99.9;2026-06-22T06:30:00
+Viagem;dee46966-6d03-43ad-8011-5ad4a312dddb;-;Atlântico Bus;São Paulo → Curitiba;SCHEDULED;117.9;2026-06-23T13:00:00
+Viagem;ac7221bb-0534-4797-92df-76851ed0b84f;-;Atlântico Bus;São Paulo → Curitiba;SCHEDULED;144.9;2026-06-23T21:30:00
+Viagem;a7aa8240-465d-4895-9d54-ecfcfbb3912c;-;Atlântico Bus;São Paulo → Curitiba;SCHEDULED;99.9;2026-06-30T06:30:00
+Viagem;5a0afec2-515e-4fe3-88d6-e172aa355c73;-;Atlântico Bus;São Paulo → Curitiba;SCHEDULED;117.9;2026-07-01T13:00:00
+Viagem;8eb92fb4-6393-4a2b-8c6c-522a79c018a0;-;Atlântico Bus;São Paulo → Curitiba;SCHEDULED;144.9;2026-07-01T21:30:00
+Viagem;84e5e490-5fcf-47b7-987f-139c61d019bf;-;Atlântico Bus;São Paulo → Curitiba;SCHEDULED;99.9;2026-07-08T06:30:00
+Viagem;8f995dd3-2cab-4c06-9b97-004eba6e01fb;-;Atlântico Bus;São Paulo → Curitiba;SCHEDULED;117.9;2026-07-09T13:00:00
+Viagem;92e1cc54-8aec-44b4-bb6b-9ff4c0e6b717;-;Atlântico Bus;São Paulo → Curitiba;SCHEDULED;144.9;2026-07-09T21:30:00
+Viagem;9646d7a4-4683-4824-b664-bd7de3385bc8;-;Atlântico Bus;São Paulo → Curitiba;SCHEDULED;99.9;2026-07-16T06:30:00
+Viagem;afec8f2b-2f2e-4cea-a4ae-8fd3883b5349;-;Atlântico Bus;São Paulo → Curitiba;SCHEDULED;117.9;2026-07-17T13:00:00
+Viagem;331c0d6d-96fe-4f9c-b6c8-555f1fd7cf15;-;Atlântico Bus;São Paulo → Curitiba;SCHEDULED;144.9;2026-07-17T21:30:00
+Viagem;4d9c6ec6-26c8-4246-9078-5f16ce30b46a;-;Atlântico Bus;Curitiba → São Paulo;SCHEDULED;99.9;2026-06-22T06:30:00
+Viagem;3ede7e21-86cd-45fc-9077-e211a48934e4;-;Atlântico Bus;Curitiba → São Paulo;SCHEDULED;117.9;2026-06-23T13:00:00
+Viagem;cac795ce-d4ec-4bd4-a889-4256cac7c1bf;-;Atlântico Bus;Curitiba → São Paulo;SCHEDULED;144.9;2026-06-23T21:30:00
+Viagem;2e97adf3-3e69-4d2f-bd27-916f16e38fe4;-;Atlântico Bus;Curitiba → São Paulo;SCHEDULED;99.9;2026-06-30T06:30:00
+Viagem;2b9f116f-a28f-4f81-870e-c30a1b1f73cd;-;Atlântico Bus;Curitiba → São Paulo;SCHEDULED;117.9;2026-07-01T13:00:00
+Viagem;00f0019c-8f1b-4209-93c5-26015715b388;-;Atlântico Bus;Curitiba → São Paulo;SCHEDULED;144.9;2026-07-01T21:30:00
+Viagem;6f69a98c-637c-4dae-8bd1-53f4e0790bec;-;Atlântico Bus;Curitiba → São Paulo;SCHEDULED;99.9;2026-07-08T06:30:00
+Viagem;eb5294d1-1d91-427f-b785-c7e24305c449;-;Atlântico Bus;Curitiba → São Paulo;SCHEDULED;117.9;2026-07-09T13:00:00
+Viagem;da975a2d-fd56-4ded-a844-7fb695c6092f;-;Atlântico Bus;Curitiba → São Paulo;SCHEDULED;144.9;2026-07-09T21:30:00
+Viagem;65ceff20-f77a-40c5-90ea-b46e16fe0860;-;Atlântico Bus;Curitiba → São Paulo;SCHEDULED;99.9;2026-07-16T06:30:00
+Viagem;de5b91da-c88a-4c88-9fa3-541744bb7d8d;-;Atlântico Bus;Curitiba → São Paulo;SCHEDULED;117.9;2026-07-17T13:00:00
+Viagem;3a7abc37-451a-44ae-8677-ea46fb81d473;-;Atlântico Bus;Curitiba → São Paulo;SCHEDULED;144.9;2026-07-17T21:30:00
+Viagem;766d2dd2-e408-4c0b-89ce-37298ed54eee;-;Atlântico Bus;São Paulo → Florianópolis;SCHEDULED;159.9;2026-06-25T06:30:00
+Viagem;8e833c9a-8cad-4f3b-94e6-0f50d5b5f136;-;Atlântico Bus;São Paulo → Florianópolis;SCHEDULED;177.9;2026-06-26T13:00:00
+Viagem;367e36c6-37af-4ad4-bbf4-002468860031;-;Atlântico Bus;São Paulo → Florianópolis;SCHEDULED;204.9;2026-06-26T21:30:00
+Viagem;06fb467e-b96e-4e03-8c61-da75d78d09a7;-;Atlântico Bus;São Paulo → Florianópolis;SCHEDULED;159.9;2026-07-03T06:30:00
+Viagem;0400a41a-168e-4771-a247-273c5f0ddbec;-;Atlântico Bus;São Paulo → Florianópolis;SCHEDULED;177.9;2026-07-04T13:00:00
+Viagem;5594cfe1-b286-4a80-adf2-79961948986b;-;Atlântico Bus;São Paulo → Florianópolis;SCHEDULED;204.9;2026-07-04T21:30:00
+Viagem;977da3f9-d622-4da7-a389-b1b126b57955;-;Atlântico Bus;São Paulo → Florianópolis;SCHEDULED;159.9;2026-07-11T06:30:00
+Viagem;54c7ddc3-21ba-46a2-bdab-702ade033f2a;-;Atlântico Bus;São Paulo → Florianópolis;SCHEDULED;177.9;2026-07-12T13:00:00
+Viagem;feb15578-5650-4ede-8b47-f98b33ed23cd;-;Atlântico Bus;São Paulo → Florianópolis;SCHEDULED;204.9;2026-07-12T21:30:00
+Viagem;24b3529d-bffc-4544-8f69-7686fcff07fd;-;Atlântico Bus;São Paulo → Florianópolis;SCHEDULED;159.9;2026-07-19T06:30:00
+Viagem;46013080-6505-4923-b0fb-d7d94941d771;-;Atlântico Bus;São Paulo → Florianópolis;SCHEDULED;177.9;2026-07-20T13:00:00
+Viagem;c9441ca8-5178-48c8-8e19-6d8e0b5765fd;-;Atlântico Bus;São Paulo → Florianópolis;SCHEDULED;204.9;2026-07-20T21:30:00
+Viagem;8ac3f5ab-d8c5-42de-951f-d48aaf99fba5;-;Atlântico Bus;Florianópolis → São Paulo;SCHEDULED;159.9;2026-06-25T06:30:00
+Viagem;13a84a30-b539-4564-8cd2-9e97b394bfb8;-;Atlântico Bus;Florianópolis → São Paulo;SCHEDULED;177.9;2026-06-26T13:00:00
+Viagem;c5eed71f-a21d-4b75-8f70-3b7732da2d00;-;Atlântico Bus;Florianópolis → São Paulo;SCHEDULED;204.9;2026-06-26T21:30:00
+Viagem;4546c186-544b-4440-893a-6c94bf57fcd8;-;Atlântico Bus;Florianópolis → São Paulo;SCHEDULED;159.9;2026-07-03T06:30:00
+Viagem;fa22ec55-0ff6-4e5f-9ec9-988cf1025da3;-;Atlântico Bus;Florianópolis → São Paulo;SCHEDULED;177.9;2026-07-04T13:00:00
+Viagem;ae0836fc-a012-465e-a161-ab9c39d5da59;-;Atlântico Bus;Florianópolis → São Paulo;SCHEDULED;204.9;2026-07-04T21:30:00
+Viagem;82cf1219-ad67-4319-8ed3-1ff734f87720;-;Atlântico Bus;Florianópolis → São Paulo;SCHEDULED;159.9;2026-07-11T06:30:00
+Viagem;f1a43037-b1a5-4cd0-a58f-2b24db2672b1;-;Atlântico Bus;Florianópolis → São Paulo;SCHEDULED;177.9;2026-07-12T13:00:00
+Viagem;30db1f75-bf2e-4922-9e33-c49a34fc546f;-;Atlântico Bus;Florianópolis → São Paulo;SCHEDULED;204.9;2026-07-12T21:30:00
+Viagem;585c81a0-178f-40f9-adf6-e4a6335d39e0;-;Atlântico Bus;Florianópolis → São Paulo;SCHEDULED;159.9;2026-07-19T06:30:00
+Viagem;81e53cc1-ac98-40e1-aad4-b925c2a4554c;-;Atlântico Bus;Florianópolis → São Paulo;SCHEDULED;177.9;2026-07-20T13:00:00
+Viagem;89d37261-bab6-4b62-a2d6-7257f92495a2;-;Atlântico Bus;Florianópolis → São Paulo;SCHEDULED;204.9;2026-07-20T21:30:00
+Viagem;706fafed-0f91-4e88-8795-3a1a6b6669b6;-;Atlântico Bus;São Paulo → Porto Alegre;SCHEDULED;229.9;2026-06-26T06:30:00
+Viagem;4d6b9f84-7b62-4174-b2d4-6fccb780a371;-;Atlântico Bus;São Paulo → Porto Alegre;SCHEDULED;247.9;2026-06-27T13:00:00
+Viagem;45f75e61-2ea5-47ef-9a28-643d6166ecca;-;Atlântico Bus;São Paulo → Porto Alegre;SCHEDULED;274.9;2026-06-27T21:30:00
+Viagem;ca1a2930-2447-4974-9532-cd1cb0d92b2b;-;Atlântico Bus;São Paulo → Porto Alegre;SCHEDULED;229.9;2026-07-04T06:30:00
+Viagem;584a2e85-2fad-447c-a41c-ddb3a1632b1d;-;Atlântico Bus;São Paulo → Porto Alegre;SCHEDULED;247.9;2026-07-05T13:00:00
+Viagem;984ce406-d08f-40b2-8202-61de7b684a00;-;Atlântico Bus;São Paulo → Porto Alegre;SCHEDULED;274.9;2026-07-05T21:30:00
+Viagem;aa799142-24af-416e-b770-a7302b9388be;-;Atlântico Bus;São Paulo → Porto Alegre;SCHEDULED;229.9;2026-07-12T06:30:00
+Viagem;4616cd51-4668-461c-9339-50ec72712090;-;Atlântico Bus;São Paulo → Porto Alegre;SCHEDULED;247.9;2026-07-13T13:00:00
+Viagem;14725d35-3e04-4d8a-8761-4741c24bf6bf;-;Atlântico Bus;São Paulo → Porto Alegre;SCHEDULED;274.9;2026-07-13T21:30:00
+Viagem;6d918c40-8fff-4c15-ad97-7fc0a8eea73d;-;Atlântico Bus;São Paulo → Porto Alegre;SCHEDULED;229.9;2026-07-20T06:30:00
+Viagem;2b70c26e-f0bc-40fe-a2ba-82178df55780;-;Atlântico Bus;Porto Alegre → São Paulo;SCHEDULED;229.9;2026-06-26T06:30:00
+Viagem;cd8d8264-2a84-40e1-8dff-5d54954be6d3;-;Atlântico Bus;Porto Alegre → São Paulo;SCHEDULED;247.9;2026-06-27T13:00:00
+Viagem;7dba1d61-4780-4c55-95fe-37297cb1a6f5;-;Atlântico Bus;Porto Alegre → São Paulo;SCHEDULED;274.9;2026-06-27T21:30:00
+Viagem;6a042b03-3be2-4d22-923c-4bd048e13b4d;-;Atlântico Bus;Porto Alegre → São Paulo;SCHEDULED;229.9;2026-07-04T06:30:00
+Viagem;38bacb62-ef74-47ae-b22e-84b7805347f0;-;Atlântico Bus;Porto Alegre → São Paulo;SCHEDULED;247.9;2026-07-05T13:00:00
+Viagem;34015dda-e92b-483d-9020-695d827f8e67;-;Atlântico Bus;Porto Alegre → São Paulo;SCHEDULED;274.9;2026-07-05T21:30:00
+Viagem;002bb76e-effb-4e2c-baff-5fb4e23392fa;-;Atlântico Bus;Porto Alegre → São Paulo;SCHEDULED;229.9;2026-07-12T06:30:00
+Viagem;6d3e570a-5461-4895-a83c-aaf44f3227a8;-;Atlântico Bus;Porto Alegre → São Paulo;SCHEDULED;247.9;2026-07-13T13:00:00
+Viagem;4d35b792-fa69-4cbd-a852-8ed87e2f8a3e;-;Atlântico Bus;Porto Alegre → São Paulo;SCHEDULED;274.9;2026-07-13T21:30:00
+Viagem;af841c9b-ea5d-441c-8f74-3aa5549df178;-;Atlântico Bus;Porto Alegre → São Paulo;SCHEDULED;229.9;2026-07-20T06:30:00
+Viagem;7408d152-bb48-49f4-ba1b-9d67565ca328;-;Atlântico Bus;Rio de Janeiro → Belo Horizonte;SCHEDULED;109.9;2026-06-27T06:30:00
+Viagem;21134548-8bd3-4163-ad46-5b3af6f18cbb;-;Atlântico Bus;Rio de Janeiro → Belo Horizonte;SCHEDULED;127.9;2026-06-28T13:00:00
+Viagem;772ae6eb-d7d2-4400-83e4-ec155203b67f;-;Atlântico Bus;Rio de Janeiro → Belo Horizonte;SCHEDULED;154.9;2026-06-28T21:30:00
+Viagem;aae873e3-2bbb-4ffa-86be-80404496e089;-;Atlântico Bus;Rio de Janeiro → Belo Horizonte;SCHEDULED;109.9;2026-07-05T06:30:00
+Viagem;fb332140-207e-4fe1-849c-0c5fb1ca8c8e;-;Atlântico Bus;Rio de Janeiro → Belo Horizonte;SCHEDULED;127.9;2026-07-06T13:00:00
+Viagem;2a6fd872-76af-4ae4-8bf0-a7f35a2dfa54;-;Atlântico Bus;Rio de Janeiro → Belo Horizonte;SCHEDULED;154.9;2026-07-06T21:30:00
+Viagem;0c815189-0a04-4c78-9b0c-3a2e73a48068;-;Atlântico Bus;Rio de Janeiro → Belo Horizonte;SCHEDULED;109.9;2026-07-13T06:30:00
+Viagem;6b5c06bf-1d07-46f7-9674-07fb9ec5b2a7;-;Atlântico Bus;Rio de Janeiro → Belo Horizonte;SCHEDULED;127.9;2026-07-14T13:00:00
+Viagem;eed98715-1ae5-48a5-98cc-0dc829bdeba5;-;Atlântico Bus;Rio de Janeiro → Belo Horizonte;SCHEDULED;154.9;2026-07-14T21:30:00
+Viagem;1f56b023-0b23-4fbf-b74e-b044b1f56339;-;Atlântico Bus;Belo Horizonte → Rio de Janeiro;SCHEDULED;109.9;2026-06-27T06:30:00
+Viagem;988e38b2-a7ee-4b06-95c4-21b5e67ad0a5;-;Atlântico Bus;Belo Horizonte → Rio de Janeiro;SCHEDULED;127.9;2026-06-28T13:00:00
+Viagem;b22a33e2-a240-4efa-a8d8-6b0ca84efe9e;-;Atlântico Bus;Belo Horizonte → Rio de Janeiro;SCHEDULED;154.9;2026-06-28T21:30:00
+Viagem;1f3018eb-969e-47bf-92a1-287e6ed58a91;-;Atlântico Bus;Belo Horizonte → Rio de Janeiro;SCHEDULED;109.9;2026-07-05T06:30:00
+Viagem;ec97041e-7dbf-4194-9071-a3a001ac7a9b;-;Atlântico Bus;Belo Horizonte → Rio de Janeiro;SCHEDULED;127.9;2026-07-06T13:00:00
+Viagem;91503c68-acc0-45a9-9423-54de4ac2b0c9;-;Atlântico Bus;Belo Horizonte → Rio de Janeiro;SCHEDULED;154.9;2026-07-06T21:30:00
+Viagem;d95d0109-3b1e-4621-b431-e5306c853ccf;-;Atlântico Bus;Belo Horizonte → Rio de Janeiro;SCHEDULED;109.9;2026-07-13T06:30:00
+Viagem;6ae5afbf-05b4-45be-a665-73a444a9b2ad;-;Atlântico Bus;Belo Horizonte → Rio de Janeiro;SCHEDULED;127.9;2026-07-14T13:00:00
+Viagem;e681c312-2ad1-45ba-88fa-0d69964c6ba5;-;Atlântico Bus;Belo Horizonte → Rio de Janeiro;SCHEDULED;154.9;2026-07-14T21:30:00
+Viagem;17be3d2d-969d-4b51-9a93-2f6e689c99d0;-;Atlântico Bus;Rio de Janeiro → Vitória;SCHEDULED;129.9;2026-06-26T06:30:00
+Viagem;aafadd26-1c3f-4702-b5e9-d7b0339e9614;-;Atlântico Bus;Rio de Janeiro → Vitória;SCHEDULED;147.9;2026-06-27T13:00:00
+Viagem;b6c5126b-c1e3-4ae5-9b4c-234c20c2323a;-;Atlântico Bus;Rio de Janeiro → Vitória;SCHEDULED;174.9;2026-06-27T21:30:00
+Viagem;081cfda5-4b40-4d75-a071-42672bac8b99;-;Atlântico Bus;Rio de Janeiro → Vitória;SCHEDULED;129.9;2026-07-04T06:30:00
+Viagem;d25fcddc-a181-4b47-b4d7-b08c2f9c0a71;-;Atlântico Bus;Rio de Janeiro → Vitória;SCHEDULED;147.9;2026-07-05T13:00:00
+Viagem;2c99d15f-6cd8-484b-af44-8c46d2c31e72;-;Atlântico Bus;Rio de Janeiro → Vitória;SCHEDULED;174.9;2026-07-05T21:30:00
+Viagem;b824c21b-5f75-48ca-8a70-947d50776a72;-;Atlântico Bus;Rio de Janeiro → Vitória;SCHEDULED;129.9;2026-07-12T06:30:00
+Viagem;140f3e9d-681b-46d4-a49b-af684d996a32;-;Atlântico Bus;Rio de Janeiro → Vitória;SCHEDULED;147.9;2026-07-13T13:00:00
+Viagem;1748b08f-1b0d-4e4b-ae05-76bcf58c0507;-;Atlântico Bus;Rio de Janeiro → Vitória;SCHEDULED;174.9;2026-07-13T21:30:00
+Viagem;07729024-97a3-4a05-b3af-2d7a71d23564;-;Atlântico Bus;Rio de Janeiro → Vitória;SCHEDULED;129.9;2026-07-20T06:30:00
+Viagem;e2a4e9c4-9da4-427e-8d9e-708181d4f726;-;Atlântico Bus;Vitória → Rio de Janeiro;SCHEDULED;129.9;2026-06-26T06:30:00
+Viagem;c9debaef-7063-4dd6-9798-2ed0952ca669;-;Atlântico Bus;Vitória → Rio de Janeiro;SCHEDULED;147.9;2026-06-27T13:00:00
+Viagem;aa11a707-919a-4b6d-a1ef-c0c57be6a4dc;-;Atlântico Bus;Vitória → Rio de Janeiro;SCHEDULED;174.9;2026-06-27T21:30:00
+Viagem;c639c86f-6f84-45b8-a9c0-9fa8752401f9;-;Atlântico Bus;Vitória → Rio de Janeiro;SCHEDULED;129.9;2026-07-04T06:30:00
+Viagem;de88bf23-7b0a-4b80-8f59-8c08ab5aa2d5;-;Atlântico Bus;Vitória → Rio de Janeiro;SCHEDULED;147.9;2026-07-05T13:00:00
+Viagem;94fb6cb3-636f-4c37-8a84-9c592758376c;-;Atlântico Bus;Vitória → Rio de Janeiro;SCHEDULED;174.9;2026-07-05T21:30:00
+Viagem;1de4331a-a05f-40c3-97cc-7e451a9d62a9;-;Atlântico Bus;Vitória → Rio de Janeiro;SCHEDULED;129.9;2026-07-12T06:30:00
+Viagem;061d1a64-723c-4027-a10c-628d170beb3d;-;Atlântico Bus;Vitória → Rio de Janeiro;SCHEDULED;147.9;2026-07-13T13:00:00
+Viagem;45b4d935-2362-40cb-9216-94b87925b098;-;Atlântico Bus;Vitória → Rio de Janeiro;SCHEDULED;174.9;2026-07-13T21:30:00
+Viagem;65e6d498-1027-4366-9a27-b35d0cfe7702;-;Atlântico Bus;Vitória → Rio de Janeiro;SCHEDULED;129.9;2026-07-20T06:30:00
+Viagem;cde007a5-0798-442e-951c-5867f51019b0;-;Atlântico Bus;Brasília → Goiânia;SCHEDULED;59.9;2026-06-24T06:30:00
+Viagem;41e64fb6-a7a1-4543-bcb5-e137be4f765b;-;Atlântico Bus;Brasília → Goiânia;SCHEDULED;104.9;2026-06-25T21:30:00
+Viagem;6918c500-604d-4a23-804f-3c71836d06f2;-;Atlântico Bus;Brasília → Goiânia;SCHEDULED;59.9;2026-07-02T06:30:00
+Viagem;0778f371-c9fc-4d60-b5f2-9b48351164e0;-;Atlântico Bus;Brasília → Goiânia;SCHEDULED;77.9;2026-07-03T13:00:00
+Viagem;2ca5d856-cdbe-4f94-8e9a-3ad0a1ad952f;-;Atlântico Bus;Brasília → Goiânia;SCHEDULED;104.9;2026-07-03T21:30:00
+Viagem;12798915-e161-4c56-85e2-677c5a1e7b35;-;Atlântico Bus;Brasília → Goiânia;SCHEDULED;59.9;2026-07-10T06:30:00
+Viagem;e4337a9b-236d-487f-878b-b0d2f55b3fa0;-;Atlântico Bus;Brasília → Goiânia;SCHEDULED;77.9;2026-07-11T13:00:00
+Viagem;628c749f-3220-4dcd-8615-244aa3dea471;-;Atlântico Bus;Brasília → Goiânia;SCHEDULED;104.9;2026-07-11T21:30:00
+Viagem;924c154a-f736-4ef9-a199-4a981b5c540f;-;Atlântico Bus;Brasília → Goiânia;SCHEDULED;59.9;2026-07-18T06:30:00
+Viagem;8a6571fb-6f4a-44ed-ac95-e588f6e2c5fc;-;Atlântico Bus;Brasília → Goiânia;SCHEDULED;77.9;2026-07-19T13:00:00
+Viagem;777d358a-5212-403c-8455-382a86c08b8a;-;Atlântico Bus;Brasília → Goiânia;SCHEDULED;104.9;2026-07-19T21:30:00
+Viagem;833626e1-e0a5-427b-ac73-0224ead1a13d;-;Atlântico Bus;Goiânia → Brasília;SCHEDULED;59.9;2026-06-24T06:30:00
+Viagem;79b6a3d0-14c4-448b-a5c1-2c9f08a95ad9;-;Atlântico Bus;Goiânia → Brasília;SCHEDULED;77.9;2026-06-25T13:00:00
+Viagem;1ac0640c-3efc-45e6-b596-8504fec89020;-;Atlântico Bus;Goiânia → Brasília;SCHEDULED;104.9;2026-06-25T21:30:00
+Viagem;13e0a678-10d6-4def-b074-edf4b313b22c;-;Atlântico Bus;Goiânia → Brasília;SCHEDULED;59.9;2026-07-02T06:30:00
+Viagem;23714124-9166-4538-811f-8a539da74a34;-;Atlântico Bus;Goiânia → Brasília;SCHEDULED;77.9;2026-07-03T13:00:00
+Viagem;bb8e77b7-d28e-4f98-893f-5e735ff7587c;-;Atlântico Bus;Goiânia → Brasília;SCHEDULED;104.9;2026-07-03T21:30:00
+Viagem;b3ad794f-c9ba-4943-a758-c09a49cb1351;-;Atlântico Bus;Goiânia → Brasília;SCHEDULED;59.9;2026-07-10T06:30:00
+Viagem;a3091d85-824c-42c5-8509-d03744364868;-;Atlântico Bus;Goiânia → Brasília;SCHEDULED;77.9;2026-07-11T13:00:00
+Viagem;0850b1b3-1229-455e-b196-aed6d7f2f5b7;-;Atlântico Bus;Goiânia → Brasília;SCHEDULED;104.9;2026-07-11T21:30:00
+Viagem;9939d266-e1c6-4612-8e88-c7cbf39935f8;-;Atlântico Bus;Goiânia → Brasília;SCHEDULED;59.9;2026-07-18T06:30:00
+Viagem;394f3d9f-5e19-4c37-83c9-f4b551a1a300;-;Atlântico Bus;Goiânia → Brasília;SCHEDULED;77.9;2026-07-19T13:00:00
+Viagem;30dd8947-d27a-4adc-bd7f-daa8a1fd177d;-;Atlântico Bus;Goiânia → Brasília;SCHEDULED;104.9;2026-07-19T21:30:00
+Viagem;7a4a3eab-385b-4bf8-a7dc-26834748effb;-;Atlântico Bus;Brasília → Salvador;SCHEDULED;279.9;2026-06-23T06:30:00
+Viagem;91a64083-a5a7-48de-b832-069f586b0527;-;Atlântico Bus;Brasília → Salvador;SCHEDULED;297.9;2026-06-24T13:00:00
+Viagem;94df7b8c-e60a-478a-8c59-4df1f688bf69;-;Atlântico Bus;Brasília → Salvador;SCHEDULED;324.9;2026-06-24T21:30:00
+Viagem;df7e807c-4652-459d-bee7-08b6fc5348bc;-;Atlântico Bus;Brasília → Salvador;SCHEDULED;279.9;2026-07-01T06:30:00
+Viagem;885802ce-d1e2-400f-b730-c429368f7ced;-;Atlântico Bus;Brasília → Salvador;SCHEDULED;297.9;2026-07-02T13:00:00
+Viagem;47e35605-7945-4237-be63-4a26358ae48e;-;Atlântico Bus;Brasília → Salvador;SCHEDULED;324.9;2026-07-02T21:30:00
+Viagem;370c83be-db28-4a93-989c-7a408f286b9e;-;Atlântico Bus;Brasília → Salvador;SCHEDULED;279.9;2026-07-09T06:30:00
+Viagem;a7d9f299-7847-42e1-8c00-ecc3a81b1269;-;Atlântico Bus;Brasília → Salvador;SCHEDULED;297.9;2026-07-10T13:00:00
+Viagem;a70a864a-b48c-462b-bf19-4feb6a01757f;-;Atlântico Bus;Brasília → Salvador;SCHEDULED;324.9;2026-07-10T21:30:00
+Viagem;4679e1ea-cad9-4db2-bcfa-f0cb44d10e61;-;Atlântico Bus;Brasília → Salvador;SCHEDULED;279.9;2026-07-17T06:30:00
+Viagem;b9e5404c-7ac5-4e71-a9a6-ca27074a28c7;-;Atlântico Bus;Brasília → Salvador;SCHEDULED;297.9;2026-07-18T13:00:00
+Viagem;20102238-a18b-4750-963c-d7b428db8864;-;Atlântico Bus;Brasília → Salvador;SCHEDULED;324.9;2026-07-18T21:30:00
+Viagem;0fdfb040-3b23-460a-9cb3-2a074123310d;-;Atlântico Bus;Salvador → Brasília;SCHEDULED;279.9;2026-06-23T06:30:00
+Viagem;e4e87999-765a-4f27-8cfa-df02d5b00785;-;Atlântico Bus;Salvador → Brasília;SCHEDULED;297.9;2026-06-24T13:00:00
+Viagem;fa50b7d8-a58c-4cf9-bc5b-8c8bbf0784dc;-;Atlântico Bus;Salvador → Brasília;SCHEDULED;324.9;2026-06-24T21:30:00
+Viagem;bfd578f5-3974-4b36-9ff4-97a642e530ef;-;Atlântico Bus;Salvador → Brasília;SCHEDULED;279.9;2026-07-01T06:30:00
+Viagem;841fb850-a008-4719-8737-648c8f0a4859;-;Atlântico Bus;Salvador → Brasília;SCHEDULED;297.9;2026-07-02T13:00:00
+Viagem;3bead822-0a9a-4162-9862-070512ea7cfe;-;Atlântico Bus;Salvador → Brasília;SCHEDULED;324.9;2026-07-02T21:30:00
+Viagem;71601bfe-6308-4322-b7dd-2aa660722bb3;-;Atlântico Bus;Salvador → Brasília;SCHEDULED;279.9;2026-07-09T06:30:00
+Viagem;7b2c201a-bc3c-4af7-9781-3fd5f9d726cc;-;Atlântico Bus;Salvador → Brasília;SCHEDULED;297.9;2026-07-10T13:00:00
+Viagem;8fdd4f22-01a8-49bf-9705-d0e08a4c5b71;-;Atlântico Bus;Salvador → Brasília;SCHEDULED;324.9;2026-07-10T21:30:00
+Viagem;c90fc593-8b39-44c8-b76f-2bd8591bb6d4;-;Atlântico Bus;Salvador → Brasília;SCHEDULED;279.9;2026-07-17T06:30:00
+Viagem;0cd7755c-61a3-436f-b94c-1f3f680d8bbd;-;Atlântico Bus;Salvador → Brasília;SCHEDULED;297.9;2026-07-18T13:00:00
+Viagem;1e14f5a8-3350-4cf1-80b8-4692a342d601;-;Atlântico Bus;Salvador → Brasília;SCHEDULED;324.9;2026-07-18T21:30:00
+Viagem;b992bfbb-35ee-4641-bbf7-44546f9b0f12;-;Atlântico Bus;Salvador → Aracaju;SCHEDULED;79.9;2026-06-24T06:30:00
+Viagem;01d03f10-2b99-4543-99b5-916d03bb382f;-;Atlântico Bus;Salvador → Aracaju;SCHEDULED;97.9;2026-06-25T13:00:00
+Viagem;c35a0972-4845-4622-a991-af878ab6e107;-;Atlântico Bus;Salvador → Aracaju;SCHEDULED;124.9;2026-06-25T21:30:00
+Viagem;a245cae9-73ca-4993-a002-094db5154347;-;Atlântico Bus;Salvador → Aracaju;SCHEDULED;79.9;2026-07-02T06:30:00
+Viagem;f6c72f2d-4bf0-497c-a150-b61e0b456f5c;-;Atlântico Bus;Salvador → Aracaju;SCHEDULED;97.9;2026-07-03T13:00:00
+Viagem;5e77225b-1424-45a2-bd96-dd60fe25a60c;-;Atlântico Bus;Salvador → Aracaju;SCHEDULED;124.9;2026-07-03T21:30:00
+Viagem;87b18621-f489-494f-a8b8-4c5079ee68e8;-;Atlântico Bus;Salvador → Aracaju;SCHEDULED;79.9;2026-07-10T06:30:00
+Viagem;2e855998-f722-4713-b72b-4446a316b9f7;-;Atlântico Bus;Salvador → Aracaju;SCHEDULED;97.9;2026-07-11T13:00:00
+Viagem;81e4aba4-af7f-462a-8011-cd20cf183c8f;-;Atlântico Bus;Salvador → Aracaju;SCHEDULED;124.9;2026-07-11T21:30:00
+Viagem;e066dee0-6198-4e2b-8462-b4d153464381;-;Atlântico Bus;Salvador → Aracaju;SCHEDULED;79.9;2026-07-18T06:30:00
+Viagem;f4f4ff5e-f38a-45b1-9925-1d58c87c89fb;-;Atlântico Bus;Salvador → Aracaju;SCHEDULED;97.9;2026-07-19T13:00:00
+Viagem;2fc3885c-952b-4baa-9f3c-9698c7b166a5;-;Atlântico Bus;Salvador → Aracaju;SCHEDULED;124.9;2026-07-19T21:30:00
+Viagem;63a71ff7-2aa5-47ca-8934-ba1a1dbc65b4;-;Atlântico Bus;Aracaju → Salvador;SCHEDULED;79.9;2026-06-24T06:30:00
+Viagem;51bac8b4-0622-4b1d-831f-a5319c7bdc58;-;Atlântico Bus;Aracaju → Salvador;SCHEDULED;97.9;2026-06-25T13:00:00
+Viagem;f28412a6-2cd2-48ad-9034-915a855c1bc6;-;Atlântico Bus;Aracaju → Salvador;SCHEDULED;124.9;2026-06-25T21:30:00
+Viagem;71ec77f0-f9c7-4aad-8ddf-aca4c25c74f0;-;Atlântico Bus;Aracaju → Salvador;SCHEDULED;79.9;2026-07-02T06:30:00
+Viagem;772580f9-e688-465e-a8da-fd57cdc2373b;-;Atlântico Bus;Aracaju → Salvador;SCHEDULED;97.9;2026-07-03T13:00:00
+Viagem;658772c8-5d8d-43ff-8d81-056bccded975;-;Atlântico Bus;Aracaju → Salvador;SCHEDULED;124.9;2026-07-03T21:30:00
+Viagem;bb969de5-0c83-4506-8f1f-28707077ed16;-;Atlântico Bus;Aracaju → Salvador;SCHEDULED;79.9;2026-07-10T06:30:00
+Viagem;9e6a720c-233d-4cdb-b3d4-e88ecd1f26c0;-;Atlântico Bus;Aracaju → Salvador;SCHEDULED;97.9;2026-07-11T13:00:00
+Viagem;3f8ea27d-2055-480d-9921-dfacac72997b;-;Atlântico Bus;Aracaju → Salvador;SCHEDULED;124.9;2026-07-11T21:30:00
+Viagem;6abc4974-8d73-47c7-accb-6aebbd8f58da;-;Atlântico Bus;Aracaju → Salvador;SCHEDULED;79.9;2026-07-18T06:30:00
+Viagem;25a9b7d1-9631-4056-8bc4-7950299c95be;-;Atlântico Bus;Aracaju → Salvador;SCHEDULED;97.9;2026-07-19T13:00:00
+Viagem;ce9ef5c3-0643-4417-8418-a6214447dcc2;-;Atlântico Bus;Aracaju → Salvador;SCHEDULED;124.9;2026-07-19T21:30:00
+Viagem;b5312266-1d2c-4439-b81c-97cb5f11444f;-;Atlântico Bus;Salvador → Recife;SCHEDULED;179.9;2026-06-25T06:30:00
+Viagem;d8aff940-7cc7-484f-9d04-d7485720c44c;-;Atlântico Bus;Salvador → Recife;SCHEDULED;197.9;2026-06-26T13:00:00
+Viagem;a1a4e7fb-4973-4a08-b09b-dd6f4ffd5a39;-;Atlântico Bus;Salvador → Recife;SCHEDULED;224.9;2026-06-26T21:30:00
+Viagem;c9a416a4-e3e4-4a2e-9e3c-a568539fa46f;-;Atlântico Bus;Salvador → Recife;SCHEDULED;179.9;2026-07-03T06:30:00
+Viagem;4af7518c-a523-45f9-b9dc-a460f32c9b82;-;Atlântico Bus;Salvador → Recife;SCHEDULED;197.9;2026-07-04T13:00:00
+Viagem;06372b47-dee5-4249-9541-96263e48bb67;-;Atlântico Bus;Salvador → Recife;SCHEDULED;224.9;2026-07-04T21:30:00
+Viagem;91e1850d-7a19-4461-82aa-c8d8353c708d;-;Atlântico Bus;Salvador → Recife;SCHEDULED;179.9;2026-07-11T06:30:00
+Viagem;5b3ccad7-5cce-405d-970e-edba221ebb1c;-;Atlântico Bus;Salvador → Recife;SCHEDULED;197.9;2026-07-12T13:00:00
+Viagem;5aba296e-4146-4af3-963e-8f097a755894;-;Atlântico Bus;Salvador → Recife;SCHEDULED;224.9;2026-07-12T21:30:00
+Viagem;05048786-541b-49a0-8cc6-515bc5bbbdf8;-;Atlântico Bus;Salvador → Recife;SCHEDULED;179.9;2026-07-19T06:30:00
+Viagem;6295fa33-c224-462f-a9db-b6f6922b2a06;-;Atlântico Bus;Salvador → Recife;SCHEDULED;197.9;2026-07-20T13:00:00
+Viagem;a5d861c7-dfe3-4fa3-b06b-22d4e2e479cf;-;Atlântico Bus;Salvador → Recife;SCHEDULED;224.9;2026-07-20T21:30:00
+Viagem;9d575e01-5bf4-4669-91ac-b3bab1c2a297;-;Atlântico Bus;Recife → Salvador;SCHEDULED;179.9;2026-06-25T06:30:00
+Viagem;c369e8ac-0bf1-4fbc-a0f2-376136a5535a;-;Atlântico Bus;Recife → Salvador;SCHEDULED;197.9;2026-06-26T13:00:00
+Viagem;d031b542-4486-4560-9736-16094ad2b852;-;Atlântico Bus;Recife → Salvador;SCHEDULED;224.9;2026-06-26T21:30:00
+Viagem;c59b2641-4815-468d-893c-62f6d1425a77;-;Atlântico Bus;Recife → Salvador;SCHEDULED;179.9;2026-07-03T06:30:00
+Viagem;50132e9f-2e6b-490d-a51f-9b2f7539c323;-;Atlântico Bus;Recife → Salvador;SCHEDULED;197.9;2026-07-04T13:00:00
+Viagem;f0462fc0-bd8d-42ae-a184-b86fdcc55693;-;Atlântico Bus;Recife → Salvador;SCHEDULED;224.9;2026-07-04T21:30:00
+Viagem;35cbbcad-472a-424d-8d37-c3444a9ddcc6;-;Atlântico Bus;Recife → Salvador;SCHEDULED;179.9;2026-07-11T06:30:00
+Viagem;94057204-4193-406d-a2e0-69bac064eea9;-;Atlântico Bus;Recife → Salvador;SCHEDULED;197.9;2026-07-12T13:00:00
+Viagem;21d09260-22cc-4d47-8374-77fb5dba9a3b;-;Atlântico Bus;Recife → Salvador;SCHEDULED;224.9;2026-07-12T21:30:00
+Viagem;96410a47-0194-41c3-b8d6-36754ccdc2ec;-;Atlântico Bus;Recife → Salvador;SCHEDULED;179.9;2026-07-19T06:30:00
+Viagem;3c8aafde-175d-4ec1-b0ff-c4bcfcc6561c;-;Atlântico Bus;Recife → Salvador;SCHEDULED;197.9;2026-07-20T13:00:00
+Viagem;fd85c805-9e4c-4d66-9ab4-7ae75c4a944d;-;Atlântico Bus;Recife → Salvador;SCHEDULED;224.9;2026-07-20T21:30:00
+Viagem;45bd23b5-753b-4172-ac32-7911ffda691a;-;Atlântico Bus;Recife → Fortaleza;SCHEDULED;189.9;2026-06-24T06:30:00
+Viagem;b3588c01-6af9-4fdc-9e0e-c1591ade82e9;-;Atlântico Bus;Recife → Fortaleza;SCHEDULED;207.9;2026-06-25T13:00:00
+Viagem;05760283-bc33-4238-a9dd-e3a59342fb47;-;Atlântico Bus;Recife → Fortaleza;SCHEDULED;234.9;2026-06-25T21:30:00
+Viagem;3a9b2426-8f07-415e-833d-f1306b5e7234;-;Atlântico Bus;Recife → Fortaleza;SCHEDULED;189.9;2026-07-02T06:30:00
+Viagem;93d66c5f-9f53-44a2-90e4-055b7af3b6e4;-;Atlântico Bus;Recife → Fortaleza;SCHEDULED;207.9;2026-07-03T13:00:00
+Viagem;0fcd8c26-490c-4c06-bc3f-7bef28c340f9;-;Atlântico Bus;Recife → Fortaleza;SCHEDULED;234.9;2026-07-03T21:30:00
+Viagem;c8df5a16-a43a-463b-9544-0347c9c9a80e;-;Atlântico Bus;Recife → Fortaleza;SCHEDULED;189.9;2026-07-10T06:30:00
+Viagem;5a44a269-9357-417f-99ba-9f4a869bd20e;-;Atlântico Bus;Recife → Fortaleza;SCHEDULED;207.9;2026-07-11T13:00:00
+Viagem;93e3251b-7ad3-42f5-876e-284842584db8;-;Atlântico Bus;Recife → Fortaleza;SCHEDULED;234.9;2026-07-11T21:30:00
+Viagem;2128277d-2e5d-4d31-9f59-50820d543fd6;-;Atlântico Bus;Recife → Fortaleza;SCHEDULED;189.9;2026-07-18T06:30:00
+Viagem;f72015c8-6117-414d-80c2-6deb881f75f9;-;Atlântico Bus;Recife → Fortaleza;SCHEDULED;207.9;2026-07-19T13:00:00
+Viagem;e46b5bc9-3b37-4ed0-8f22-bb61207e94f2;-;Atlântico Bus;Recife → Fortaleza;SCHEDULED;234.9;2026-07-19T21:30:00
+Viagem;4c887c70-c841-4576-a742-5a5df7773eef;-;Atlântico Bus;Fortaleza → Recife;SCHEDULED;189.9;2026-06-24T06:30:00
+Viagem;67ae1f3a-57e7-4538-b9c7-fcf1034869a4;-;Atlântico Bus;Fortaleza → Recife;SCHEDULED;207.9;2026-06-25T13:00:00
+Viagem;37577675-365e-472f-ae17-a795e6173823;-;Atlântico Bus;Fortaleza → Recife;SCHEDULED;234.9;2026-06-25T21:30:00
+Viagem;c54e0850-3831-40e8-8030-4ccd0ff36173;-;Atlântico Bus;Fortaleza → Recife;SCHEDULED;189.9;2026-07-02T06:30:00
+Viagem;a4a9a869-088b-43f2-abb5-be2c9f4c275d;-;Atlântico Bus;Fortaleza → Recife;SCHEDULED;207.9;2026-07-03T13:00:00
+Viagem;5e72b017-4a81-4bd9-b0a4-bd1ce288dac6;-;Atlântico Bus;Fortaleza → Recife;SCHEDULED;234.9;2026-07-03T21:30:00
+Viagem;fd537f23-f67e-4f70-b38e-a72478323898;-;Atlântico Bus;Fortaleza → Recife;SCHEDULED;189.9;2026-07-10T06:30:00
+Viagem;b7b789e5-1cec-46d8-bc57-a95f11569ee9;-;Atlântico Bus;Fortaleza → Recife;SCHEDULED;207.9;2026-07-11T13:00:00
+Viagem;e54fcc9e-5c6d-4ca4-991a-e0e345b0db31;-;Atlântico Bus;Fortaleza → Recife;SCHEDULED;234.9;2026-07-11T21:30:00
+Viagem;d13a22c8-937e-49c0-bec1-261ca6884485;-;Atlântico Bus;Fortaleza → Recife;SCHEDULED;189.9;2026-07-18T06:30:00
+Viagem;5ebf8c21-c664-44d2-8b15-e53afd6febea;-;Atlântico Bus;Fortaleza → Recife;SCHEDULED;207.9;2026-07-19T13:00:00
+Viagem;df7b20c6-6a81-44ef-a6d6-b31f6bb5f365;-;Atlântico Bus;Fortaleza → Recife;SCHEDULED;234.9;2026-07-19T21:30:00
+Viagem;97ebb582-b722-493b-8354-676dad33d076;-;Atlântico Bus;Fortaleza → Natal;SCHEDULED;139.9;2026-06-25T06:30:00
+Viagem;b36f3889-33a2-41c3-be7e-1fe821ebe019;-;Atlântico Bus;Fortaleza → Natal;SCHEDULED;157.9;2026-06-26T13:00:00
+Viagem;5a499f7b-fd06-49a0-ad96-ec8f4a70c588;-;Atlântico Bus;Fortaleza → Natal;SCHEDULED;184.9;2026-06-26T21:30:00
+Viagem;da089ed6-44a1-4ced-ad32-1817cc091200;-;Atlântico Bus;Fortaleza → Natal;SCHEDULED;139.9;2026-07-03T06:30:00
+Viagem;5eab3990-811e-4927-ac6c-14deaa6507b1;-;Atlântico Bus;Fortaleza → Natal;SCHEDULED;157.9;2026-07-04T13:00:00
+Viagem;a7fb739f-8317-4ef9-b23e-70991f6f8c0b;-;Atlântico Bus;Fortaleza → Natal;SCHEDULED;184.9;2026-07-04T21:30:00
+Viagem;d4e6d7d9-b2cd-4f15-93b8-bb02a3800259;-;Atlântico Bus;Fortaleza → Natal;SCHEDULED;139.9;2026-07-11T06:30:00
+Viagem;e99d156f-6bdc-4ec8-8235-ba17da4e7d08;-;Atlântico Bus;Fortaleza → Natal;SCHEDULED;157.9;2026-07-12T13:00:00
+Viagem;f834b44e-f3bf-467f-a1ab-8a897ab9d56e;-;Atlântico Bus;Fortaleza → Natal;SCHEDULED;184.9;2026-07-12T21:30:00
+Viagem;8ece3acb-0fa4-494f-9df2-5248fd175fb7;-;Atlântico Bus;Fortaleza → Natal;SCHEDULED;139.9;2026-07-19T06:30:00
+Viagem;8dcd1be3-2d1b-460b-ba87-2ee8ecfe1605;-;Atlântico Bus;Fortaleza → Natal;SCHEDULED;157.9;2026-07-20T13:00:00
+Viagem;0b4118cd-1d7d-4ade-bd05-4ece9c1c0aa0;-;Atlântico Bus;Fortaleza → Natal;SCHEDULED;184.9;2026-07-20T21:30:00
+Viagem;5da5788b-b2dd-42d3-8c08-bc9ee99c626d;-;Atlântico Bus;Natal → Fortaleza;SCHEDULED;139.9;2026-06-25T06:30:00
+Viagem;01f549cf-a896-40aa-b25b-11ae963dd853;-;Atlântico Bus;Natal → Fortaleza;SCHEDULED;157.9;2026-06-26T13:00:00
+Viagem;8e035c6b-5739-477d-ac29-467ff19dabd2;-;Atlântico Bus;Natal → Fortaleza;SCHEDULED;184.9;2026-06-26T21:30:00
+Viagem;76f98008-3bad-438d-9f16-6802c5fca50a;-;Atlântico Bus;Natal → Fortaleza;SCHEDULED;139.9;2026-07-03T06:30:00
+Viagem;5c17a019-d5f0-46d2-a650-a7294d14252d;-;Atlântico Bus;Natal → Fortaleza;SCHEDULED;157.9;2026-07-04T13:00:00
+Viagem;8c2d3416-47a1-487d-9fde-86d9121aec0c;-;Atlântico Bus;Natal → Fortaleza;SCHEDULED;184.9;2026-07-04T21:30:00
+Viagem;25a0da99-1322-4b0c-a639-2bffa454a050;-;Atlântico Bus;Natal → Fortaleza;SCHEDULED;139.9;2026-07-11T06:30:00
+Viagem;9ff59a30-d589-4841-a7ab-3ac32cdbcfc1;-;Atlântico Bus;Natal → Fortaleza;SCHEDULED;157.9;2026-07-12T13:00:00
+Viagem;783935ea-46d3-4a1c-928b-eff54a864547;-;Atlântico Bus;Natal → Fortaleza;SCHEDULED;184.9;2026-07-12T21:30:00
+Viagem;cba19298-b145-46b1-b9b9-2f1d546c25c6;-;Atlântico Bus;Natal → Fortaleza;SCHEDULED;139.9;2026-07-19T06:30:00
+Viagem;c2effaf0-ae57-468c-94a6-665e84c288a1;-;Atlântico Bus;Natal → Fortaleza;SCHEDULED;157.9;2026-07-20T13:00:00
+Viagem;48d49de7-8ac9-4859-9771-e39f28cf2d01;-;Atlântico Bus;Natal → Fortaleza;SCHEDULED;184.9;2026-07-20T21:30:00
+Viagem;02b19b98-ef1c-46d2-8af3-d4d2a6c14aa9;-;Atlântico Bus;Natal → João Pessoa;SCHEDULED;49.9;2026-06-23T06:30:00
+Viagem;adac73d5-427c-4afd-a3a9-c0d5eb5e1630;-;Atlântico Bus;Natal → João Pessoa;SCHEDULED;67.9;2026-06-24T13:00:00
+Viagem;747c0aac-8828-48da-9d9f-0cbadfda8f43;-;Atlântico Bus;Natal → João Pessoa;SCHEDULED;94.9;2026-06-24T21:30:00
+Viagem;0a432a75-0835-4744-a4ae-ff086b9b9f55;-;Atlântico Bus;Natal → João Pessoa;SCHEDULED;49.9;2026-07-01T06:30:00
+Viagem;bd91f2d5-b3d9-4edb-8002-01a09bd780f9;-;Atlântico Bus;Natal → João Pessoa;SCHEDULED;67.9;2026-07-02T13:00:00
+Viagem;20de2bc5-9000-4389-b31a-566ad9dc5cb2;-;Atlântico Bus;Natal → João Pessoa;SCHEDULED;94.9;2026-07-02T21:30:00
+Viagem;866f2379-a25f-4e58-b20c-19bba093e68a;-;Atlântico Bus;Natal → João Pessoa;SCHEDULED;49.9;2026-07-09T06:30:00
+Viagem;403e2352-9cd2-47d3-81b9-4a9ed9d4c34d;-;Atlântico Bus;Natal → João Pessoa;SCHEDULED;67.9;2026-07-10T13:00:00
+Viagem;6092f788-9b9d-48e8-b69b-77f905325c91;-;Atlântico Bus;Natal → João Pessoa;SCHEDULED;94.9;2026-07-10T21:30:00
+Viagem;7591dace-d768-45da-bea7-4b9362568a75;-;Atlântico Bus;Natal → João Pessoa;SCHEDULED;49.9;2026-07-17T06:30:00
+Viagem;57c1465c-d07b-4218-9648-a8b17fa6d553;-;Atlântico Bus;Natal → João Pessoa;SCHEDULED;67.9;2026-07-18T13:00:00
+Viagem;75452c2c-df14-4394-b043-8e4c7ad18da9;-;Atlântico Bus;Natal → João Pessoa;SCHEDULED;94.9;2026-07-18T21:30:00
+Viagem;e01a2615-c894-461d-8fb6-c9cf82a2d586;-;Atlântico Bus;João Pessoa → Natal;SCHEDULED;49.9;2026-06-23T06:30:00
+Viagem;c16be3e2-8403-45d0-9e68-7b5244a7b9f9;-;Atlântico Bus;João Pessoa → Natal;SCHEDULED;67.9;2026-06-24T13:00:00
+Viagem;93451afa-865b-414f-9f4f-6df56c8c2569;-;Atlântico Bus;João Pessoa → Natal;SCHEDULED;94.9;2026-06-24T21:30:00
+Viagem;c09d5868-2653-49a6-bb11-c9a82566bfb2;-;Atlântico Bus;João Pessoa → Natal;SCHEDULED;49.9;2026-07-01T06:30:00
+Viagem;939b2c01-f4c1-47bb-a2f3-60dfee61ae77;-;Atlântico Bus;João Pessoa → Natal;SCHEDULED;67.9;2026-07-02T13:00:00
+Viagem;b311547b-c2e1-48f1-8fb3-6912d04bee75;-;Atlântico Bus;João Pessoa → Natal;SCHEDULED;94.9;2026-07-02T21:30:00
+Viagem;4e069ae8-0a16-4e63-88bf-a533b4eb97ad;-;Atlântico Bus;João Pessoa → Natal;SCHEDULED;49.9;2026-07-09T06:30:00
+Viagem;5653ee74-02b5-4984-8114-755552531090;-;Atlântico Bus;João Pessoa → Natal;SCHEDULED;67.9;2026-07-10T13:00:00
+Viagem;995402ec-20ef-4b62-a34e-d13e394040cd;-;Atlântico Bus;João Pessoa → Natal;SCHEDULED;94.9;2026-07-10T21:30:00
+Viagem;4815ccac-79ad-472b-856b-fffdc94141fb;-;Atlântico Bus;João Pessoa → Natal;SCHEDULED;49.9;2026-07-17T06:30:00
+Viagem;e1cad748-0651-4a22-afe1-e982630b2c44;-;Atlântico Bus;João Pessoa → Natal;SCHEDULED;67.9;2026-07-18T13:00:00
+Viagem;c01021f3-e194-499d-80e4-2d994d6a86fc;-;Atlântico Bus;João Pessoa → Natal;SCHEDULED;94.9;2026-07-18T21:30:00
+Viagem;6dff50f7-789f-4caa-9360-83331259924e;-;Atlântico Bus;João Pessoa → Recife;SCHEDULED;39.9;2026-06-22T06:30:00
+Viagem;24b87b2b-8b90-46e5-b487-a485852de295;-;Atlântico Bus;João Pessoa → Recife;SCHEDULED;57.9;2026-06-23T13:00:00
+Viagem;704a5829-778b-40df-b81d-30f4efab27e3;-;Atlântico Bus;João Pessoa → Recife;SCHEDULED;84.9;2026-06-23T21:30:00
+Viagem;28cf7ccb-8fae-4470-b45d-638e8539976b;-;Atlântico Bus;João Pessoa → Recife;SCHEDULED;39.9;2026-06-30T06:30:00
+Viagem;213c5ca6-0d94-46a2-ba95-325fe6b2aa08;-;Atlântico Bus;João Pessoa → Recife;SCHEDULED;57.9;2026-07-01T13:00:00
+Viagem;c8a87e46-7192-4f92-862c-f82a8b006d0f;-;Atlântico Bus;João Pessoa → Recife;SCHEDULED;84.9;2026-07-01T21:30:00
+Viagem;d50e474d-9a3a-47f6-9722-fba766940810;-;Atlântico Bus;João Pessoa → Recife;SCHEDULED;39.9;2026-07-08T06:30:00
+Viagem;57608b35-74fb-4caa-af16-a04c5209d4db;-;Atlântico Bus;João Pessoa → Recife;SCHEDULED;57.9;2026-07-09T13:00:00
+Viagem;6b4ca8c7-acdb-4b13-a172-e66b264e43fc;-;Atlântico Bus;João Pessoa → Recife;SCHEDULED;84.9;2026-07-09T21:30:00
+Viagem;0a156504-e8eb-4d7a-8ea6-2e2067579d0f;-;Atlântico Bus;João Pessoa → Recife;SCHEDULED;39.9;2026-07-16T06:30:00
+Viagem;8119dd94-3816-4d01-8fc6-171f8f797f78;-;Atlântico Bus;João Pessoa → Recife;SCHEDULED;57.9;2026-07-17T13:00:00
+Viagem;1914be4a-4e12-4626-aa3d-99b973183b26;-;Atlântico Bus;João Pessoa → Recife;SCHEDULED;84.9;2026-07-17T21:30:00
+Viagem;54a460a4-222f-467f-9325-78fefceb19b3;-;Atlântico Bus;Recife → João Pessoa;SCHEDULED;39.9;2026-06-22T06:30:00
+Viagem;00520cd2-dd00-4c95-a052-cf25e56bbbc1;-;Atlântico Bus;Recife → João Pessoa;SCHEDULED;57.9;2026-06-23T13:00:00
+Viagem;f21af5e0-e648-425f-a015-ddbefa1f51f1;-;Atlântico Bus;Recife → João Pessoa;SCHEDULED;84.9;2026-06-23T21:30:00
+Viagem;2155b886-4b6c-40df-af37-40c2991401ff;-;Atlântico Bus;Recife → João Pessoa;SCHEDULED;39.9;2026-06-30T06:30:00
+Viagem;8cf11ec5-6363-4183-b4e9-3ec8309b9740;-;Atlântico Bus;Recife → João Pessoa;SCHEDULED;57.9;2026-07-01T13:00:00
+Viagem;56170ac4-597d-49ab-9b7c-25f103454fdb;-;Atlântico Bus;Recife → João Pessoa;SCHEDULED;84.9;2026-07-01T21:30:00
+Viagem;31266bf3-b775-475a-b688-6992756f5e90;-;Atlântico Bus;Recife → João Pessoa;SCHEDULED;39.9;2026-07-08T06:30:00
+Viagem;ea11dfed-ac2d-4e38-8965-4c68a1ada1cb;-;Atlântico Bus;Recife → João Pessoa;SCHEDULED;57.9;2026-07-09T13:00:00
+Viagem;db5a4f8c-f8b6-4d4f-bbe4-0d6412816637;-;Atlântico Bus;Recife → João Pessoa;SCHEDULED;84.9;2026-07-09T21:30:00
+Viagem;0f2442e6-cf74-4692-b555-1c5a634f579e;-;Atlântico Bus;Recife → João Pessoa;SCHEDULED;39.9;2026-07-16T06:30:00
+Viagem;f01f1f60-9a2e-499d-95ea-c436ddeb85b3;-;Atlântico Bus;Recife → João Pessoa;SCHEDULED;57.9;2026-07-17T13:00:00
+Viagem;5fef567a-471c-4a51-b67f-e81a600e6af4;-;Atlântico Bus;Recife → João Pessoa;SCHEDULED;84.9;2026-07-17T21:30:00
+Viagem;9cb6de1f-4568-4535-83f0-1ab06ece8f85;-;Atlântico Bus;Curitiba → Florianópolis;SCHEDULED;79.9;2026-06-26T06:30:00
+Viagem;ceb2807b-0135-48d8-a833-0362b5753ea5;-;Atlântico Bus;Curitiba → Florianópolis;SCHEDULED;97.9;2026-06-27T13:00:00
+Viagem;26a4b27b-8979-49bc-9c5e-58a59308c473;-;Atlântico Bus;Curitiba → Florianópolis;SCHEDULED;124.9;2026-06-27T21:30:00
+Viagem;f9f8c341-024d-4b15-9edf-76d15f28b969;-;Atlântico Bus;Curitiba → Florianópolis;SCHEDULED;79.9;2026-07-04T06:30:00
+Viagem;39ae2b45-c4d3-43fa-bd2c-3af5788bdca1;-;Atlântico Bus;Curitiba → Florianópolis;SCHEDULED;97.9;2026-07-05T13:00:00
+Viagem;35b4d88f-c7d7-4c12-969f-1c84217b182c;-;Atlântico Bus;Curitiba → Florianópolis;SCHEDULED;124.9;2026-07-05T21:30:00
+Viagem;2d4a6536-dbed-45ef-ae54-803c95f6feea;-;Atlântico Bus;Curitiba → Florianópolis;SCHEDULED;79.9;2026-07-12T06:30:00
+Viagem;20439ae1-1387-43b5-a030-054c16cb698f;-;Atlântico Bus;Curitiba → Florianópolis;SCHEDULED;97.9;2026-07-13T13:00:00
+Viagem;1b8f9e3b-5344-49f3-a622-9ebcca9907e0;-;Atlântico Bus;Curitiba → Florianópolis;SCHEDULED;124.9;2026-07-13T21:30:00
+Viagem;acb9597b-4ca2-4e6e-b485-362cd92a1af8;-;Atlântico Bus;Curitiba → Florianópolis;SCHEDULED;79.9;2026-07-20T06:30:00
+Viagem;889df694-04a4-4bb2-9dc8-ac2134b72ac0;-;Atlântico Bus;Florianópolis → Curitiba;SCHEDULED;79.9;2026-06-26T06:30:00
+Viagem;b90f624b-f1d0-4ae0-a00f-41943d4c6720;-;Atlântico Bus;Florianópolis → Curitiba;SCHEDULED;97.9;2026-06-27T13:00:00
+Viagem;78e9d652-210b-4350-847f-9e4af5a06d42;-;Atlântico Bus;Florianópolis → Curitiba;SCHEDULED;124.9;2026-06-27T21:30:00
+Viagem;9b87b5a2-7677-4a10-b143-dd242a29c8e5;-;Atlântico Bus;Florianópolis → Curitiba;SCHEDULED;79.9;2026-07-04T06:30:00
+Viagem;4a2ac079-2b0a-43de-a24e-d59d3d179d77;-;Atlântico Bus;Florianópolis → Curitiba;SCHEDULED;97.9;2026-07-05T13:00:00
+Viagem;8d584c5b-6854-486c-b428-1506b8b89791;-;Atlântico Bus;Florianópolis → Curitiba;SCHEDULED;124.9;2026-07-05T21:30:00
+Viagem;9f395a0e-b961-4d68-94f8-44e7a4e91700;-;Atlântico Bus;Florianópolis → Curitiba;SCHEDULED;79.9;2026-07-12T06:30:00
+Viagem;a2446dd2-84c1-4289-9ee1-6f9da6ecaa70;-;Atlântico Bus;Florianópolis → Curitiba;SCHEDULED;97.9;2026-07-13T13:00:00
+Viagem;3d7fa571-387b-499d-bbd7-d53f7fd676ca;-;Atlântico Bus;Florianópolis → Curitiba;SCHEDULED;124.9;2026-07-13T21:30:00
+Viagem;4425457c-5c04-4233-80b8-51c5a8e260d4;-;Atlântico Bus;Florianópolis → Curitiba;SCHEDULED;79.9;2026-07-20T06:30:00
+Viagem;793448e1-a497-4492-a820-a0cb4f1dfd57;-;Atlântico Bus;Florianópolis → Porto Alegre;SCHEDULED;119.9;2026-06-22T06:30:00
+Viagem;55635730-8d76-40d1-a56f-636cbd5df98c;-;Atlântico Bus;Florianópolis → Porto Alegre;SCHEDULED;137.9;2026-06-23T13:00:00
+Viagem;773fa705-7151-4cd3-b04f-851f1929171f;-;Atlântico Bus;Florianópolis → Porto Alegre;SCHEDULED;164.9;2026-06-23T21:30:00
+Viagem;799281f9-3631-407d-a673-2f2682ac8cc3;-;Atlântico Bus;Florianópolis → Porto Alegre;SCHEDULED;119.9;2026-06-30T06:30:00
+Viagem;eaf081b9-9fe1-4f75-8e7d-d02bcefb55a8;-;Atlântico Bus;Florianópolis → Porto Alegre;SCHEDULED;137.9;2026-07-01T13:00:00
+Viagem;ee6ad8dd-7f81-4472-9e97-666572e3f0de;-;Atlântico Bus;Florianópolis → Porto Alegre;SCHEDULED;164.9;2026-07-01T21:30:00
+Viagem;2eb4ce8e-2854-429a-a9ab-49548ee2476a;-;Atlântico Bus;Florianópolis → Porto Alegre;SCHEDULED;119.9;2026-07-08T06:30:00
+Viagem;71465863-d69a-4d7a-9c4e-a95ea6666254;-;Atlântico Bus;Florianópolis → Porto Alegre;SCHEDULED;137.9;2026-07-09T13:00:00
+Viagem;5f9ac30e-30b9-4be4-8168-3667d394c629;-;Atlântico Bus;Florianópolis → Porto Alegre;SCHEDULED;164.9;2026-07-09T21:30:00
+Viagem;6855e4ac-89e9-4ecc-ac6b-141dc0531039;-;Atlântico Bus;Florianópolis → Porto Alegre;SCHEDULED;119.9;2026-07-16T06:30:00
+Viagem;c2b7a291-a1b9-4b26-9db1-868df78c842b;-;Atlântico Bus;Florianópolis → Porto Alegre;SCHEDULED;137.9;2026-07-17T13:00:00
+Viagem;c8102671-e3e9-4826-8cd4-c902a382e1e9;-;Atlântico Bus;Florianópolis → Porto Alegre;SCHEDULED;164.9;2026-07-17T21:30:00
+Viagem;189c255f-8193-47c3-87ce-a9482d2774ee;-;Atlântico Bus;Porto Alegre → Florianópolis;SCHEDULED;119.9;2026-06-22T06:30:00
+Viagem;5e9cb8a1-c5b4-466f-a27e-030b235441d9;-;Atlântico Bus;Porto Alegre → Florianópolis;SCHEDULED;137.9;2026-06-23T13:00:00
+Viagem;67fb100e-03ed-45ef-916b-51ecbf612ced;-;Atlântico Bus;Porto Alegre → Florianópolis;SCHEDULED;164.9;2026-06-23T21:30:00
+Viagem;2e7c6dc3-fae6-4979-82d7-4e6205a502d7;-;Atlântico Bus;Porto Alegre → Florianópolis;SCHEDULED;119.9;2026-06-30T06:30:00
+Viagem;3aa8a49d-844e-4666-a1c3-80c9818cf1a6;-;Atlântico Bus;Porto Alegre → Florianópolis;SCHEDULED;137.9;2026-07-01T13:00:00
+Viagem;6549494e-dc23-4025-b686-2ea5babb7fe4;-;Atlântico Bus;Porto Alegre → Florianópolis;SCHEDULED;164.9;2026-07-01T21:30:00
+Viagem;f6dc500a-6e9c-48a0-a22c-598cc83a92fc;-;Atlântico Bus;Porto Alegre → Florianópolis;SCHEDULED;119.9;2026-07-08T06:30:00
+Viagem;f20533e8-151e-4111-8e24-876f6971402a;-;Atlântico Bus;Porto Alegre → Florianópolis;SCHEDULED;137.9;2026-07-09T13:00:00
+Viagem;f4b6f1e8-5bd9-4a1d-bc3a-7976c4339306;-;Atlântico Bus;Porto Alegre → Florianópolis;SCHEDULED;164.9;2026-07-09T21:30:00
+Viagem;654256da-9761-4be7-94fd-ff5285f9a95b;-;Atlântico Bus;Porto Alegre → Florianópolis;SCHEDULED;119.9;2026-07-16T06:30:00
+Viagem;8186767f-b759-454e-9e3b-523a51a72df7;-;Atlântico Bus;Porto Alegre → Florianópolis;SCHEDULED;137.9;2026-07-17T13:00:00
+Viagem;eff59db2-2df0-4320-9a39-d1e7deaafc62;-;Atlântico Bus;Porto Alegre → Florianópolis;SCHEDULED;164.9;2026-07-17T21:30:00
+Viagem;8181c5ed-9270-418a-ba4f-2b5fd4400c39;-;Atlântico Bus;Cuiabá → Campo Grande;SCHEDULED;169.9;2026-06-21T06:30:00
+Viagem;ac754be0-b70a-4d4a-9f42-a95f9d1396d4;-;Atlântico Bus;Cuiabá → Campo Grande;SCHEDULED;187.9;2026-06-22T13:00:00
+Viagem;d97be30c-c285-4b93-9fcb-e461c0f10765;-;Atlântico Bus;Cuiabá → Campo Grande;SCHEDULED;214.9;2026-06-22T21:30:00
+Viagem;41e8bd4c-6c54-4293-a206-d4545d763dbb;-;Atlântico Bus;Cuiabá → Campo Grande;SCHEDULED;169.9;2026-06-29T06:30:00
+Viagem;1bc12bbc-8672-4150-acfd-3a3354b17290;-;Atlântico Bus;Cuiabá → Campo Grande;SCHEDULED;187.9;2026-06-30T13:00:00
+Viagem;1d6ad85e-083d-4b1b-9f1b-3a0d600ea91b;-;Atlântico Bus;Cuiabá → Campo Grande;SCHEDULED;214.9;2026-06-30T21:30:00
+Viagem;d6d055c2-8123-48fc-b025-2f2b4f09236b;-;Atlântico Bus;Cuiabá → Campo Grande;SCHEDULED;169.9;2026-07-07T06:30:00
+Viagem;bc8d219c-0331-47af-9b46-9952db1deee7;-;Atlântico Bus;Cuiabá → Campo Grande;SCHEDULED;187.9;2026-07-08T13:00:00
+Viagem;f9752214-edfd-4c3d-8276-3eacf9d2e3fd;-;Atlântico Bus;Cuiabá → Campo Grande;SCHEDULED;214.9;2026-07-08T21:30:00
+Viagem;9940fd41-94cb-4ee4-a318-93374af24498;-;Atlântico Bus;Cuiabá → Campo Grande;SCHEDULED;169.9;2026-07-15T06:30:00
+Viagem;6b12de7f-4a45-40db-a659-ab47bfc0e6c3;-;Atlântico Bus;Cuiabá → Campo Grande;SCHEDULED;187.9;2026-07-16T13:00:00
+Viagem;8d016a10-4f12-40a9-87a5-b78cd34e6850;-;Atlântico Bus;Cuiabá → Campo Grande;SCHEDULED;214.9;2026-07-16T21:30:00
+Viagem;fbb45e3b-3fbd-46e2-82cf-c9a33a192213;-;Atlântico Bus;Campo Grande → Cuiabá;SCHEDULED;169.9;2026-06-21T06:30:00
+Viagem;7ef7dadf-b7ac-458c-8991-5aafc47da116;-;Atlântico Bus;Campo Grande → Cuiabá;SCHEDULED;187.9;2026-06-22T13:00:00
+Viagem;793f43a1-f15b-4080-a2c5-b8cbf96decc2;-;Atlântico Bus;Campo Grande → Cuiabá;SCHEDULED;214.9;2026-06-22T21:30:00
+Viagem;908385b4-886c-42b7-a5bf-8e9f2f007bd1;-;Atlântico Bus;Campo Grande → Cuiabá;SCHEDULED;169.9;2026-06-29T06:30:00
+Viagem;ebc948a9-2c0a-4f22-9a4b-07622cb4a3b0;-;Atlântico Bus;Campo Grande → Cuiabá;SCHEDULED;187.9;2026-06-30T13:00:00
+Viagem;a4def062-4bd1-4eaa-815c-8bdb3550a5ff;-;Atlântico Bus;Campo Grande → Cuiabá;SCHEDULED;214.9;2026-06-30T21:30:00
+Viagem;a17080f2-869d-4282-9095-2ab5c274fd9e;-;Atlântico Bus;Campo Grande → Cuiabá;SCHEDULED;169.9;2026-07-07T06:30:00
+Viagem;cf9c75d1-5690-4e0e-8ad4-b0f14ba6d7bc;-;Atlântico Bus;Campo Grande → Cuiabá;SCHEDULED;187.9;2026-07-08T13:00:00
+Viagem;c1a26507-692c-48ab-a823-9121668caf6f;-;Atlântico Bus;Campo Grande → Cuiabá;SCHEDULED;214.9;2026-07-08T21:30:00
+Viagem;40f1d35a-49bb-4cd3-b8c4-37cb7a4c5506;-;Atlântico Bus;Campo Grande → Cuiabá;SCHEDULED;169.9;2026-07-15T06:30:00
+Viagem;e2f77219-a367-4262-a66a-00bf633a3f9a;-;Atlântico Bus;Campo Grande → Cuiabá;SCHEDULED;187.9;2026-07-16T13:00:00
+Viagem;9c497c99-e70d-41f3-b2d8-ba10e04330a0;-;Atlântico Bus;Campo Grande → Cuiabá;SCHEDULED;214.9;2026-07-16T21:30:00
+Viagem;6dcf44a9-2644-4ff0-8033-b25e59f9c59c;-;Atlântico Bus;Campo Grande → São Paulo;SCHEDULED;219.9;2026-06-26T06:30:00
+Viagem;62330fa4-aca3-49ce-af33-1f48a9241268;-;Atlântico Bus;Campo Grande → São Paulo;SCHEDULED;237.9;2026-06-27T13:00:00
+Viagem;1f5eb713-9797-4085-804c-1636ffec7b3e;-;Atlântico Bus;Campo Grande → São Paulo;SCHEDULED;264.9;2026-06-27T21:30:00
+Viagem;6dcc74f3-7f2e-44ee-a1f1-8193a0644b88;-;Atlântico Bus;Campo Grande → São Paulo;SCHEDULED;219.9;2026-07-04T06:30:00
+Viagem;1a28bdca-910f-4f06-aa37-21b1abb97077;-;Atlântico Bus;Campo Grande → São Paulo;SCHEDULED;237.9;2026-07-05T13:00:00
+Viagem;f3ddb813-cf37-4fa4-b888-5a4dffbbd18f;-;Atlântico Bus;Campo Grande → São Paulo;SCHEDULED;264.9;2026-07-05T21:30:00
+Viagem;ed3d9946-70cf-41fe-b79e-8f8eee20c337;-;Atlântico Bus;Campo Grande → São Paulo;SCHEDULED;219.9;2026-07-12T06:30:00
+Viagem;0c9ca546-286d-491a-8928-74209c724e88;-;Atlântico Bus;Campo Grande → São Paulo;SCHEDULED;237.9;2026-07-13T13:00:00
+Viagem;9a7258e8-9af4-429c-b449-42ec91953269;-;Atlântico Bus;Campo Grande → São Paulo;SCHEDULED;264.9;2026-07-13T21:30:00
+Viagem;3c039960-bed9-4fdd-8214-d167c2dbd5e7;-;Atlântico Bus;Campo Grande → São Paulo;SCHEDULED;219.9;2026-07-20T06:30:00
+Viagem;ae707449-9897-4bb5-b33a-f159ac842a8a;-;Atlântico Bus;São Paulo → Campo Grande;SCHEDULED;219.9;2026-06-26T06:30:00
+Viagem;70519b86-546a-4c48-adab-6c04c93c0a3e;-;Atlântico Bus;São Paulo → Campo Grande;SCHEDULED;237.9;2026-06-27T13:00:00
+Viagem;9b588e5b-283f-441a-bb43-8c15fecdd102;-;Atlântico Bus;São Paulo → Campo Grande;SCHEDULED;264.9;2026-06-27T21:30:00
+Viagem;ec65c4fe-7623-4553-9fce-24b4ee2cb72f;-;Atlântico Bus;São Paulo → Campo Grande;SCHEDULED;219.9;2026-07-04T06:30:00
+Viagem;dc1bde3a-945c-4dee-ba56-12e301fc4d87;-;Atlântico Bus;São Paulo → Campo Grande;SCHEDULED;237.9;2026-07-05T13:00:00
+Viagem;c6743867-4078-47ed-8378-91296983df52;-;Atlântico Bus;São Paulo → Campo Grande;SCHEDULED;264.9;2026-07-05T21:30:00
+Viagem;888ecdc1-03bf-46d2-afa1-086e396a05e2;-;Atlântico Bus;São Paulo → Campo Grande;SCHEDULED;219.9;2026-07-12T06:30:00
+Viagem;76c828c0-fd03-4a4c-afa4-f5c7fd0b4327;-;Atlântico Bus;São Paulo → Campo Grande;SCHEDULED;237.9;2026-07-13T13:00:00
+Viagem;3c4bd80c-c719-476e-bbe6-d16ea13c96a0;-;Atlântico Bus;São Paulo → Campo Grande;SCHEDULED;264.9;2026-07-13T21:30:00
+Viagem;e684ace7-b973-47d5-a84a-36dc658e8f3a;-;Atlântico Bus;São Paulo → Campo Grande;SCHEDULED;219.9;2026-07-20T06:30:00
+Viagem;bf42d77f-81fd-4ee2-a4d5-10c6ab95b323;-;Atlântico Bus;Belém → Manaus;SCHEDULED;317.9;2026-06-21T13:00:00
+Viagem;ddcd8358-f006-4c7b-a83e-10a40a3835f6;-;Atlântico Bus;Belém → Manaus;SCHEDULED;344.9;2026-06-21T21:30:00
+Viagem;bd8a971f-c365-4514-b8ff-0bf44c4f179a;-;Atlântico Bus;Belém → Manaus;SCHEDULED;299.9;2026-06-28T06:30:00
+Viagem;98988bd0-775e-46ee-86f8-8de1b6f37bcb;-;Atlântico Bus;Belém → Manaus;SCHEDULED;317.9;2026-06-29T13:00:00
+Viagem;f2e83bb7-8965-4660-a5bd-25b81a760e88;-;Atlântico Bus;Belém → Manaus;SCHEDULED;344.9;2026-06-29T21:30:00
+Viagem;0dc96601-642c-4e6b-9d13-5d1f1225862c;-;Atlântico Bus;Belém → Manaus;SCHEDULED;299.9;2026-07-06T06:30:00
+Viagem;b2e0adc6-2b8e-442c-b212-46ff63dd6a6b;-;Atlântico Bus;Belém → Manaus;SCHEDULED;317.9;2026-07-07T13:00:00
+Viagem;638aaf03-2e0e-4c74-acdc-6c9294f4795f;-;Atlântico Bus;Belém → Manaus;SCHEDULED;344.9;2026-07-07T21:30:00
+Viagem;633333f5-80d0-44f0-8c9a-6425f6fe7cf0;-;Atlântico Bus;Belém → Manaus;SCHEDULED;299.9;2026-07-14T06:30:00
+Viagem;1b6ed9a2-8a63-4389-a278-f05c02c292b4;-;Atlântico Bus;Belém → Manaus;SCHEDULED;317.9;2026-07-15T13:00:00
+Viagem;a1adc573-a5cc-4c65-8749-a86bbb270211;-;Atlântico Bus;Belém → Manaus;SCHEDULED;344.9;2026-07-15T21:30:00
+Viagem;e401acec-7cdf-4e42-8ba1-125a5772f5ac;-;Atlântico Bus;Manaus → Belém;SCHEDULED;317.9;2026-06-21T13:00:00
+Viagem;10e5d720-0b4c-40cd-9a81-39e39eb9236a;-;Atlântico Bus;Manaus → Belém;SCHEDULED;344.9;2026-06-21T21:30:00
+Viagem;5bf2bf2e-5594-4a45-a8a2-53cd85099f78;-;Atlântico Bus;Manaus → Belém;SCHEDULED;299.9;2026-06-28T06:30:00
+Viagem;b6ea3bd1-8b87-45d9-9b10-7b76175f718a;-;Atlântico Bus;Manaus → Belém;SCHEDULED;317.9;2026-06-29T13:00:00
+Viagem;36de54d1-c883-4c1a-8933-600a060f076f;-;Atlântico Bus;Manaus → Belém;SCHEDULED;344.9;2026-06-29T21:30:00
+Viagem;20151dbe-dbea-4a0c-83d9-a18b75ea3b89;-;Atlântico Bus;Manaus → Belém;SCHEDULED;299.9;2026-07-06T06:30:00
+Viagem;1c73b082-0996-44cc-8ebb-5e25b0adddd9;-;Atlântico Bus;Manaus → Belém;SCHEDULED;317.9;2026-07-07T13:00:00
+Viagem;d6c8999c-5bb5-42ae-9ff9-6139833d24f0;-;Atlântico Bus;Manaus → Belém;SCHEDULED;344.9;2026-07-07T21:30:00
+Viagem;28266498-01db-4ac9-9922-2c8a84ed35dd;-;Atlântico Bus;Manaus → Belém;SCHEDULED;299.9;2026-07-14T06:30:00
+Viagem;234e87e4-805f-4034-8324-8f03ca2a8bee;-;Atlântico Bus;Manaus → Belém;SCHEDULED;317.9;2026-07-15T13:00:00
+Viagem;a087dd48-3748-4797-b3c7-329bf773052a;-;Atlântico Bus;Manaus → Belém;SCHEDULED;344.9;2026-07-15T21:30:00
+Viagem;f6042fdc-9693-4f82-97f7-070be1b5a55f;-;Atlântico Bus;São Paulo → Rio de Janeiro;SCHEDULED;107.9;2026-06-25T13:00:00
+Viagem;62c8157a-d605-47d1-bac4-36525f0e9654;-;Atlântico Bus;Rio de Janeiro → São Paulo;SCHEDULED;107.9;2026-06-25T13:00:00
