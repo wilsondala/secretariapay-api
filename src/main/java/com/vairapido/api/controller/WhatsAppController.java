@@ -1,6 +1,7 @@
 package com.vairapido.api.controller;
 
 import com.vairapido.api.dto.whatsapp.WhatsAppBackfillResponse;
+import com.vairapido.api.dto.whatsapp.WhatsAppCloudStatusResponse;
 import com.vairapido.api.dto.whatsapp.WhatsAppMessageResponse;
 import com.vairapido.api.service.WhatsAppService;
 import org.springframework.web.bind.annotation.*;
@@ -31,6 +32,21 @@ public class WhatsAppController {
     @PostMapping("/messages/backfill-missing")
     public WhatsAppBackfillResponse backfillMissingMessages() {
         return service.backfillMissingMessages();
+    }
+
+    @GetMapping("/cloud/status")
+    public WhatsAppCloudStatusResponse getCloudStatus() {
+        return service.getCloudStatus();
+    }
+
+    @PostMapping("/messages/{id}/send-real")
+    public WhatsAppMessageResponse sendRealMessage(@PathVariable UUID id) {
+        return service.sendRealMessage(id);
+    }
+
+    @PostMapping("/messages/send-pending-real")
+    public List<WhatsAppMessageResponse> sendPendingRealMessages() {
+        return service.sendPendingRealMessages();
     }
 
     @GetMapping("/messages")

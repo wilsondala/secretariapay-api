@@ -1,6 +1,8 @@
 package com.vairapido.api.service;
 
 import com.vairapido.api.dto.whatsapp.WhatsAppBackfillResponse;
+import com.vairapido.api.dto.whatsapp.WhatsAppCloudSendResult;
+import com.vairapido.api.dto.whatsapp.WhatsAppCloudStatusResponse;
 import com.vairapido.api.dto.whatsapp.WhatsAppMessageResponse;
 import com.vairapido.api.entity.Booking;
 import com.vairapido.api.entity.Passenger;
@@ -30,15 +32,18 @@ public class WhatsAppService {
     private final WhatsAppMessageRepository whatsAppMessageRepository;
     private final BookingRepository bookingRepository;
     private final TicketRepository ticketRepository;
+    private final WhatsAppCloudClient whatsAppCloudClient;
 
     public WhatsAppService(
             WhatsAppMessageRepository whatsAppMessageRepository,
             BookingRepository bookingRepository,
-            TicketRepository ticketRepository
+            TicketRepository ticketRepository,
+            WhatsAppCloudClient whatsAppCloudClient
     ) {
         this.whatsAppMessageRepository = whatsAppMessageRepository;
         this.bookingRepository = bookingRepository;
         this.ticketRepository = ticketRepository;
+        this.whatsAppCloudClient = whatsAppCloudClient;
     }
 
     @Transactional
@@ -141,6 +146,82 @@ public class WhatsAppService {
                 .setMessage(totalCreated == 1
                         ? "1 mensagem WhatsApp ausente foi criada."
                         : totalCreated + " mensagens WhatsApp ausentes foram criadas.");
+    }
+
+    @Transactional(readOnly = true)
+    public WhatsAppCloudStatusResponse getCloudStatus() {
+        return whatsAppCloudClient.getStatus();
+    }
+
+    @Transactional
+    public WhatsAppMessageResponse sendRealMessage(UUID id) {
+        if (!whatsAppCloudClient.isReady()) {
+            throw new IllegalStateException("WhatsApp Cloud API não está configurado para envio real.");
+        }
+
+        WhatsAppMessage message = findEntityById(id);
+
+        if (message.getStatus() == WhatsAppMessageStatus.SENT) {
+            return toResponse(message);
+        }
+
+        WhatsAppCloudSendResult result = whatsAppCloudClient.sendTextMessage(
+                message.getToPhone(),
+                message.getMessageBody()
+        );
+
+        if (Boolean.TRUE.equals(result.getSuccess())) {
+            message
+                    .setStatus(WhatsAppMessageStatus.SENT)
+                    .setSentAt(LocalDateTime.now())
+                    .setFailedAt(null)
+                    .setErrorMessage(null)
+                    .setProviderName(WhatsAppCloudClient.PROVIDER_NAME)
+                    .setProviderMessageId(result.getProviderMessageId());
+        } else {
+            message
+                    .setStatus(WhatsAppMessageStatus.FAILED)
+                    .setFailedAt(LocalDateTime.now())
+                    .setErrorMessage(result.getErrorMessage())
+                    .setProviderName(WhatsAppCloudClient.PROVIDER_NAME);
+        }
+
+        return toResponse(whatsAppMessageRepository.save(message));
+    }
+
+    @Transactional
+    public List<WhatsAppMessageResponse> sendPendingRealMessages() {
+        if (!whatsAppCloudClient.isReady()) {
+            throw new IllegalStateException("WhatsApp Cloud API não está configurado para envio real.");
+        }
+
+        return whatsAppMessageRepository.findByStatus(WhatsAppMessageStatus.PENDING)
+                .stream()
+                .map(message -> {
+                    WhatsAppCloudSendResult result = whatsAppCloudClient.sendTextMessage(
+                            message.getToPhone(),
+                            message.getMessageBody()
+                    );
+
+                    if (Boolean.TRUE.equals(result.getSuccess())) {
+                        message
+                                .setStatus(WhatsAppMessageStatus.SENT)
+                                .setSentAt(LocalDateTime.now())
+                                .setFailedAt(null)
+                                .setErrorMessage(null)
+                                .setProviderName(WhatsAppCloudClient.PROVIDER_NAME)
+                                .setProviderMessageId(result.getProviderMessageId());
+                    } else {
+                        message
+                                .setStatus(WhatsAppMessageStatus.FAILED)
+                                .setFailedAt(LocalDateTime.now())
+                                .setErrorMessage(result.getErrorMessage())
+                                .setProviderName(WhatsAppCloudClient.PROVIDER_NAME);
+                    }
+
+                    return toResponse(whatsAppMessageRepository.save(message));
+                })
+                .toList();
     }
 
     @Transactional(readOnly = true)
