@@ -28,6 +28,7 @@ public class SecretariaPayMessageTemplateService {
 
     private static final String CHANNEL_WHATSAPP = "WHATSAPP";
     private static final String LANGUAGE_PT_AO = "pt-AO";
+    private static final String PUBLIC_BASE_URL = "https://secretariapay-api.paixaoangola.com";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
@@ -205,7 +206,7 @@ public class SecretariaPayMessageTemplateService {
                 student(charge).getFullName(),
                 money(charge.getTotalAmount(), charge.getCurrency()),
                 receipt.getStatus(),
-                receipt.getPdfUrl(),
+                pdfUrl(receipt),
                 receipt.getValidationUrl(),
                 signature(charge)
         );
@@ -253,7 +254,7 @@ public class SecretariaPayMessageTemplateService {
                 .setChannel(CHANNEL_WHATSAPP)
                 .setLanguage(LANGUAGE_PT_AO)
                 .setInstitutionId(institution != null ? institution.getId() : null)
-                .setInstitutionName(institution != null ? institution.getName() : null)
+                .setInstitutionName(displayInstitutionName(institution))
                 .setStudentId(student.getId())
                 .setStudentNumber(student.getStudentNumber())
                 .setStudentName(student.getFullName())
@@ -270,7 +271,7 @@ public class SecretariaPayMessageTemplateService {
                 .setChannel(CHANNEL_WHATSAPP)
                 .setLanguage(LANGUAGE_PT_AO)
                 .setInstitutionId(institution != null ? institution.getId() : null)
-                .setInstitutionName(institution != null ? institution.getName() : null)
+                .setInstitutionName(displayInstitutionName(institution))
                 .setStudentId(student.getId())
                 .setStudentNumber(student.getStudentNumber())
                 .setStudentName(student.getFullName())
@@ -316,9 +317,35 @@ public class SecretariaPayMessageTemplateService {
 
     private String signature(Student student) {
         Institution institution = institution(student);
-        String institutionName = institution != null ? institution.getName() : "SecretáriaPay Académico";
+        return displayInstitutionName(institution) + "\nSecretáriaPay Académico";
+    }
 
-        return institutionName + "\nSecretáriaPay Académico";
+    private String displayInstitutionName(Institution institution) {
+        if (institution == null) {
+            return "SecretáriaPay Académico";
+        }
+
+        if (institution.getLegalName() != null && !institution.getLegalName().isBlank()) {
+            return institution.getLegalName();
+        }
+
+        if (institution.getName() != null && !institution.getName().isBlank()) {
+            return institution.getName();
+        }
+
+        return "SecretáriaPay Académico";
+    }
+
+    private String pdfUrl(Receipt receipt) {
+        if (receipt.getPdfUrl() != null && !receipt.getPdfUrl().isBlank()) {
+            return receipt.getPdfUrl();
+        }
+
+        if (receipt.getId() == null) {
+            return "-";
+        }
+
+        return PUBLIC_BASE_URL + "/api/v1/receipts/" + receipt.getId() + "/pdf";
     }
 
     private String firstName(String fullName) {
