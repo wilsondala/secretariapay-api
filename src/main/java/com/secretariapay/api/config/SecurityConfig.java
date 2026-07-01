@@ -132,6 +132,7 @@ public class SecurityConfig {
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/health").permitAll()
                                                 .requestMatchers("/error").permitAll()
                                                 .requestMatchers("/actuator/**").permitAll()
+                                                .requestMatchers("/branding/**").permitAll()
                                                 
                                                 .requestMatchers("/api/v1/public/**").permitAll()
                                                 .requestMatchers("/api/v1/multi-country/**").permitAll()
