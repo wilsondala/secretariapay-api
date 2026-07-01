@@ -2,6 +2,7 @@ package com.secretariapay.api.service.whatsapp;
 
 import com.secretariapay.api.dto.whatsapp.SecretariaPayDispatchBatchResponse;
 import com.secretariapay.api.dto.whatsapp.SecretariaPayMessageDispatchResult;
+import com.secretariapay.api.dto.whatsapp.WhatsAppCloudSendResult;
 import com.secretariapay.api.entity.enums.whatsapp.SecretariaPayMessageStatus;
 import com.secretariapay.api.entity.whatsapp.SecretariaPayMessage;
 import com.secretariapay.api.exception.NotFoundException;
@@ -19,28 +20,23 @@ import java.util.UUID;
 public class SecretariaPayMessageDispatchService {
 
     private final SecretariaPayMessageRepository repository;
+    private final WhatsAppCloudApiClient whatsAppCloudApiClient;
     private final boolean whatsappEnabled;
-    private final String phoneNumberId;
-    private final String accessToken;
 
     public SecretariaPayMessageDispatchService(
             SecretariaPayMessageRepository repository,
-            @Value("${secretariapay.whatsapp.enabled:false}") boolean whatsappEnabled,
-            @Value("${secretariapay.whatsapp.phone-number-id:}") String phoneNumberId,
-            @Value("${secretariapay.whatsapp.access-token:}") String accessToken
+            WhatsAppCloudApiClient whatsAppCloudApiClient,
+            @Value("${secretariapay.whatsapp.enabled:false}") boolean whatsappEnabled
     ) {
         this.repository = repository;
+        this.whatsAppCloudApiClient = whatsAppCloudApiClient;
         this.whatsappEnabled = whatsappEnabled;
-        this.phoneNumberId = phoneNumberId;
-        this.accessToken = accessToken;
     }
 
     @Transactional
     public SecretariaPayMessageDispatchResult queue(UUID messageId) {
         SecretariaPayMessage message = findMessage(messageId);
-        message.setStatus(SecretariaPayMessageStatus.QUEUED)
-                .setFailureReason(null);
-
+        message.setStatus(SecretariaPayMessageStatus.QUEUED).setFailureReason(null);
         SecretariaPayMessage saved = repository.save(message);
         return toResult(saved, LocalDateTime.now());
     }
@@ -55,9 +51,7 @@ public class SecretariaPayMessageDispatchService {
     public SecretariaPayDispatchBatchResponse processQueue(Integer limit) {
         int safeLimit = limit == null || limit < 1 ? 10 : Math.min(limit, 20);
         List<SecretariaPayMessage> queuedMessages = repository.findTop20ByStatusOrderByCreatedAtAsc(SecretariaPayMessageStatus.QUEUED)
-                .stream()
-                .limit(safeLimit)
-                .toList();
+                .stream().limit(safeLimit).toList();
 
         List<SecretariaPayMessageDispatchResult> results = new ArrayList<>();
         int sent = 0;
@@ -66,14 +60,8 @@ public class SecretariaPayMessageDispatchService {
         for (SecretariaPayMessage message : queuedMessages) {
             SecretariaPayMessageDispatchResult result = dispatchMessage(message);
             results.add(result);
-
-            if (SecretariaPayMessageStatus.SENT.name().equals(result.getStatus())) {
-                sent++;
-            }
-
-            if (SecretariaPayMessageStatus.FAILED.name().equals(result.getStatus())) {
-                failed++;
-            }
+            if (SecretariaPayMessageStatus.SENT.name().equals(result.getStatus())) sent++;
+            if (SecretariaPayMessageStatus.FAILED.name().equals(result.getStatus())) failed++;
         }
 
         return new SecretariaPayDispatchBatchResponse()
@@ -101,16 +89,18 @@ public class SecretariaPayMessageDispatchService {
             return toResult(repository.save(message), now);
         }
 
-        if (phoneNumberId == null || phoneNumberId.isBlank() || accessToken == null || accessToken.isBlank()) {
-            message.setStatus(SecretariaPayMessageStatus.FAILED)
-                    .setFailureReason("WhatsApp Cloud API habilitado, mas phone-number-id ou access-token não configurado.");
+        WhatsAppCloudSendResult sendResult = whatsAppCloudApiClient.sendText(message.getRecipientPhone(), message.getMessage());
+
+        if (sendResult.isSuccess()) {
+            message.setStatus(SecretariaPayMessageStatus.SENT)
+                    .setProviderMessageId(sendResult.getProviderMessageId())
+                    .setFailureReason(null)
+                    .setSentAt(now);
             return toResult(repository.save(message), now);
         }
 
-        // Ponto preparado para envio real via WhatsApp Cloud API.
-        // Nesta fase, mantemos seguro: sem enviar para a Meta até validarmos credenciais oficiais.
         message.setStatus(SecretariaPayMessageStatus.FAILED)
-                .setFailureReason("Envio real ainda não ativado neste build. Integração Cloud API preparada para próxima etapa.");
+                .setFailureReason(sendResult.getErrorMessage());
         return toResult(repository.save(message), now);
     }
 

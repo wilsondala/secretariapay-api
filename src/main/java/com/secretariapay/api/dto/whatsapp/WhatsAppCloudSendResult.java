@@ -6,9 +6,30 @@ public class WhatsAppCloudSendResult {
     private String providerMessageId;
     private String errorMessage;
     private String rawResponse;
+    private Integer httpStatus;
+
+    public static WhatsAppCloudSendResult sent(String providerMessageId, Integer httpStatus) {
+        return new WhatsAppCloudSendResult()
+                .setSuccess(true)
+                .setProviderMessageId(providerMessageId)
+                .setHttpStatus(httpStatus)
+                .setErrorMessage(null);
+    }
+
+    public static WhatsAppCloudSendResult failed(String errorMessage, Integer httpStatus) {
+        return new WhatsAppCloudSendResult()
+                .setSuccess(false)
+                .setProviderMessageId(null)
+                .setHttpStatus(httpStatus)
+                .setErrorMessage(errorMessage);
+    }
 
     public Boolean getSuccess() {
         return success;
+    }
+
+    public boolean isSuccess() {
+        return Boolean.TRUE.equals(success);
     }
 
     public WhatsAppCloudSendResult setSuccess(Boolean success) {
@@ -42,5 +63,13 @@ public class WhatsAppCloudSendResult {
         this.rawResponse = rawResponse;
         return this;
     }
-}
 
+    public Integer getHttpStatus() {
+        return httpStatus;
+    }
+
+    public WhatsAppCloudSendResult setHttpStatus(Integer httpStatus) {
+        this.httpStatus = httpStatus;
+        return this;
+    }
+}
