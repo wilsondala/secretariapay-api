@@ -1,5 +1,6 @@
 package com.secretariapay.api.entity;
 
+import com.secretariapay.api.entity.academic.Institution;
 import com.secretariapay.api.entity.enums.UserRole;
 import com.secretariapay.api.entity.enums.UserStatus;
 import jakarta.persistence.*;
@@ -31,7 +32,7 @@ public class User implements UserDetails {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
-    private UserRole role = UserRole.OPERATOR;
+    private UserRole role = UserRole.OPERADOR_ATENDIMENTO;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
@@ -45,6 +46,11 @@ public class User implements UserDetails {
 
     private LocalDateTime lastWhatsappLoginAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "institution_id")
+    private Institution institution;
+
+    // Campo legado mantido temporariamente para não quebrar serviços antigos herdados do VaiRápido.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transport_company_id")
     private TransportCompany transportCompany;
@@ -68,7 +74,7 @@ public class User implements UserDetails {
         }
 
         if (role == null) {
-            role = UserRole.OPERATOR;
+            role = UserRole.OPERADOR_ATENDIMENTO;
         }
 
         if (status == null) {
@@ -87,6 +93,10 @@ public class User implements UserDetails {
         if (whatsappVerified == null) {
             whatsappVerified = false;
         }
+
+        if (role == null) {
+            role = UserRole.OPERADOR_ATENDIMENTO;
+        }
     }
 
     @Override
@@ -99,6 +109,16 @@ public class User implements UserDetails {
                 new SimpleGrantedAuthority(role.name()),
                 new SimpleGrantedAuthority("ROLE_" + role.name())
         );
+    }
+
+    public boolean isGlobalAdmin() {
+        return UserRole.ADMIN_GLOBAL.equals(role) || UserRole.ADMIN.equals(role);
+    }
+
+    public boolean belongsToInstitution(UUID institutionId) {
+        return institution != null
+                && institution.getId() != null
+                && institution.getId().equals(institutionId);
     }
 
     @Override
@@ -209,6 +229,15 @@ public class User implements UserDetails {
 
     public User setLastWhatsappLoginAt(LocalDateTime lastWhatsappLoginAt) {
         this.lastWhatsappLoginAt = lastWhatsappLoginAt;
+        return this;
+    }
+
+    public Institution getInstitution() {
+        return institution;
+    }
+
+    public User setInstitution(Institution institution) {
+        this.institution = institution;
         return this;
     }
 
