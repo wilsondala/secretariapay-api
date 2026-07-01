@@ -18,6 +18,8 @@ import java.util.UUID;
 @Service
 public class ReceiptService {
 
+    private static final String API_BASE_URL = "https://secretariapay-api.paixaoangola.com";
+
     private final ReceiptRepository receiptRepository;
     private final ChargeRepository chargeRepository;
 
@@ -44,7 +46,7 @@ public class ReceiptService {
                 });
 
         String receiptCode = generateReceiptCode();
-        String validationUrl = "https://secretariapay-api.paixaoangola.com/api/v1/public/receipts/validate/" + receiptCode;
+        String validationUrl = buildValidationUrl(receiptCode);
         String qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + validationUrl;
 
         Receipt receipt = new Receipt()
@@ -54,7 +56,11 @@ public class ReceiptService {
                 .setQrCodeUrl(qrCodeUrl)
                 .setStatus(ReceiptStatus.VALID);
 
-        return toResponse(receiptRepository.save(receipt));
+        Receipt savedReceipt = receiptRepository.save(receipt);
+
+        savedReceipt.setPdfUrl(buildPdfUrl(savedReceipt.getId()));
+
+        return toResponse(receiptRepository.save(savedReceipt));
     }
 
     @Transactional(readOnly = true)
@@ -92,15 +98,25 @@ public class ReceiptService {
     public ReceiptResponse toResponse(Receipt receipt) {
         Charge charge = receipt.getCharge();
 
+        String pdfUrl = receipt.getPdfUrl();
+        if ((pdfUrl == null || pdfUrl.isBlank()) && receipt.getId() != null) {
+            pdfUrl = buildPdfUrl(receipt.getId());
+        }
+
+        String validationUrl = receipt.getValidationUrl();
+        if ((validationUrl == null || validationUrl.isBlank()) && receipt.getReceiptCode() != null) {
+            validationUrl = buildValidationUrl(receipt.getReceiptCode());
+        }
+
         return new ReceiptResponse()
                 .setId(receipt.getId())
                 .setChargeId(charge != null ? charge.getId() : null)
                 .setChargeCode(charge != null ? charge.getChargeCode() : null)
                 .setStudentName(charge != null && charge.getStudent() != null ? charge.getStudent().getFullName() : null)
                 .setReceiptCode(receipt.getReceiptCode())
-                .setPdfUrl(receipt.getPdfUrl())
+                .setPdfUrl(pdfUrl)
                 .setQrCodeUrl(receipt.getQrCodeUrl())
-                .setValidationUrl(receipt.getValidationUrl())
+                .setValidationUrl(validationUrl)
                 .setStatus(receipt.getStatus())
                 .setIssuedAt(receipt.getIssuedAt())
                 .setCancelledAt(receipt.getCancelledAt())
@@ -121,5 +137,13 @@ public class ReceiptService {
         } while (receiptRepository.existsByReceiptCode(code));
 
         return code;
+    }
+
+    private String buildPdfUrl(UUID receiptId) {
+        return API_BASE_URL + "/api/v1/receipts/" + receiptId + "/pdf";
+    }
+
+    private String buildValidationUrl(String receiptCode) {
+        return API_BASE_URL + "/api/v1/public/receipts/validate/" + receiptCode;
     }
 }
