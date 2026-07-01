@@ -139,9 +139,25 @@ public class ReceiptPdfService {
             // O PDF continua sendo emitido mesmo se a imagem institucional não estiver disponível.
         }
 
-        String institutionName = institution != null ? institution.getName() : "Universidade Metropolitana de Angola";
-        drawCenteredText(content, institutionName, PDType1Font.HELVETICA_BOLD, 13, pageWidth / 2, y - 82, new Color(15, 23, 42));
+        String institutionName = resolveInstitutionDisplayName(institution);
+        drawCenteredText(content, institutionName, PDType1Font.HELVETICA_BOLD, 10, pageWidth / 2, y - 82, new Color(15, 23, 42));
         drawCenteredText(content, "A Marca da Educação", PDType1Font.HELVETICA_OBLIQUE, 10, pageWidth / 2, y - 99, new Color(30, 64, 175));
+    }
+
+    private String resolveInstitutionDisplayName(Institution institution) {
+        if (institution == null) {
+            return "Instituto Superior Politécnico Metropolitano de Angola (IMETRO)";
+        }
+
+        if (institution.getLegalName() != null && !institution.getLegalName().isBlank()) {
+            return institution.getLegalName();
+        }
+
+        if (institution.getName() != null && !institution.getName().isBlank()) {
+            return institution.getName();
+        }
+
+        return "Instituto Superior Politécnico Metropolitano de Angola (IMETRO)";
     }
 
     private void drawValidationBox(PDDocument document, PDPageContentStream content, Receipt receipt, float x, float y) throws Exception {
