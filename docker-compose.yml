@@ -1,18 +1,18 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: vairapido-postgres
+    container_name: SecretariaPay-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-vairapido_db}
-      POSTGRES_USER: ${POSTGRES_USER:-vairapido_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vairapido123}
+      POSTGRES_DB: ${POSTGRES_DB:-secretariapay_db}
+      POSTGRES_USER: ${POSTGRES_USER:-secretariapay_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secretariapay123}
     volumes:
-      - vairapido_postgres_data:/var/lib/postgresql/data
+      - SecretariaPay_postgres_data:/var/lib/postgresql/data
     networks:
-      - vairapido-network
+      - SecretariaPay-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vairapido_user} -d ${POSTGRES_DB:-vairapido_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-secretariapay_user} -d ${POSTGRES_DB:-secretariapay_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -21,7 +21,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: vairapido-api
+    container_name: secretariapay-api
     restart: unless-stopped
     depends_on:
       postgres:
@@ -31,11 +31,12 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     networks:
-      - vairapido-network
+      - SecretariaPay-network
 
 volumes:
-  vairapido_postgres_data:
+  SecretariaPay_postgres_data:
 
 networks:
-  vairapido-network:
+  SecretariaPay-network:
     driver: bridge
+

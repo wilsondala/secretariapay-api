@@ -30,3 +30,4 @@ CREATE INDEX idx_bookings_booking_code ON bookings(booking_code);
 CREATE UNIQUE INDEX ux_bookings_trip_seat_active
 ON bookings(trip_id, seat_number)
 WHERE status IN ('PENDING_PAYMENT', 'PAID', 'TICKET_ISSUED');
+

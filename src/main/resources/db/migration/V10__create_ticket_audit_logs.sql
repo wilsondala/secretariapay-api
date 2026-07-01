@@ -25,3 +25,4 @@ CREATE INDEX idx_ticket_audit_logs_action
 
 CREATE INDEX idx_ticket_audit_logs_created_at
     ON ticket_audit_logs (created_at);
+

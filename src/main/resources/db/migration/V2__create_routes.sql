@@ -16,3 +16,4 @@ CREATE TABLE routes (
 CREATE INDEX idx_routes_origin_city ON routes(origin_city);
 CREATE INDEX idx_routes_destination_city ON routes(destination_city);
 CREATE INDEX idx_routes_status ON routes(status);
+

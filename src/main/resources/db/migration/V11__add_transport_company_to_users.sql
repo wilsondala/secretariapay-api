@@ -9,3 +9,4 @@ ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_users_transport_company_id
 ON users (transport_company_id);
+

@@ -27,3 +27,4 @@ CREATE INDEX idx_trips_transport_company_id ON trips(transport_company_id);
 CREATE INDEX idx_trips_route_id ON trips(route_id);
 CREATE INDEX idx_trips_departure_at ON trips(departure_at);
 CREATE INDEX idx_trips_status ON trips(status);
+

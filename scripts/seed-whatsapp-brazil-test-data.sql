@@ -365,3 +365,4 @@ SELECT
 FROM trips
 WHERE status = 'SCHEDULED'
   AND departure_at >= CURRENT_DATE;
+

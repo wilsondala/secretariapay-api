@@ -13,3 +13,4 @@ CREATE TABLE passengers (
 CREATE INDEX idx_passengers_full_name ON passengers(full_name);
 CREATE INDEX idx_passengers_document_number ON passengers(document_number);
 CREATE INDEX idx_passengers_whatsapp ON passengers(whatsapp);
+

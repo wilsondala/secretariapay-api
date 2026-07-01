@@ -14,8 +14,9 @@ WORKDIR /app
 
 ENV TZ=America/Sao_Paulo
 
-COPY --from=build /app/target/vairapido-api.jar /app/vairapido-api.jar
+COPY --from=build /app/target/secretariapay-api.jar /app/secretariapay-api.jar
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "/app/vairapido-api.jar"]
+ENTRYPOINT ["java", "-jar", "/app/secretariapay-api.jar"]
+

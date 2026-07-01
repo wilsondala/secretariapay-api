@@ -14,11 +14,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.vairapido</groupId>
-    <artifactId>vairapido-api</artifactId>
+    <groupId>com.secretariapay</groupId>
+    <artifactId>secretariapay-api</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>VaiRápido API</name>
-    <description>Backend do projeto VaiRápido - compra rápida de passagens pelo WhatsApp</description>
+    <name>SecretáriaPay API</name>
+    <description>Backend do SecretáriaPay Académico - automação de propinas, cobranças, comprovativos, recibos e atendimento académico via WhatsApp</description>
 
     <properties>
         <java.version>21</java.version>
@@ -132,7 +132,7 @@
     </dependencies>
 
     <build>
-        <finalName>vairapido-api</finalName>
+        <finalName>secretariapay-api</finalName>
 
         <plugins>
             <plugin>

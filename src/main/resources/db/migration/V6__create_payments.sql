@@ -25,3 +25,4 @@ CREATE INDEX idx_payments_booking_id ON payments(booking_id);
 CREATE INDEX idx_payments_status ON payments(status);
 CREATE INDEX idx_payments_method ON payments(method);
 CREATE INDEX idx_payments_payment_code ON payments(payment_code);
+

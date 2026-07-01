@@ -7,3 +7,4 @@ WHERE document_type IS NULL;
 
 ALTER TABLE passengers
     ALTER COLUMN document_type SET NOT NULL;
+

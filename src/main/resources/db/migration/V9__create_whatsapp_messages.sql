@@ -30,3 +30,4 @@ CREATE INDEX idx_whatsapp_messages_ticket_id ON whatsapp_messages(ticket_id);
 CREATE INDEX idx_whatsapp_messages_status ON whatsapp_messages(status);
 CREATE INDEX idx_whatsapp_messages_message_type ON whatsapp_messages(message_type);
 CREATE INDEX idx_whatsapp_messages_to_phone ON whatsapp_messages(to_phone);
+

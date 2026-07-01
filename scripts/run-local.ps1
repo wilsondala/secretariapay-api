@@ -8,7 +8,7 @@ $ProjectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $ProjectRoot
 
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host " VaiRápido API - Inicialização local" -ForegroundColor Cyan
+Write-Host " SecretáriaPay API - Inicialização local" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 
 if (!(Test-Path $EnvFile)) {
@@ -51,17 +51,18 @@ Get-Content $EnvFile | ForEach-Object {
 
 Write-Host ""
 Write-Host "Configuração WhatsApp:" -ForegroundColor Cyan
-Write-Host "VAIRAPIDO_WHATSAPP_ENABLED=$env:VAIRAPIDO_WHATSAPP_ENABLED"
-Write-Host "VAIRAPIDO_WHATSAPP_GRAPH_API_VERSION=$env:VAIRAPIDO_WHATSAPP_GRAPH_API_VERSION"
-Write-Host "VAIRAPIDO_WHATSAPP_PHONE_NUMBER_ID=$env:VAIRAPIDO_WHATSAPP_PHONE_NUMBER_ID"
+Write-Host "SECRETARIAPAY_WHATSAPP_ENABLED=$env:SECRETARIAPAY_WHATSAPP_ENABLED"
+Write-Host "SECRETARIAPAY_WHATSAPP_GRAPH_API_VERSION=$env:SECRETARIAPAY_WHATSAPP_GRAPH_API_VERSION"
+Write-Host "SECRETARIAPAY_WHATSAPP_PHONE_NUMBER_ID=$env:SECRETARIAPAY_WHATSAPP_PHONE_NUMBER_ID"
 
-if ($env:VAIRAPIDO_WHATSAPP_ACCESS_TOKEN) {
-    Write-Host "VAIRAPIDO_WHATSAPP_ACCESS_TOKEN=********"
+if ($env:SECRETARIAPAY_WHATSAPP_ACCESS_TOKEN) {
+    Write-Host "SECRETARIAPAY_WHATSAPP_ACCESS_TOKEN=********"
 } else {
-    Write-Host "VAIRAPIDO_WHATSAPP_ACCESS_TOKEN="
+    Write-Host "SECRETARIAPAY_WHATSAPP_ACCESS_TOKEN="
 }
 
 Write-Host ""
 Write-Host "Iniciando Spring Boot..." -ForegroundColor Green
 
 & "C:\tools\apache-maven-3.9.16\bin\mvn.cmd" spring-boot:run
+

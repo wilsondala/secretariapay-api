@@ -5,6 +5,8 @@ target/
 .idea/
 *.iml
 .DS_Store
-bilhete-vairapido.pdf
+bilhete-SecretariaPay.pdf
 .env.*.local
 .env.production
+
+

@@ -3,12 +3,12 @@ server:
 
 spring:
   application:
-    name: vairapido-api
+    name: secretariapay-api
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/vairapido_db
-    username: vairapido_user
-    password: vairapido123
+    url: jdbc:postgresql://localhost:5432/secretariapay_db
+    username: secretariapay_user
+    password: secretariapay123
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -21,21 +21,21 @@ spring:
 
 app:
   security:
-    jwt-secret: "vaiRapidoBackendJwtSecretKeyForDevelopmentOnlyChangeInProduction2026"
+    jwt-secret: "secretariaPayBackendJwtSecretKeyForDevelopmentOnlyChangeInProduction2026"
     jwt-expiration-minutes: 1440
 
-vairapido:
+secretariapay:
   business:
-    country: ${VAIRAPIDO_BUSINESS_COUNTRY:BR}
-    currency: ${VAIRAPIDO_BUSINESS_CURRENCY:BRL}
+    country: ${SECRETARIAPAY_BUSINESS_COUNTRY:AO}
+    currency: ${SECRETARIAPAY_BUSINESS_CURRENCY:AOA}
 
   whatsapp:
-    verify-token: ${VAIRAPIDO_WHATSAPP_VERIFY_TOKEN:vairapido-dev-token}
-    enabled: ${VAIRAPIDO_WHATSAPP_ENABLED:false}
-    phone-number-id: ${VAIRAPIDO_WHATSAPP_PHONE_NUMBER_ID:}
-    access-token: ${VAIRAPIDO_WHATSAPP_ACCESS_TOKEN:}
-    graph-api-version: ${VAIRAPIDO_WHATSAPP_GRAPH_API_VERSION:v20.0}
-    graph-api-base-url: ${VAIRAPIDO_WHATSAPP_GRAPH_API_BASE_URL:https://graph.facebook.com}
+    verify-token: ${SECRETARIAPAY_WHATSAPP_VERIFY_TOKEN:secretariapay-dev-token}
+    enabled: ${SECRETARIAPAY_WHATSAPP_ENABLED:false}
+    phone-number-id: ${SECRETARIAPAY_WHATSAPP_PHONE_NUMBER_ID:}
+    access-token: ${SECRETARIAPAY_WHATSAPP_ACCESS_TOKEN:}
+    graph-api-version: ${SECRETARIAPAY_WHATSAPP_GRAPH_API_VERSION:v20.0}
+    graph-api-base-url: ${SECRETARIAPAY_WHATSAPP_GRAPH_API_BASE_URL:https://graph.facebook.com}
 
 management:
   endpoints:

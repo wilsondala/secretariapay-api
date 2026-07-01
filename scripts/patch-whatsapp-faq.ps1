@@ -1,4 +1,4 @@
-$path = "src\main\java\com\vairapido\api\service\WhatsappCommandService.java"
+$path = "src\main\java\com\SecretariaPay\api\service\WhatsappCommandService.java"
 
 if (-not (Test-Path $path)) {
     throw "Arquivo não encontrado: $path"
@@ -59,3 +59,4 @@ Write-Host "Patch aplicado com sucesso em $path"
 Select-String -Path $path -Pattern "WhatsappFaqAnswerService"
 Select-String -Path $path -Pattern "return fallback\(session, messageText\)"
 Select-String -Path $path -Pattern 'return allowed\("FAQ"'
+

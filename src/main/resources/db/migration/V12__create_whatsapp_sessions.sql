@@ -47,3 +47,4 @@ ON whatsapp_sessions (session_type);
 
 CREATE INDEX IF NOT EXISTS idx_whatsapp_sessions_expires_at
 ON whatsapp_sessions (expires_at);
+

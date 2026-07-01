@@ -1,7 +1,7 @@
 BEGIN;
 
 -- =========================================================
--- VaiRápido - Massa Angola Demo 18 Províncias
+-- SecretáriaPay - Massa Angola Demo 18 Províncias
 -- País resolvido pela cidade no bot:
 -- country=AO, currency=AOA, documents=BI/PASSPORT
 -- =========================================================
@@ -18,16 +18,16 @@ INSERT INTO transport_companies (
     updated_at
 )
 VALUES
-('MACON Transportes Demo', 'MACON Demo', 'AO-DEMO-MACON-001', 'macon.demo@vairapido.ao', '+244900000001', '+244900000001', 'ACTIVE', NOW(), NOW()),
-('TCUL Interprovincial Demo', 'TCUL Demo', 'AO-DEMO-TCUL-002', 'tcul.demo@vairapido.ao', '+244900000002', '+244900000002', 'ACTIVE', NOW(), NOW()),
-('AngoReal Express Demo', 'AngoReal Demo', 'AO-DEMO-ANGOREAL-003', 'angoreal.demo@vairapido.ao', '+244900000003', '+244900000003', 'ACTIVE', NOW(), NOW()),
-('Benguela Bus Demo', 'Benguela Bus Demo', 'AO-DEMO-BENGUELA-004', 'benguela.demo@vairapido.ao', '+244900000004', '+244900000004', 'ACTIVE', NOW(), NOW()),
-('Huambo Express Demo', 'Huambo Express Demo', 'AO-DEMO-HUAMBO-005', 'huambo.demo@vairapido.ao', '+244900000005', '+244900000005', 'ACTIVE', NOW(), NOW()),
-('Lubango Executivo Demo', 'Lubango Executivo Demo', 'AO-DEMO-LUBANGO-006', 'lubango.demo@vairapido.ao', '+244900000006', '+244900000006', 'ACTIVE', NOW(), NOW()),
-('Namibe Express Demo', 'Namibe Express Demo', 'AO-DEMO-NAMIBE-007', 'namibe.demo@vairapido.ao', '+244900000007', '+244900000007', 'ACTIVE', NOW(), NOW()),
-('Cabinda Shuttle Demo', 'Cabinda Shuttle Demo', 'AO-DEMO-CABINDA-008', 'cabinda.demo@vairapido.ao', '+244900000008', '+244900000008', 'ACTIVE', NOW(), NOW()),
-('Malanje Line Demo', 'Malanje Line Demo', 'AO-DEMO-MALANJE-009', 'malanje.demo@vairapido.ao', '+244900000009', '+244900000009', 'ACTIVE', NOW(), NOW()),
-('Zaire Bus Demo', 'Zaire Bus Demo', 'AO-DEMO-ZAIRE-010', 'zaire.demo@vairapido.ao', '+244900000010', '+244900000010', 'ACTIVE', NOW(), NOW())
+('MACON Transportes Demo', 'MACON Demo', 'AO-DEMO-MACON-001', 'macon.demo@SecretariaPay.ao', '+244900000001', '+244900000001', 'ACTIVE', NOW(), NOW()),
+('TCUL Interprovincial Demo', 'TCUL Demo', 'AO-DEMO-TCUL-002', 'tcul.demo@SecretariaPay.ao', '+244900000002', '+244900000002', 'ACTIVE', NOW(), NOW()),
+('AngoReal Express Demo', 'AngoReal Demo', 'AO-DEMO-ANGOREAL-003', 'angoreal.demo@SecretariaPay.ao', '+244900000003', '+244900000003', 'ACTIVE', NOW(), NOW()),
+('Benguela Bus Demo', 'Benguela Bus Demo', 'AO-DEMO-BENGUELA-004', 'benguela.demo@SecretariaPay.ao', '+244900000004', '+244900000004', 'ACTIVE', NOW(), NOW()),
+('Huambo Express Demo', 'Huambo Express Demo', 'AO-DEMO-HUAMBO-005', 'huambo.demo@SecretariaPay.ao', '+244900000005', '+244900000005', 'ACTIVE', NOW(), NOW()),
+('Lubango Executivo Demo', 'Lubango Executivo Demo', 'AO-DEMO-LUBANGO-006', 'lubango.demo@SecretariaPay.ao', '+244900000006', '+244900000006', 'ACTIVE', NOW(), NOW()),
+('Namibe Express Demo', 'Namibe Express Demo', 'AO-DEMO-NAMIBE-007', 'namibe.demo@SecretariaPay.ao', '+244900000007', '+244900000007', 'ACTIVE', NOW(), NOW()),
+('Cabinda Shuttle Demo', 'Cabinda Shuttle Demo', 'AO-DEMO-CABINDA-008', 'cabinda.demo@SecretariaPay.ao', '+244900000008', '+244900000008', 'ACTIVE', NOW(), NOW()),
+('Malanje Line Demo', 'Malanje Line Demo', 'AO-DEMO-MALANJE-009', 'malanje.demo@SecretariaPay.ao', '+244900000009', '+244900000009', 'ACTIVE', NOW(), NOW()),
+('Zaire Bus Demo', 'Zaire Bus Demo', 'AO-DEMO-ZAIRE-010', 'zaire.demo@SecretariaPay.ao', '+244900000010', '+244900000010', 'ACTIVE', NOW(), NOW())
 ON CONFLICT (document_number) DO NOTHING;
 
 -- Rotas Angola: Luanda ida e volta para as capitais/províncias
@@ -190,3 +190,4 @@ AND r.destination_state IN (
 );
 
 COMMIT;
+

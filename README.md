@@ -1,6 +1,6 @@
-# VaiRápido API
+# SecretáriaPay API
 
-Backend do projeto VaiRápido.
+Backend do projeto SecretáriaPay.
 
 ## Objetivo
 
@@ -15,11 +15,12 @@ Sistema para compra rápida de passagens pelo WhatsApp, com pagamento via Pix, e
 
 ## Banco local
 
-Database: vairapido_db  
-User: vairapido_user  
-Password: vairapido123  
+Database: secretariapay_db  
+User: secretariapay_user  
+Password: secretariapay123  
 
 ## Rodar projeto
 
 ```powershell
 & "C:\tools\apache-maven-3.9.16\bin\mvn.cmd" spring-boot:run
+

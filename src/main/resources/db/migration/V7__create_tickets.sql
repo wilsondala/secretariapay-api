@@ -19,3 +19,4 @@ CREATE TABLE tickets (
 CREATE INDEX idx_tickets_booking_id ON tickets(booking_id);
 CREATE INDEX idx_tickets_ticket_code ON tickets(ticket_code);
 CREATE INDEX idx_tickets_status ON tickets(status);
+
