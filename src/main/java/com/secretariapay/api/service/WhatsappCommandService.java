@@ -55,7 +55,12 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * LEGADO TEMPORÁRIO.
+ * Serviço legado do fluxo antigo de passagens/VaiRápido. Não usar para o SecretáriaPay Académico. Manter temporariamente até remoção controlada.
+ */
 @Service
+@Deprecated(since = "2026-07-02", forRemoval = false)
 public class WhatsappCommandService {
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
@@ -6093,6 +6098,7 @@ private TripSearchInput parseTripSearch(String messageText) {
             LocalDate returnDate) {
     }
 }
+
 
 
 

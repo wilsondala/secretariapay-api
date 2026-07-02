@@ -7,7 +7,12 @@ import java.text.Normalizer;
 import java.util.Locale;
 import java.util.Optional;
 
+/**
+ * LEGADO TEMPORÁRIO.
+ * FAQ legado do fluxo antigo de passagens/VaiRápido. Não usar para o SecretáriaPay Académico. Manter temporariamente até remoção controlada.
+ */
 @Service
+@Deprecated(since = "2026-07-02", forRemoval = false)
 public class WhatsappFaqAnswerService {
 
     public Optional<String> answer(
@@ -466,3 +471,4 @@ public class WhatsappFaqAnswerService {
                 .trim();
     }
 }
+
