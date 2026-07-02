@@ -6,19 +6,19 @@ import org.springframework.stereotype.Component;
 @Component
 public class WhatsAppCloudProperties {
 
-    @Value("${vairapido.whatsapp.enabled:false}")
+    @Value("${secretariapay.whatsapp.enabled:false}")
     private boolean enabled;
 
-    @Value("${vairapido.whatsapp.access-token:}")
+    @Value("${secretariapay.whatsapp.access-token:}")
     private String accessToken;
 
-    @Value("${vairapido.whatsapp.phone-number-id:}")
+    @Value("${secretariapay.whatsapp.phone-number-id:}")
     private String phoneNumberId;
 
-    @Value("${vairapido.whatsapp.graph-api-version:v20.0}")
+    @Value("${secretariapay.whatsapp.graph-api-version:v20.0}")
     private String graphApiVersion;
 
-    @Value("${vairapido.whatsapp.graph-api-base-url:https://graph.facebook.com}")
+    @Value("${secretariapay.whatsapp.graph-api-base-url:https://graph.facebook.com}")
     private String baseUrl;
 
     public boolean isEnabled() {

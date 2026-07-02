@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConfigurationProperties(prefix = "vairapido.whatsapp")
+@ConfigurationProperties(prefix = "secretariapay.whatsapp")
 public class WhatsappCloudApiProperties {
 
     private Boolean enabled = false;

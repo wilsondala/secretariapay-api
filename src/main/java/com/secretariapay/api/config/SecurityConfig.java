@@ -70,9 +70,10 @@ public class SecurityConfig {
                                 "http://localhost:*",
                                 "http://127.0.0.1:*",
                                 "https://*.vercel.app",
-                                "https://vairapido.triacompany.com",
-                                "https://painel-vairapido.triacompany.com",
-                                "https://www.vairapido.triacompany.com"));
+                                "https://secretariapay.paixaoangola.com",
+                                "https://painel-secretariapay.paixaoangola.com",
+                                "https://secretariapay.triacompany.com",
+                                "https://painel-secretariapay.triacompany.com"));
 
                 configuration.setAllowedMethods(List.of(
                                 "GET",
@@ -133,7 +134,7 @@ public class SecurityConfig {
                                                 .requestMatchers("/error").permitAll()
                                                 .requestMatchers("/actuator/**").permitAll()
                                                 .requestMatchers("/branding/**").permitAll()
-                                                
+
                                                 .requestMatchers("/api/v1/public/**").permitAll()
                                                 .requestMatchers("/api/v1/multi-country/**").permitAll()
                                                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
@@ -142,6 +143,8 @@ public class SecurityConfig {
                                                 .requestMatchers("/api/v1/admin/**")
                                                 .hasAnyAuthority("ADMIN", "ROLE_ADMIN")
 
+                                                // Endpoints herdados do VaiRápido mantidos temporariamente para compatibilidade.
+                                                // Eles serão removidos ou isolados em fase posterior de limpeza.
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/tickets/*/boarding-preview")
                                                 .hasAnyAuthority(
                                                                 "ADMIN",
@@ -171,7 +174,6 @@ public class SecurityConfig {
                                 .addFilterBefore(
                                                 jwtAuthenticationFilter,
                                                 UsernamePasswordAuthenticationFilter.class);
-                                                
 
                 return http.build();
         }

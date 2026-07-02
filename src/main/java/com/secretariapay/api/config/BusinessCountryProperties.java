@@ -7,11 +7,11 @@ import org.springframework.stereotype.Component;
 import java.util.Locale;
 
 @Component
-@ConfigurationProperties(prefix = "vairapido.business")
+@ConfigurationProperties(prefix = "secretariapay.business")
 public class BusinessCountryProperties {
 
-    private String country = "BR";
-    private String currency = "BRL";
+    private String country = "AO";
+    private String currency = "AOA";
 
     public String getCountry() {
         return country;
@@ -43,6 +43,10 @@ public class BusinessCountryProperties {
         return "AO".equalsIgnoreCase(country);
     }
 
+    /**
+     * Método legado mantido para compatibilidade com módulos antigos herdados do VaiRápido.
+     * No SecretáriaPay Académico, o documento principal do estudante deve ser tratado no módulo académico.
+     */
     public PassengerDocumentType getDefaultDocumentType() {
         if (isAngola()) {
             return PassengerDocumentType.BI;
@@ -61,7 +65,7 @@ public class BusinessCountryProperties {
 
     private String normalizeCountry(String value) {
         if (value == null || value.isBlank()) {
-            return "BR";
+            return "AO";
         }
 
         String normalized = value.trim().toUpperCase(Locale.ROOT);
@@ -75,17 +79,17 @@ public class BusinessCountryProperties {
         }
 
         if (!"AO".equals(normalized) && !"BR".equals(normalized)) {
-            return "BR";
+            return "AO";
         }
 
         return normalized;
     }
 
     private String resolveDefaultCurrency(String country) {
-        if ("AO".equalsIgnoreCase(country)) {
-            return "AOA";
+        if ("BR".equalsIgnoreCase(country)) {
+            return "BRL";
         }
 
-        return "BRL";
+        return "AOA";
     }
 }
