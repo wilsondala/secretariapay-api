@@ -11,7 +11,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -26,6 +25,8 @@ public class SecretariaPayWhatsappWebhookService {
     private final String accessToken;
     private final String graphApiVersion;
     private final String graphApiBaseUrl;
+
+    private final SecretariaPayWhatsappBrainService brainService;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -47,7 +48,9 @@ public class SecretariaPayWhatsappWebhookService {
             String graphApiVersion,
 
             @Value("${secretariapay.whatsapp.graph-api-base-url:https://graph.facebook.com}")
-            String graphApiBaseUrl
+            String graphApiBaseUrl,
+
+            SecretariaPayWhatsappBrainService brainService
     ) {
         this.verifyToken = verifyToken;
         this.whatsappEnabled = whatsappEnabled;
@@ -55,6 +58,7 @@ public class SecretariaPayWhatsappWebhookService {
         this.accessToken = accessToken;
         this.graphApiVersion = graphApiVersion;
         this.graphApiBaseUrl = graphApiBaseUrl;
+        this.brainService = brainService;
 
         this.httpClient = HttpClient.newHttpClient();
         this.objectMapper = new ObjectMapper();
@@ -99,7 +103,10 @@ public class SecretariaPayWhatsappWebhookService {
 
         InboundWhatsappMessage message = inboundMessage.get();
 
-        String replyText = buildReply(message);
+        String replyText = brainService.buildReply(
+                message.type(),
+                message.body()
+        );
 
         WhatsappSendResult sendResult = sendTextMessage(
                 message.from(),
@@ -149,7 +156,7 @@ public class SecretariaPayWhatsappWebhookService {
                 JsonNode value = change.path("value");
                 JsonNode messages = value.path("messages");
 
-                if (!messages.isArray() || messages.isEmpty()) {
+                if (!messages.isArray() || messages.size() == 0) {
                     continue;
                 }
 
@@ -188,9 +195,11 @@ public class SecretariaPayWhatsappWebhookService {
 
         if ("document".equalsIgnoreCase(type)) {
             String filename = message.path("document").path("filename").asText("");
+
             if (filename == null || filename.isBlank()) {
                 return "[documento recebido]";
             }
+
             return "[documento recebido: " + filename + "]";
         }
 
@@ -223,98 +232,6 @@ public class SecretariaPayWhatsappWebhookService {
         return "";
     }
 
-    private String buildReply(InboundWhatsappMessage message) {
-        String type = message.type() == null ? "" : message.type();
-        String body = message.body() == null ? "" : message.body();
-        String normalized = normalize(body);
-
-        if ("image".equalsIgnoreCase(type) || "document".equalsIgnoreCase(type)) {
-            return """
-                    Comprovativo recebido.
-
-                    A tesouraria fará a validação. Assim que aprovado, o sistema enviará o recibo digital e atualizará a sua situação académica.
-                    """.trim();
-        }
-
-        if (normalized.equals("1")
-                || normalized.contains("propina")
-                || normalized.contains("mensalidade")
-                || normalized.contains("consultar")
-                || normalized.contains("cobranca")
-                || normalized.contains("cobrança")
-                || normalized.contains("divida")
-                || normalized.contains("dívida")) {
-            return """
-                    Para consultar a sua propina, envie por favor o seu número de estudante ou BI.
-
-                    Exemplo:
-                    BI 000000000LA000
-                    """.trim();
-        }
-
-        if (normalized.equals("2")
-                || normalized.contains("comprovativo")
-                || normalized.contains("pagamento")
-                || normalized.contains("paguei")
-                || normalized.contains("transferencia")
-                || normalized.contains("transferência")) {
-            return """
-                    Pode enviar o comprovativo por aqui em imagem ou PDF.
-
-                    Depois do envio, a tesouraria fará a validação e o sistema enviará o recibo digital.
-                    """.trim();
-        }
-
-        if (normalized.equals("3")
-                || normalized.contains("recibo")
-                || normalized.contains("segunda via")
-                || normalized.contains("2 via")) {
-            return """
-                    Para localizar o seu recibo, envie o seu número de estudante, BI ou código da cobrança.
-
-                    Exemplo:
-                    CHG1783012061065
-                    """.trim();
-        }
-
-        if (normalized.equals("4")
-                || normalized.contains("secretaria")
-                || normalized.contains("atendente")
-                || normalized.contains("humano")
-                || normalized.contains("falar")) {
-            return """
-                    Pedido recebido.
-
-                    A sua solicitação será encaminhada para a secretaria/tesouraria. Enquanto isso, envie o seu nome completo e número de estudante ou BI.
-                    """.trim();
-        }
-
-        return """
-                Olá! Aqui é a SecretáriaPay Académico.
-
-                Escolha uma opção:
-                1. Consultar propina
-                2. Enviar comprovativo
-                3. Ver recibos
-                4. Falar com a secretaria
-
-                Pode responder com o número da opção.
-                """.trim();
-    }
-
-    private String normalize(String value) {
-        if (value == null) {
-            return "";
-        }
-
-        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "");
-
-        return normalized
-                .toLowerCase()
-                .trim();
-    }
-
     private WhatsappSendResult sendTextMessage(String to, String body) {
         if (!whatsappEnabled) {
             return new WhatsappSendResult(
@@ -345,6 +262,7 @@ public class SecretariaPayWhatsappWebhookService {
             Map<String, Object> text = new LinkedHashMap<>();
             text.put("preview_url", false);
             text.put("body", body);
+
             payload.put("text", text);
 
             String jsonPayload = objectMapper.writeValueAsString(payload);
@@ -405,7 +323,7 @@ public class SecretariaPayWhatsappWebhookService {
             JsonNode root = objectMapper.readTree(responseBody);
             JsonNode messages = root.path("messages");
 
-            if (!messages.isArray() || messages.isEmpty()) {
+            if (!messages.isArray() || messages.size() == 0) {
                 return null;
             }
 
