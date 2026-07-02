@@ -2,7 +2,9 @@ package com.secretariapay.api.controller;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/public/legal")
@@ -14,76 +16,87 @@ public class PublicLegalController {
                 .contentType(MediaType.TEXT_HTML)
                 .body("""
                         <!doctype html>
-                        <html lang="pt-BR">
+                        <html lang="pt-AO">
                         <head>
                             <meta charset="UTF-8" />
                             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                            <title>Política de Privacidade - VaiRápido</title>
+                            <title>Política de Privacidade - SecretáriaPay</title>
                             <style>
                                 body { font-family: Arial, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; line-height: 1.6; }
-                                header { background: #071B33; color: white; padding: 32px 20px; border-bottom: 8px solid #FFC107; }
+                                header { background: #0B3B82; color: white; padding: 32px 20px; border-bottom: 8px solid #D4AF37; }
                                 main { max-width: 920px; margin: 0 auto; padding: 28px 20px 48px; }
                                 h1 { margin: 0; font-size: 36px; }
-                                h2 { margin-top: 28px; color: #071B33; }
+                                h2 { margin-top: 28px; color: #0B3B82; }
                                 .card { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 28px; box-shadow: 0 12px 30px rgba(15,23,42,.08); }
                                 .muted { color: #64748b; }
+                                a { color: #0B3B82; }
                             </style>
                         </head>
                         <body>
                             <header>
-                                <h1>VaiRápido</h1>
+                                <h1>SecretáriaPay</h1>
                                 <p>Política de Privacidade</p>
                             </header>
                             <main>
                                 <section class="card">
-                                    <p class="muted">Última atualização: 20/06/2026</p>
+                                    <p class="muted">Última atualização: 02/07/2026</p>
 
-                                    <h2>1. Sobre o VaiRápido</h2>
+                                    <h2>1. Sobre o SecretáriaPay</h2>
                                     <p>
-                                        O VaiRápido é uma plataforma digital em fase de testes para consulta, reserva,
-                                        pagamento simulado e emissão de bilhetes digitais de passagem pelo WhatsApp e pela API.
+                                        O SecretáriaPay Académico é uma plataforma institucional de automação de propinas,
+                                        cobranças, comprovativos, recibos digitais e atendimento académico via WhatsApp,
+                                        desenvolvida pela TRIA Company para apoiar instituições de ensino em Angola.
                                     </p>
 
-                                    <h2>2. Dados que podemos coletar</h2>
+                                    <h2>2. Dados que podemos tratar</h2>
                                     <p>
-                                        Durante os testes, podemos tratar dados como nome, telefone/WhatsApp, documento do passageiro,
-                                        origem, destino, data da viagem, reserva, pagamento simulado, bilhete e registros técnicos de uso.
+                                        A plataforma pode tratar dados como nome do estudante, número académico,
+                                        telefone/WhatsApp, documento de identificação, curso, turma, turno, ano académico,
+                                        cobranças, vencimentos, comprovativos de pagamento, recibos digitais, histórico de
+                                        mensagens, estado financeiro e registos técnicos de auditoria.
                                     </p>
 
                                     <h2>3. Finalidade do uso dos dados</h2>
                                     <p>
-                                        Os dados são usados para permitir o fluxo de compra de passagem, criação de reserva,
-                                        confirmação de pagamento simulado, emissão de bilhete, envio de PDF pelo WhatsApp,
-                                        validação por QR Code e segurança operacional.
+                                        Os dados são utilizados para organizar cobranças académicas, enviar avisos de vencimento
+                                        e atraso, receber e validar comprovativos, emitir recibos digitais, apresentar relatórios,
+                                        apoiar a secretaria e a tesouraria e, quando autorizado pela instituição, atualizar a
+                                        situação académica do estudante conforme regras internas.
                                     </p>
 
-                                    <h2>4. WhatsApp e Meta</h2>
+                                    <h2>4. WhatsApp e comunicação institucional</h2>
                                     <p>
-                                        O VaiRápido usa a WhatsApp Business Platform para receber mensagens, responder dúvidas,
-                                        enviar confirmações, bilhetes e documentos relacionados ao atendimento solicitado pelo usuário.
+                                        O SecretáriaPay pode usar a WhatsApp Business Platform ou provedor homologado para
+                                        receber mensagens, enviar avisos, confirmar recebimento de comprovativos, informar
+                                        aprovação de pagamentos, disponibilizar recibos digitais e orientar o estudante em
+                                        fluxos académicos autorizados pela instituição.
                                     </p>
 
                                     <h2>5. Compartilhamento de dados</h2>
                                     <p>
-                                        Os dados podem ser compartilhados apenas com serviços necessários para funcionamento da plataforma,
-                                        como provedores de infraestrutura, WhatsApp Business Platform/Meta e sistemas internos autorizados.
+                                        Os dados podem ser compartilhados apenas com a instituição contratante, provedores de
+                                        infraestrutura, serviços de mensageria, meios de pagamento e sistemas académicos ou
+                                        financeiros autorizados. Não vendemos dados de estudantes.
                                     </p>
 
                                     <h2>6. Segurança</h2>
                                     <p>
-                                        Aplicamos controles técnicos para proteger as informações, incluindo autenticação,
-                                        controle de permissões, HTTPS, registros de auditoria e segregação de ambientes.
+                                        Aplicamos controles técnicos para proteger as informações, incluindo HTTPS,
+                                        autenticação, perfis de acesso, auditoria, segregação de responsabilidades,
+                                        registos de operação e boas práticas de infraestrutura.
                                     </p>
 
                                     <h2>7. Retenção e exclusão</h2>
                                     <p>
-                                        Dados de teste podem ser removidos mediante solicitação. Para pedir exclusão de dados,
-                                        acesse a página de instruções de exclusão de dados.
+                                        A retenção dos dados depende das regras da instituição contratante, obrigações legais,
+                                        necessidades de auditoria financeira e políticas internas. Solicitações de acesso,
+                                        correção ou exclusão devem ser encaminhadas pelos canais oficiais indicados pela
+                                        instituição ou pela TRIA Company.
                                     </p>
 
                                     <h2>8. Contato</h2>
                                     <p>
-                                        Para dúvidas sobre privacidade ou solicitação de exclusão de dados, entre em contato:
+                                        Para dúvidas sobre privacidade, proteção de dados ou solicitação de exclusão, entre em contato:
                                         geral@triacompany.com
                                     </p>
                                 </section>
@@ -99,88 +112,88 @@ public class PublicLegalController {
                 .contentType(MediaType.TEXT_HTML)
                 .body("""
                         <!doctype html>
-                        <html lang="pt-BR">
+                        <html lang="pt-AO">
                         <head>
                             <meta charset="UTF-8" />
                             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                            <title>Termos de Serviço - VaiRápido</title>
+                            <title>Termos de Serviço - SecretáriaPay</title>
                             <style>
                                 body { font-family: Arial, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; line-height: 1.6; }
-                                header { background: #071B33; color: white; padding: 32px 20px; border-bottom: 8px solid #FFC107; }
+                                header { background: #0B3B82; color: white; padding: 32px 20px; border-bottom: 8px solid #D4AF37; }
                                 main { max-width: 920px; margin: 0 auto; padding: 28px 20px 48px; }
                                 h1 { margin: 0; font-size: 36px; }
-                                h2 { margin-top: 28px; color: #071B33; }
+                                h2 { margin-top: 28px; color: #0B3B82; }
                                 .card { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 28px; box-shadow: 0 12px 30px rgba(15,23,42,.08); }
                                 .muted { color: #64748b; }
                             </style>
                         </head>
                         <body>
                             <header>
-                                <h1>VaiRápido</h1>
+                                <h1>SecretáriaPay</h1>
                                 <p>Termos de Serviço</p>
                             </header>
                             <main>
                                 <section class="card">
-                                    <p class="muted">Última atualização: 20/06/2026</p>
+                                    <p class="muted">Última atualização: 02/07/2026</p>
 
                                     <h2>1. Sobre o serviço</h2>
                                     <p>
-                                        O VaiRápido é uma plataforma digital em fase de testes para consulta de viagens,
-                                        reserva de passagens, confirmação de pagamento simulado, emissão de bilhete digital
-                                        e validação por QR Code.
+                                        O SecretáriaPay Académico é uma plataforma institucional para automação de cobranças
+                                        académicas, gestão de propinas, comprovativos, recibos digitais, histórico de atendimento
+                                        e comunicação via WhatsApp entre instituição e estudantes.
                                     </p>
 
                                     <h2>2. Uso permitido</h2>
                                     <p>
-                                        O usuário deve utilizar o serviço apenas para fins legítimos de teste, consulta,
-                                        reserva e validação de bilhetes. É proibido tentar fraudar reservas, reutilizar bilhetes,
-                                        acessar áreas restritas sem autorização ou interferir no funcionamento da plataforma.
+                                        O serviço deve ser utilizado por estudantes, colaboradores, tesouraria, secretaria,
+                                        direção e administradores autorizados para fins legítimos de atendimento académico,
+                                        cobrança, validação financeira, emissão de recibos e consulta de situação institucional.
                                     </p>
 
-                                    <h2>3. Ambiente de teste</h2>
+                                    <h2>3. Responsabilidade da instituição</h2>
                                     <p>
-                                        O VaiRápido encontra-se em ambiente de validação técnica. Algumas funcionalidades,
-                                        valores, rotas, empresas de transporte, métodos de pagamento e mensagens podem ser
-                                        simulados e alterados antes da versão final de produção.
+                                        A instituição contratante é responsável por validar regras de cobrança, valores,
+                                        multas, juros, prazos, políticas de bloqueio/desbloqueio, permissões de acesso e
+                                        conteúdo das comunicações enviadas aos estudantes.
                                     </p>
 
-                                    <h2>4. Pagamentos</h2>
+                                    <h2>4. Pagamentos e comprovativos</h2>
                                     <p>
-                                        No ambiente atual, os pagamentos podem ser simulados para validação do fluxo.
-                                        Integrações reais de pagamento serão implementadas conforme a necessidade do projeto
-                                        e das empresas parceiras.
+                                        O SecretáriaPay pode registar cobranças, receber comprovativos, apoiar validação pela
+                                        tesouraria e emitir recibos digitais após aprovação. Integrações bancárias ou com
+                                        carteiras móveis dependem de disponibilidade técnica, autorização e contrato específico.
                                     </p>
 
-                                    <h2>5. Bilhete digital</h2>
+                                    <h2>5. Recibos digitais e validação pública</h2>
                                     <p>
-                                        O bilhete digital emitido pelo VaiRápido pode conter código de reserva, código de bilhete,
-                                        dados do passageiro, trecho, horário, poltrona, QR Code e link de validação pública.
-                                        O uso no embarque depende das regras operacionais da empresa de transporte.
+                                        Recibos digitais podem conter código único, QR Code, dados do estudante, cobrança,
+                                        estado do pagamento e link público de validação. A validade institucional do recibo
+                                        depende da aprovação financeira registada pela instituição.
                                     </p>
 
-                                    <h2>6. Disponibilidade</h2>
+                                    <h2>6. Bloqueio e desbloqueio académico</h2>
                                     <p>
-                                        Durante a fase de testes, o serviço pode sofrer interrupções, ajustes técnicos,
-                                        alterações de fluxo e atualizações sem aviso prévio.
+                                        Qualquer bloqueio ou desbloqueio de serviços académicos deve seguir política formal
+                                        definida e autorizada pela instituição. A plataforma apenas executa ou apoia regras
+                                        configuradas por perfis autorizados.
                                     </p>
 
-                                    <h2>7. Responsabilidades</h2>
+                                    <h2>7. Disponibilidade e evolução</h2>
                                     <p>
-                                        O usuário é responsável por fornecer informações corretas durante os testes.
-                                        A plataforma poderá registrar eventos técnicos, auditorias e validações para segurança
-                                        e melhoria do serviço.
+                                        Durante fases piloto, homologação ou implantação, funcionalidades podem sofrer ajustes,
+                                        melhorias, interrupções técnicas ou mudanças de fluxo para adequação às necessidades
+                                        da instituição e às integrações disponíveis.
                                     </p>
 
                                     <h2>8. Privacidade</h2>
                                     <p>
-                                        O tratamento de dados segue a Política de Privacidade do VaiRápido, disponível
-                                        publicamente na página de privacidade.
+                                        O tratamento de dados segue a Política de Privacidade do SecretáriaPay e as regras
+                                        acordadas com a instituição contratante.
                                     </p>
 
                                     <h2>9. Contato</h2>
                                     <p>
-                                        Para dúvidas sobre estes termos, entre em contato:
-                                        geral@triacompany.com
+                                        Para dúvidas sobre estes termos, entre em contato: geral@triacompany.com
                                     </p>
                                 </section>
                             </main>
@@ -195,44 +208,52 @@ public class PublicLegalController {
                 .contentType(MediaType.TEXT_HTML)
                 .body("""
                         <!doctype html>
-                        <html lang="pt-BR">
+                        <html lang="pt-AO">
                         <head>
                             <meta charset="UTF-8" />
                             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                            <title>Exclusão de Dados - VaiRápido</title>
+                            <title>Exclusão de Dados - SecretáriaPay</title>
                             <style>
                                 body { font-family: Arial, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; line-height: 1.6; }
-                                header { background: #071B33; color: white; padding: 32px 20px; border-bottom: 8px solid #FFC107; }
+                                header { background: #0B3B82; color: white; padding: 32px 20px; border-bottom: 8px solid #D4AF37; }
                                 main { max-width: 920px; margin: 0 auto; padding: 28px 20px 48px; }
                                 h1 { margin: 0; font-size: 36px; }
-                                h2 { margin-top: 28px; color: #071B33; }
+                                h2 { margin-top: 28px; color: #0B3B82; }
                                 .card { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 28px; box-shadow: 0 12px 30px rgba(15,23,42,.08); }
                             </style>
                         </head>
                         <body>
                             <header>
-                                <h1>VaiRápido</h1>
+                                <h1>SecretáriaPay</h1>
                                 <p>Instruções para Exclusão de Dados</p>
                             </header>
                             <main>
                                 <section class="card">
                                     <h2>Como solicitar a exclusão</h2>
                                     <p>
-                                        Para solicitar a exclusão dos seus dados de teste no VaiRápido,
-                                        envie um e-mail para geral@triacompany.com com o assunto:
-                                        "Exclusão de dados - VaiRápido".
+                                        Para solicitar análise de exclusão, correção ou acesso aos seus dados tratados pelo
+                                        SecretáriaPay, envie um e-mail para geral@triacompany.com com o assunto:
+                                        "Exclusão de dados - SecretáriaPay".
                                     </p>
 
                                     <h2>Informações necessárias</h2>
                                     <p>
-                                        Informe o telefone/WhatsApp usado no teste e, se possível,
-                                        o código da reserva ou do bilhete.
+                                        Informe o nome completo, telefone/WhatsApp usado no atendimento, instituição,
+                                        número de estudante, documento de identificação e, se possível, código de cobrança,
+                                        comprovativo ou recibo relacionado.
+                                    </p>
+
+                                    <h2>Análise da solicitação</h2>
+                                    <p>
+                                        A solicitação será analisada considerando obrigações legais, auditoria financeira,
+                                        políticas internas da instituição contratante e necessidade de preservação de registos
+                                        para comprovação de pagamentos e atendimento académico.
                                     </p>
 
                                     <h2>Prazo de atendimento</h2>
                                     <p>
-                                        Após confirmação da solicitação, os dados serão analisados e removidos
-                                        dos ambientes de teste quando aplicável.
+                                        Após confirmação da identidade e validação com a instituição responsável, a solicitação
+                                        será tratada conforme a política aplicável e a natureza dos dados envolvidos.
                                     </p>
                                 </section>
                             </main>
