@@ -9,12 +9,20 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/public/whatsapp/webhook")
+@Deprecated(since = "2026-07-02", forRemoval = false)
 public class WhatsappWebhookController {
 
     private final WhatsappWebhookService service;
 
     public WhatsappWebhookController(WhatsappWebhookService service) {
         this.service = service;
+    }
+
+    @GetMapping("/status")
+    public ResponseEntity<Map<String, Object>> legacyStatus() {
+        return ResponseEntity.ok(
+                service.legacyStatus()
+        );
     }
 
     @GetMapping

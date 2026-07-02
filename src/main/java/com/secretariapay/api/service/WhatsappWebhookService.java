@@ -19,14 +19,21 @@ import java.util.Map;
 import java.util.Optional;
 
 @Service
+@Deprecated(since = "2026-07-02", forRemoval = false)
 public class WhatsappWebhookService {
+
+    private static final String LEGACY_DISABLED_MESSAGE =
+            "Webhook legado de passagens desativado. Use o módulo SecretáriaPay message-history/message-dispatch.";
 
     private final WhatsappSessionService whatsappSessionService;
     private final WhatsappCommandService whatsappCommandService;
     private final WhatsappCloudApiService whatsappCloudApiService;
     private final UserRepository userRepository;
 
-    @Value("${vairapido.whatsapp.verify-token:vairapido-dev-token}")
+    @Value("${secretariapay.legacy.whatsapp-webhook.enabled:false}")
+    private boolean legacyWhatsappWebhookEnabled;
+
+    @Value("${secretariapay.whatsapp.verify-token:${vairapido.whatsapp.verify-token:vairapido-dev-token}}")
     private String verifyToken;
 
     public WhatsappWebhookService(
@@ -41,11 +48,23 @@ public class WhatsappWebhookService {
         this.userRepository = userRepository;
     }
 
+    public Map<String, Object> legacyStatus() {
+        return Map.of(
+                "enabled", legacyWhatsappWebhookEnabled,
+                "status", legacyWhatsappWebhookEnabled ? "LEGACY_ENABLED" : "LEGACY_DISABLED",
+                "message", legacyWhatsappWebhookEnabled
+                        ? "Webhook legado ativo temporariamente."
+                        : LEGACY_DISABLED_MESSAGE
+        );
+    }
+
     public String verifyWebhook(
             String mode,
             String token,
             String challenge
     ) {
+        ensureLegacyWebhookEnabled();
+
         boolean isSubscribeMode = "subscribe".equals(mode);
         boolean isValidToken = verifyToken != null && verifyToken.equals(token);
 
@@ -62,6 +81,10 @@ public class WhatsappWebhookService {
     public WhatsappWebhookReceiveResponse receiveMessage(
             Map<String, Object> payload
     ) {
+        if (!legacyWhatsappWebhookEnabled) {
+            return legacyWebhookDisabledResponse();
+        }
+
         Optional<IncomingWhatsappMessage> incomingMessage =
                 extractIncomingMessage(payload);
 
@@ -128,6 +151,29 @@ public class WhatsappWebhookService {
         }
 
         return response;
+    }
+
+    private void ensureLegacyWebhookEnabled() {
+        if (!legacyWhatsappWebhookEnabled) {
+            throw new ResponseStatusException(
+                    HttpStatus.GONE,
+                    LEGACY_DISABLED_MESSAGE
+            );
+        }
+    }
+
+    private WhatsappWebhookReceiveResponse legacyWebhookDisabledResponse() {
+        return new WhatsappWebhookReceiveResponse()
+                .setProcessed(false)
+                .setReason(LEGACY_DISABLED_MESSAGE)
+                .setCommandProcessed(false)
+                .setCommandAllowed(false)
+                .setCommandName("LEGACY_WEBHOOK_DISABLED")
+                .setReplyMessage(null)
+                .setOutboundEnabled(false)
+                .setOutboundAttempted(false)
+                .setOutboundSent(false)
+                .setReceivedAt(LocalDateTime.now());
     }
 
     private WhatsappOutboundMessageResult sendReplyMessageIfAvailable(
@@ -440,4 +486,3 @@ public class WhatsappWebhookService {
     ) {
     }
 }
-
