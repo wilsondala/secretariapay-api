@@ -15,9 +15,14 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class SecretariaPayMessageDispatchService {
+
+    private static final String API_BASE_URL = "https://secretariapay-api.paixaoangola.com";
+    private static final Pattern PDF_URL_PATTERN = Pattern.compile("(https?://\\S+/pdf)");
 
     private final SecretariaPayMessageRepository repository;
     private final WhatsAppCloudApiClient whatsAppCloudApiClient;
@@ -89,7 +94,7 @@ public class SecretariaPayMessageDispatchService {
             return toResult(repository.save(message), now);
         }
 
-        WhatsAppCloudSendResult sendResult = whatsAppCloudApiClient.sendText(message.getRecipientPhone(), message.getMessage());
+        WhatsAppCloudSendResult sendResult = sendByMessageType(message);
 
         if (sendResult.isSuccess()) {
             message.setStatus(SecretariaPayMessageStatus.SENT)
@@ -102,6 +107,69 @@ public class SecretariaPayMessageDispatchService {
         message.setStatus(SecretariaPayMessageStatus.FAILED)
                 .setFailureReason(sendResult.getErrorMessage());
         return toResult(repository.save(message), now);
+    }
+
+    private WhatsAppCloudSendResult sendByMessageType(SecretariaPayMessage message) {
+        if (isReceiptIssuedMessage(message)) {
+            String receiptCode = safe(message.getReceiptCode());
+            String pdfUrl = resolvePublicReceiptPdfUrl(message);
+            String filename = receiptCode.isBlank()
+                    ? "recibo-secretariapay.pdf"
+                    : "recibo-" + receiptCode + ".pdf";
+
+            String caption = buildReceiptDocumentCaption(message, pdfUrl);
+
+            return whatsAppCloudApiClient.sendDocumentByLink(
+                    message.getRecipientPhone(),
+                    pdfUrl,
+                    filename,
+                    caption
+            );
+        }
+
+        return whatsAppCloudApiClient.sendText(message.getRecipientPhone(), message.getMessage());
+    }
+
+    private boolean isReceiptIssuedMessage(SecretariaPayMessage message) {
+        return message != null
+                && "RECEIPT_ISSUED".equalsIgnoreCase(safe(message.getType()))
+                && !safe(message.getReceiptCode()).isBlank();
+    }
+
+    private String resolvePublicReceiptPdfUrl(SecretariaPayMessage message) {
+        String messageText = safe(message.getMessage());
+
+        Matcher matcher = PDF_URL_PATTERN.matcher(messageText);
+        if (matcher.find()) {
+            String candidate = matcher.group(1).trim();
+
+            if (candidate.contains("/api/v1/public/receipts/")) {
+                return candidate;
+            }
+        }
+
+        return API_BASE_URL + "/api/v1/public/receipts/" + message.getReceiptCode() + "/pdf";
+    }
+
+    private String buildReceiptDocumentCaption(SecretariaPayMessage message, String pdfUrl) {
+        StringBuilder caption = new StringBuilder();
+
+        caption.append("Recibo digital emitido.");
+        caption.append("\n\nRecibo nº: ").append(safe(message.getReceiptCode()));
+
+        if (!safe(message.getStudentName()).isBlank()) {
+            caption.append("\nEstudante: ").append(message.getStudentName());
+        }
+
+        if (!safe(message.getChargeCode()).isBlank()) {
+            caption.append("\nCobrança: ").append(message.getChargeCode());
+        }
+
+        caption.append("\n\nO PDF do recibo segue em anexo.");
+        caption.append("\nLink público: ").append(pdfUrl);
+        caption.append("\n\nSecretáriaPay Académico");
+
+        return caption.toString();
     }
 
     private SecretariaPayMessage findMessage(UUID messageId) {
@@ -117,5 +185,9 @@ public class SecretariaPayMessageDispatchService {
                 .setFailureReason(message.getFailureReason())
                 .setRecipientPhone(message.getRecipientPhone())
                 .setProcessedAt(processedAt);
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value;
     }
 }

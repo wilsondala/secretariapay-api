@@ -35,6 +35,73 @@ public class WhatsAppCloudApiClient {
     }
 
     public WhatsAppCloudSendResult sendText(String recipientPhone, String messageBody) {
+        WhatsAppCloudSendResult configurationError = validateBasicConfiguration(recipientPhone);
+
+        if (configurationError != null) {
+            return configurationError;
+        }
+
+        if (messageBody == null || messageBody.isBlank()) {
+            return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: mensagem vazia.", null);
+        }
+
+        Map<String, Object> payload = Map.of(
+                "messaging_product", "whatsapp",
+                "to", normalizePhone(recipientPhone),
+                "type", "text",
+                "text", Map.of(
+                        "preview_url", true,
+                        "body", messageBody
+                )
+        );
+
+        return sendPayload(payload);
+    }
+
+    public WhatsAppCloudSendResult sendDocumentByLink(
+            String recipientPhone,
+            String documentUrl,
+            String fileName,
+            String caption
+    ) {
+        WhatsAppCloudSendResult configurationError = validateBasicConfiguration(recipientPhone);
+
+        if (configurationError != null) {
+            return configurationError;
+        }
+
+        if (documentUrl == null || documentUrl.isBlank()) {
+            return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: URL do documento vazia.", null);
+        }
+
+        String safeFileName = fileName == null || fileName.isBlank()
+                ? "secretariapay-recibo.pdf"
+                : fileName.trim();
+
+        String safeCaption = caption == null ? "" : caption.trim();
+
+        Map<String, Object> documentPayload = safeCaption.isBlank()
+                ? Map.of(
+                        "link", documentUrl.trim(),
+                        "filename", safeFileName
+                )
+                : Map.of(
+                        "link", documentUrl.trim(),
+                        "filename", safeFileName,
+                        "caption", limitCaption(safeCaption)
+                );
+
+        Map<String, Object> payload = Map.of(
+                "messaging_product", "whatsapp",
+                "to", normalizePhone(recipientPhone),
+                "type", "document",
+                "document", documentPayload
+        );
+
+        return sendPayload(payload);
+    }
+
+    private WhatsAppCloudSendResult validateBasicConfiguration(String recipientPhone) {
         if (phoneNumberId == null || phoneNumberId.isBlank()) {
             return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: phone-number-id não configurado.", null);
         }
@@ -49,21 +116,11 @@ public class WhatsAppCloudApiClient {
             return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: número do destinatário inválido.", null);
         }
 
-        if (messageBody == null || messageBody.isBlank()) {
-            return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: mensagem vazia.", null);
-        }
+        return null;
+    }
 
+    private WhatsAppCloudSendResult sendPayload(Map<String, Object> payload) {
         String url = "%s/%s/%s/messages".formatted(graphApiBaseUrl, graphApiVersion, phoneNumberId);
-
-        Map<String, Object> payload = Map.of(
-                "messaging_product", "whatsapp",
-                "to", to,
-                "type", "text",
-                "text", Map.of(
-                        "preview_url", true,
-                        "body", messageBody
-                )
-        );
 
         try {
             @SuppressWarnings("unchecked")
@@ -115,6 +172,11 @@ public class WhatsAppCloudApiClient {
     private String stripTrailingSlash(String value) {
         if (value == null || value.isBlank()) return "https://graph.facebook.com";
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    private String limitCaption(String caption) {
+        if (caption == null) return "";
+        return caption.length() <= 1024 ? caption : caption.substring(0, 1021) + "...";
     }
 
     private String safeBody(String body) {
