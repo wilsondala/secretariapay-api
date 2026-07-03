@@ -58,7 +58,7 @@ public class ReceiptService {
 
         Receipt savedReceipt = receiptRepository.save(receipt);
 
-        savedReceipt.setPdfUrl(buildPdfUrl(savedReceipt.getId()));
+        savedReceipt.setPdfUrl(buildPdfUrl(savedReceipt.getReceiptCode()));
 
         return toResponse(receiptRepository.save(savedReceipt));
     }
@@ -99,8 +99,8 @@ public class ReceiptService {
         Charge charge = receipt.getCharge();
 
         String pdfUrl = receipt.getPdfUrl();
-        if ((pdfUrl == null || pdfUrl.isBlank()) && receipt.getId() != null) {
-            pdfUrl = buildPdfUrl(receipt.getId());
+        if (receipt.getReceiptCode() != null && !receipt.getReceiptCode().isBlank()) {
+            pdfUrl = buildPdfUrl(receipt.getReceiptCode());
         }
 
         String validationUrl = receipt.getValidationUrl();
@@ -139,8 +139,8 @@ public class ReceiptService {
         return code;
     }
 
-    private String buildPdfUrl(UUID receiptId) {
-        return API_BASE_URL + "/api/v1/receipts/" + receiptId + "/pdf";
+    private String buildPdfUrl(String receiptCode) {
+        return API_BASE_URL + "/api/v1/public/receipts/" + receiptCode + "/pdf";
     }
 
     private String buildValidationUrl(String receiptCode) {
