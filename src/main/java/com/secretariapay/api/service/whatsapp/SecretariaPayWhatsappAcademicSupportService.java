@@ -2,8 +2,10 @@ package com.secretariapay.api.service.whatsapp;
 
 import com.secretariapay.api.entity.academic.Student;
 import com.secretariapay.api.entity.financial.Charge;
+import com.secretariapay.api.entity.whatsapp.SecretariaPayMessage;
 import com.secretariapay.api.repository.academic.StudentRepository;
 import com.secretariapay.api.repository.financial.ChargeRepository;
+import com.secretariapay.api.repository.whatsapp.SecretariaPayMessageRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,6 +13,7 @@ import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -32,15 +35,18 @@ public class SecretariaPayWhatsappAcademicSupportService {
 
     private final StudentRepository studentRepository;
     private final ChargeRepository chargeRepository;
+    private final SecretariaPayMessageRepository messageRepository;
     private final SecretariaPayWhatsappConversationContextService conversationContextService;
 
     public SecretariaPayWhatsappAcademicSupportService(
             StudentRepository studentRepository,
             ChargeRepository chargeRepository,
+            SecretariaPayMessageRepository messageRepository,
             SecretariaPayWhatsappConversationContextService conversationContextService
     ) {
         this.studentRepository = studentRepository;
         this.chargeRepository = chargeRepository;
+        this.messageRepository = messageRepository;
         this.conversationContextService = conversationContextService;
     }
 
@@ -84,6 +90,14 @@ public class SecretariaPayWhatsappAcademicSupportService {
 
         if (contextualReply.isPresent()) {
             return contextualReply;
+        }
+
+        if ("text".equals(type) && isPaymentGuideAcknowledgement(normalized)) {
+            Optional<String> acknowledgementReply = buildPaymentGuideAcknowledgementReply(fromPhone);
+
+            if (acknowledgementReply.isPresent()) {
+                return acknowledgementReply;
+            }
         }
 
         if ("image".equals(type) || "document".equals(type)) {
@@ -181,6 +195,86 @@ public class SecretariaPayWhatsappAcademicSupportService {
         }
 
         return Optional.empty();
+    }
+
+    private Optional<String> buildPaymentGuideAcknowledgementReply(String fromPhone) {
+        Optional<SecretariaPayMessage> latestGuide = messageRepository
+                .findFirstByRecipientPhoneInAndTypeOrderByCreatedAtDesc(
+                        phoneVariants(fromPhone),
+                        "PAYMENT_GUIDE"
+                );
+
+        if (latestGuide.isEmpty()) {
+            return Optional.of("""
+                    Perfeito, obrigado pela confirmação.
+
+                    Para associar esta confirmação à cobrança correta, envie também o código da guia ou o seu número de estudante.
+                    """.trim());
+        }
+
+        SecretariaPayMessage guideMessage = latestGuide.get();
+        String chargeCode = guideMessage.getChargeCode();
+
+        Optional<Charge> chargeOptional = isBlank(chargeCode)
+                ? Optional.empty()
+                : chargeRepository.findByChargeCode(chargeCode);
+
+        chargeOptional.ifPresent(charge -> conversationContextService.rememberChargeContext(
+                fromPhone,
+                charge,
+                "PAYMENT_GUIDE_ACKNOWLEDGED"
+        ));
+
+        StringBuilder reply = new StringBuilder();
+
+        reply.append("Perfeito. Confirmamos o recebimento da guia de pagamento.");
+
+        if (!isBlank(chargeCode)) {
+            reply.append("\n\nCobrança: ").append(chargeCode);
+        }
+
+        chargeOptional.ifPresent(charge -> {
+            reply.append("\nValor: ").append(formatMoney(charge.getTotalAmount(), charge.getCurrency()));
+
+            if (charge.getDueDate() != null) {
+                reply.append("\nVencimento: ").append(formatDate(charge.getDueDate()));
+            }
+        });
+
+        reply.append("""
+
+
+Agora aguardamos o pagamento.
+
+Após pagar, envie o comprovativo por aqui em imagem ou PDF para a tesouraria validar.
+
+O recibo digital será emitido apenas após a confirmação do pagamento.
+                """);
+
+        return Optional.of(reply.toString().trim());
+    }
+
+    private boolean isPaymentGuideAcknowledgement(String normalized) {
+        if (isBlank(normalized)) {
+            return false;
+        }
+
+        if (containsAny(normalized, List.of(
+                "recebi",
+                "recebido",
+                "ja recebi",
+                "guia recebida",
+                "pdf recebido",
+                "documento recebido",
+                "confirmo recebimento",
+                "confirmo que recebi",
+                "acusei recebimento"
+        ))) {
+            return true;
+        }
+
+        return containsAny(normalized, List.of("ok", "certo", "confirmado"))
+                && containsAny(normalized, List.of("guia", "pdf", "documento", "pagamento"));
     }
 
     private Optional<Student> findStudentByMessageIdentifier(String message) {
@@ -457,6 +551,31 @@ public class SecretariaPayWhatsappAcademicSupportService {
         }
 
         return Optional.empty();
+    }
+
+    private List<String> phoneVariants(String fromPhone) {
+        String sanitized = sanitizePhone(fromPhone);
+        List<String> variants = new ArrayList<>();
+
+        if (sanitized.isBlank()) {
+            return variants;
+        }
+
+        variants.add(sanitized);
+        variants.add("+" + sanitized);
+
+        if (sanitized.startsWith("244") && sanitized.length() > 3) {
+            variants.add("0" + sanitized.substring(3));
+        }
+
+        if (sanitized.startsWith("55") && sanitized.length() > 2) {
+            variants.add("0" + sanitized.substring(2));
+        }
+
+        return variants.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .distinct()
+                .toList();
     }
 
     private String formatMoney(BigDecimal value, String currency) {
