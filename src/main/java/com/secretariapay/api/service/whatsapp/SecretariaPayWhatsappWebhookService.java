@@ -27,6 +27,7 @@ public class SecretariaPayWhatsappWebhookService {
     private final String graphApiBaseUrl;
 
     private final SecretariaPayWhatsappBrainService brainService;
+    private final SecretariaPayWhatsappAcademicSupportService academicSupportService;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -50,7 +51,8 @@ public class SecretariaPayWhatsappWebhookService {
             @Value("${secretariapay.whatsapp.graph-api-base-url:https://graph.facebook.com}")
             String graphApiBaseUrl,
 
-            SecretariaPayWhatsappBrainService brainService
+            SecretariaPayWhatsappBrainService brainService,
+            SecretariaPayWhatsappAcademicSupportService academicSupportService
     ) {
         this.verifyToken = verifyToken;
         this.whatsappEnabled = whatsappEnabled;
@@ -59,6 +61,7 @@ public class SecretariaPayWhatsappWebhookService {
         this.graphApiVersion = graphApiVersion;
         this.graphApiBaseUrl = graphApiBaseUrl;
         this.brainService = brainService;
+        this.academicSupportService = academicSupportService;
 
         this.httpClient = HttpClient.newHttpClient();
         this.objectMapper = new ObjectMapper();
@@ -97,16 +100,24 @@ public class SecretariaPayWhatsappWebhookService {
         if (inboundMessage.isEmpty()) {
             response.put("processed", false);
             response.put("status", "IGNORED");
-            response.put("reason", "Payload recebido, mas sem mensagem de usuário para responder. Pode ser status, delivery ou evento administrativo.");
+            response.put(
+                    "reason",
+                    "Payload recebido, mas sem mensagem de usuário para responder. Pode ser status, delivery ou evento administrativo."
+            );
             return response;
         }
 
         InboundWhatsappMessage message = inboundMessage.get();
 
-        String replyText = brainService.buildReply(
-                message.type(),
-                message.body()
-        );
+        String replyText = academicSupportService.buildDatabaseAwareReply(
+                        message.from(),
+                        message.type(),
+                        message.body()
+                )
+                .orElseGet(() -> brainService.buildReply(
+                        message.type(),
+                        message.body()
+                ));
 
         WhatsappSendResult sendResult = sendTextMessage(
                 message.from(),

@@ -12,6 +12,12 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
 
     Optional<Student> findByStudentNumber(String studentNumber);
 
+    Optional<Student> findByDocumentNumberIgnoreCase(String documentNumber);
+
+    Optional<Student> findByWhatsapp(String whatsapp);
+
+    Optional<Student> findByPhone(String phone);
+
     boolean existsByStudentNumber(String studentNumber);
 
     List<Student> findByAcademicClassIdOrderByFullNameAsc(UUID academicClassId);
@@ -19,4 +25,6 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
     List<Student> findByStatusOrderByFullNameAsc(StudentStatus status);
 
     List<Student> findByFinanciallyBlockedTrueOrderByFullNameAsc();
+
+    List<Student> findTop5ByFullNameContainingIgnoreCaseOrderByFullNameAsc(String fullName);
 }
