@@ -7,8 +7,12 @@ import com.secretariapay.api.entity.academic.Student;
 import com.secretariapay.api.entity.enums.WhatsappConversationStep;
 import com.secretariapay.api.entity.enums.WhatsappSessionStatus;
 import com.secretariapay.api.entity.enums.WhatsappSessionType;
+import com.secretariapay.api.entity.enums.financial.PaymentProofStatus;
 import com.secretariapay.api.entity.financial.Charge;
+import com.secretariapay.api.entity.financial.PaymentProof;
 import com.secretariapay.api.repository.WhatsappSessionRepository;
+import com.secretariapay.api.repository.financial.ChargeRepository;
+import com.secretariapay.api.repository.financial.PaymentProofRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,12 +29,18 @@ public class SecretariaPayWhatsappConversationContextService {
     private static final int SESSION_DURATION_HOURS = 24;
 
     private final WhatsappSessionRepository sessionRepository;
+    private final ChargeRepository chargeRepository;
+    private final PaymentProofRepository paymentProofRepository;
     private final ObjectMapper objectMapper;
 
     public SecretariaPayWhatsappConversationContextService(
-            WhatsappSessionRepository sessionRepository
+            WhatsappSessionRepository sessionRepository,
+            ChargeRepository chargeRepository,
+            PaymentProofRepository paymentProofRepository
     ) {
         this.sessionRepository = sessionRepository;
+        this.chargeRepository = chargeRepository;
+        this.paymentProofRepository = paymentProofRepository;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -39,6 +49,25 @@ public class SecretariaPayWhatsappConversationContextService {
             String fromPhone,
             String messageType,
             String rawMessage
+    ) {
+        return resolveContextualReply(
+                fromPhone,
+                messageType,
+                rawMessage,
+                null,
+                null,
+                null
+        );
+    }
+
+    @Transactional
+    public Optional<String> resolveContextualReply(
+            String fromPhone,
+            String messageType,
+            String rawMessage,
+            String mediaId,
+            String fileName,
+            String mimeType
     ) {
         WhatsappSession session = getOrCreateSession(fromPhone);
 
@@ -52,7 +81,13 @@ public class SecretariaPayWhatsappConversationContextService {
         }
 
         if ("image".equals(type) || "document".equals(type)) {
-            return handleIncomingPaymentProof(session, type);
+            return handleIncomingPaymentProof(
+                    session,
+                    type,
+                    mediaId,
+                    fileName,
+                    mimeType
+            );
         }
 
         WhatsappConversationStep step = session.getCurrentStep();
@@ -181,7 +216,13 @@ public class SecretariaPayWhatsappConversationContextService {
         sessionRepository.save(session);
     }
 
-    private Optional<String> handleIncomingPaymentProof(WhatsappSession session, String type) {
+    private Optional<String> handleIncomingPaymentProof(
+            WhatsappSession session,
+            String type,
+            String mediaId,
+            String fileName,
+            String mimeType
+    ) {
         Map<String, String> metadata = readMetadata(session);
 
         String chargeCode = metadata.get("lastChargeCode");
@@ -190,23 +231,64 @@ public class SecretariaPayWhatsappConversationContextService {
                 .setExpiresAt(LocalDateTime.now().plusHours(SESSION_DURATION_HOURS));
 
         if (!isBlank(chargeCode)) {
+            Optional<Charge> chargeOptional = chargeRepository.findByChargeCode(chargeCode);
+
+            if (chargeOptional.isEmpty()) {
+                session.setCurrentStep(WhatsappConversationStep.SECRETARIAPAY_WAITING_IDENTIFIER);
+                metadata.put("lastIntent", "PAYMENT_PROOF_WITH_INVALID_CHARGE_CONTEXT");
+                metadata.put("paymentProofReceivedAt", LocalDateTime.now().toString());
+
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+
+                return Optional.of("""
+                        Comprovativo recebido.
+
+                        Não consegui associar automaticamente à cobrança anterior. Envie por favor o código da cobrança ou o seu BI/número de estudante.
+                        """.trim());
+            }
+
+            Charge charge = chargeOptional.get();
+
+            PaymentProof proof = new PaymentProof()
+                    .setCharge(charge)
+                    .setFileUrl(buildWhatsappMediaReference(mediaId, type))
+                    .setFileName(resolveFileName(type, mediaId, fileName, mimeType))
+                    .setMimeType(resolveMimeType(type, mimeType))
+                    .setSubmittedByPhone(session.getPhoneNumber())
+                    .setStatus(PaymentProofStatus.PENDING_REVIEW);
+
+            PaymentProof savedProof = paymentProofRepository.save(proof);
+
             session.setCurrentStep(WhatsappConversationStep.SECRETARIAPAY_CHARGE_FOUND);
-            metadata.put("lastIntent", "PAYMENT_PROOF_RECEIVED");
+
+            metadata.put("lastIntent", "PAYMENT_PROOF_REGISTERED");
             metadata.put("paymentProofReceivedAt", LocalDateTime.now().toString());
+            putUuid(metadata, "lastPaymentProofId", savedProof.getId());
+
+            if (!isBlank(mediaId)) {
+                metadata.put("lastWhatsappMediaId", mediaId);
+            }
 
             writeMetadata(session, metadata);
             sessionRepository.save(session);
 
             return Optional.of(("""
-                    Comprovativo recebido para a cobrança %s.
+                    Comprovativo recebido e registado para a cobrança %s.
 
-                    A tesouraria fará a validação. Assim que aprovado, o sistema enviará o recibo digital e atualizará a sua situação académica.
+                    Estado: Pendente de validação pela tesouraria.
+
+                    Assim que aprovado, o sistema enviará o recibo digital e atualizará a sua situação académica.
                     """).formatted(chargeCode).trim());
         }
 
         session.setCurrentStep(WhatsappConversationStep.SECRETARIAPAY_WAITING_IDENTIFIER);
         metadata.put("lastIntent", "UNLINKED_PAYMENT_PROOF_RECEIVED");
         metadata.put("paymentProofReceivedAt", LocalDateTime.now().toString());
+
+        if (!isBlank(mediaId)) {
+            metadata.put("lastWhatsappMediaId", mediaId);
+        }
 
         writeMetadata(session, metadata);
         sessionRepository.save(session);
@@ -377,6 +459,76 @@ public class SecretariaPayWhatsappConversationContextService {
         } catch (Exception ignored) {
             session.setMetadata("{}");
         }
+    }
+
+    private String buildWhatsappMediaReference(String mediaId, String type) {
+        if (!isBlank(mediaId)) {
+            return "whatsapp-cloud-media://" + mediaId;
+        }
+
+        return "whatsapp-cloud-media://unknown/" + safe(type) + "/" + System.currentTimeMillis();
+    }
+
+    private String resolveFileName(
+            String type,
+            String mediaId,
+            String fileName,
+            String mimeType
+    ) {
+        if (!isBlank(fileName)) {
+            return fileName;
+        }
+
+        String extension = resolveFileExtension(type, mimeType);
+        String suffix = isBlank(mediaId) ? String.valueOf(System.currentTimeMillis()) : mediaId;
+
+        if (suffix.length() > 16) {
+            suffix = suffix.substring(0, 16);
+        }
+
+        return "secretariapay-whatsapp-" + safe(type) + "-" + suffix + extension;
+    }
+
+    private String resolveMimeType(String type, String mimeType) {
+        if (!isBlank(mimeType)) {
+            return mimeType;
+        }
+
+        if ("image".equalsIgnoreCase(type)) {
+            return "image/jpeg";
+        }
+
+        if ("document".equalsIgnoreCase(type)) {
+            return "application/octet-stream";
+        }
+
+        return "application/octet-stream";
+    }
+
+    private String resolveFileExtension(String type, String mimeType) {
+        String normalizedMimeType = safe(mimeType).toLowerCase(Locale.ROOT);
+
+        if (normalizedMimeType.contains("png")) {
+            return ".png";
+        }
+
+        if (normalizedMimeType.contains("pdf")) {
+            return ".pdf";
+        }
+
+        if (normalizedMimeType.contains("jpeg") || normalizedMimeType.contains("jpg")) {
+            return ".jpg";
+        }
+
+        if ("image".equalsIgnoreCase(type)) {
+            return ".jpg";
+        }
+
+        if ("document".equalsIgnoreCase(type)) {
+            return ".bin";
+        }
+
+        return ".dat";
     }
 
     private void put(Map<String, String> metadata, String key, String value) {

@@ -50,6 +50,25 @@ public class SecretariaPayWhatsappAcademicSupportService {
             String messageType,
             String rawMessage
     ) {
+        return buildDatabaseAwareReply(
+                fromPhone,
+                messageType,
+                rawMessage,
+                null,
+                null,
+                null
+        );
+    }
+
+    @Transactional
+    public Optional<String> buildDatabaseAwareReply(
+            String fromPhone,
+            String messageType,
+            String rawMessage,
+            String mediaId,
+            String fileName,
+            String mimeType
+    ) {
         String type = safe(messageType).toLowerCase(Locale.ROOT);
         String message = safe(rawMessage).trim();
         String normalized = normalize(message);
@@ -57,7 +76,10 @@ public class SecretariaPayWhatsappAcademicSupportService {
         Optional<String> contextualReply = conversationContextService.resolveContextualReply(
                 fromPhone,
                 type,
-                message
+                message,
+                mediaId,
+                fileName,
+                mimeType
         );
 
         if (contextualReply.isPresent()) {
@@ -276,7 +298,7 @@ public class SecretariaPayWhatsappAcademicSupportService {
 
         if (openCharges.isEmpty()) {
             reply.append("""
-                    
+
                     Não encontrei cobranças em aberto para este cadastro.
 
                     Caso já tenha pago recentemente, envie o comprovativo ou fale com a secretaria para confirmação.
@@ -302,7 +324,7 @@ public class SecretariaPayWhatsappAcademicSupportService {
         }
 
         reply.append("""
-                
+
                 Deseja continuar?
                 1. Enviar comprovativo
                 2. Ver dados de pagamento
@@ -338,8 +360,8 @@ public class SecretariaPayWhatsappAcademicSupportService {
         }
 
         reply.append("""
-                
-                
+
+
                 Deseja continuar?
                 1. Enviar comprovativo
                 2. Falar com a secretaria

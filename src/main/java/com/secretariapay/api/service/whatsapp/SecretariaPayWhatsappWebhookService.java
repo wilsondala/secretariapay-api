@@ -112,7 +112,10 @@ public class SecretariaPayWhatsappWebhookService {
         String replyText = academicSupportService.buildDatabaseAwareReply(
                         message.from(),
                         message.type(),
-                        message.body()
+                        message.body(),
+                        message.mediaId(),
+                        message.fileName(),
+                        message.mimeType()
                 )
                 .orElseGet(() -> brainService.buildReply(
                         message.type(),
@@ -132,6 +135,18 @@ public class SecretariaPayWhatsappWebhookService {
         response.put("replyText", replyText);
         response.put("replySent", sendResult.success());
         response.put("providerStatusCode", sendResult.statusCode());
+
+        if (message.mediaId() != null && !message.mediaId().isBlank()) {
+            response.put("mediaId", message.mediaId());
+        }
+
+        if (message.fileName() != null && !message.fileName().isBlank()) {
+            response.put("fileName", message.fileName());
+        }
+
+        if (message.mimeType() != null && !message.mimeType().isBlank()) {
+            response.put("mimeType", message.mimeType());
+        }
 
         if (sendResult.providerMessageId() != null && !sendResult.providerMessageId().isBlank()) {
             response.put("providerMessageId", sendResult.providerMessageId());
@@ -179,13 +194,17 @@ public class SecretariaPayWhatsappWebhookService {
                         continue;
                     }
 
-                    String body = extractMessageBody(message, type);
+                    InboundWhatsappMedia media = extractMediaPayload(message, type);
+                    String body = extractMessageBody(message, type, media);
 
                     return Optional.of(
                             new InboundWhatsappMessage(
                                     from.trim(),
                                     type == null || type.isBlank() ? "unknown" : type.trim(),
-                                    body
+                                    body,
+                                    media.mediaId(),
+                                    media.fileName(),
+                                    media.mimeType()
                             )
                     );
                 }
@@ -195,7 +214,55 @@ public class SecretariaPayWhatsappWebhookService {
         return Optional.empty();
     }
 
-    private String extractMessageBody(JsonNode message, String type) {
+    private InboundWhatsappMedia extractMediaPayload(JsonNode message, String type) {
+        if ("image".equalsIgnoreCase(type)) {
+            JsonNode image = message.path("image");
+
+            return new InboundWhatsappMedia(
+                    image.path("id").asText(""),
+                    "",
+                    image.path("mime_type").asText("")
+            );
+        }
+
+        if ("document".equalsIgnoreCase(type)) {
+            JsonNode document = message.path("document");
+
+            return new InboundWhatsappMedia(
+                    document.path("id").asText(""),
+                    document.path("filename").asText(""),
+                    document.path("mime_type").asText("")
+            );
+        }
+
+        if ("audio".equalsIgnoreCase(type)) {
+            JsonNode audio = message.path("audio");
+
+            return new InboundWhatsappMedia(
+                    audio.path("id").asText(""),
+                    "",
+                    audio.path("mime_type").asText("")
+            );
+        }
+
+        if ("video".equalsIgnoreCase(type)) {
+            JsonNode video = message.path("video");
+
+            return new InboundWhatsappMedia(
+                    video.path("id").asText(""),
+                    "",
+                    video.path("mime_type").asText("")
+            );
+        }
+
+        return new InboundWhatsappMedia("", "", "");
+    }
+
+    private String extractMessageBody(
+            JsonNode message,
+            String type,
+            InboundWhatsappMedia media
+    ) {
         if ("text".equalsIgnoreCase(type)) {
             return message.path("text").path("body").asText("").trim();
         }
@@ -205,7 +272,7 @@ public class SecretariaPayWhatsappWebhookService {
         }
 
         if ("document".equalsIgnoreCase(type)) {
-            String filename = message.path("document").path("filename").asText("");
+            String filename = media.fileName();
 
             if (filename == null || filename.isBlank()) {
                 return "[documento recebido]";
@@ -364,7 +431,17 @@ public class SecretariaPayWhatsappWebhookService {
     private record InboundWhatsappMessage(
             String from,
             String type,
-            String body
+            String body,
+            String mediaId,
+            String fileName,
+            String mimeType
+    ) {
+    }
+
+    private record InboundWhatsappMedia(
+            String mediaId,
+            String fileName,
+            String mimeType
     ) {
     }
 
