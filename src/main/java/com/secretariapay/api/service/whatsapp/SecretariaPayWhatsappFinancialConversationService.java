@@ -218,7 +218,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 metadata.remove("expectedStep");
                 writeMetadata(session, metadata);
                 sessionRepository.save(session);
-                return Optional.of(generatePaymentGuideForCurrentMonth(session, metadata, student, normalized, fromPhone));
+                return Optional.of(generatePaymentGuideForCurrentMonth(session, metadata, student, normalized));
             }
 
             if ("2".equals(normalized) || containsAny(normalized, "atraso", "atrasada", "atrasadas")) {
@@ -262,7 +262,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 metadata.remove("expectedStep");
                 writeMetadata(session, metadata);
                 sessionRepository.save(session);
-                return Optional.of(generatePaymentGuideForCurrentMonth(session, metadata, student, normalized, fromPhone));
+                return Optional.of(generatePaymentGuideForCurrentMonth(session, metadata, student, normalized));
             }
 
             if ("2".equals(normalized) || containsAny(normalized, "formas", "pagamento")) {
@@ -342,6 +342,89 @@ public class SecretariaPayWhatsappFinancialConversationService {
                     """.trim());
         }
 
+        if ("NO_OVERDUE_PENDING_ACTION".equalsIgnoreCase(expected)) {
+            Student student = loadStudentFromMetadata(metadata);
+            if (student == null) {
+                metadata.put("expectedStep", "STUDENT_IDENTIFIER");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of(askForStudentIdentification());
+            }
+
+            if ("1".equals(normalized) || containsAny(normalized, "gerar", "guia", "pagar")) {
+                metadata.remove("expectedStep");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of(generatePaymentGuideForCurrentMonth(session, metadata, student, normalized));
+            }
+
+            if ("2".equals(normalized) || containsAny(normalized, "resumo", "situacao", "situação")) {
+                metadata.remove("expectedStep");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of(buildFinancialSummaryReply(student));
+            }
+
+            if ("3".equals(normalized) || containsAny(normalized, "voltar", "menu")) {
+                metadata.remove("expectedStep");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of(buildMainMenuGreeting());
+            }
+
+            return Optional.of("""
+                    Não existem mensalidades vencidas no seu cadastro.
+
+                    Existem apenas mensalidades pendentes/a vencer.
+
+                    Escolha uma opção:
+                    1. Gerar guia do mês
+                    2. Ver resumo financeiro
+                    3. Voltar ao menu
+                    """.trim());
+        }
+
+        if ("NEGOTIATION_NO_OVERDUE_ACTION".equalsIgnoreCase(expected)) {
+            Student student = loadStudentFromMetadata(metadata);
+            if (student == null) {
+                metadata.put("expectedStep", "STUDENT_IDENTIFIER");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of(askForStudentIdentification());
+            }
+
+            if ("1".equals(normalized) || containsAny(normalized, "gerar", "guia", "pagar")) {
+                metadata.remove("expectedStep");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of(generatePaymentGuideForCurrentMonth(session, metadata, student, normalized));
+            }
+
+            if ("2".equals(normalized) || isHumanRequestIntent(normalized)) {
+                metadata.put("expectedStep", "HUMAN_REASON");
+                metadata.put("lastIntent", "HUMAN_SUPPORT_REASON_REQUESTED");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of(buildHumanSupportReasonMenu());
+            }
+
+            if ("3".equals(normalized) || containsAny(normalized, "voltar", "menu")) {
+                metadata.remove("expectedStep");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of(buildMainMenuGreeting());
+            }
+
+            return Optional.of("""
+                    Não existem mensalidades vencidas para negociação automática.
+
+                    Escolha uma opção:
+                    1. Gerar guia do mês
+                    2. Falar com a secretaria
+                    3. Voltar ao menu
+                    """.trim());
+        }
+
         if ("NEGOTIATION_PLAN".equalsIgnoreCase(expected)) {
             metadata.remove("expectedStep");
             metadata.put("lastIntent", "NEGOTIATION_REQUEST_REGISTERED");
@@ -397,7 +480,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
         }
 
         if (isOption(normalized, "2") || isPaymentGuideIntent(normalized)) {
-            return withStudent(session, metadata, "GENERATE_PAYMENT_GUIDE", message, student -> generatePaymentGuideForCurrentMonth(session, metadata, student, normalized, fromPhone));
+            return withStudent(session, metadata, "GENERATE_PAYMENT_GUIDE", message, student -> generatePaymentGuideForCurrentMonth(session, metadata, student, normalized));
         }
 
         if (isOption(normalized, "3") || isOverdueIntent(normalized)) {
@@ -489,7 +572,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
 
         return switch (pendingAction) {
             case "CONSULT_CURRENT_MONTH" -> consultCurrentMonth(session, metadata, student);
-            case "GENERATE_PAYMENT_GUIDE" -> generatePaymentGuideForCurrentMonth(session, metadata, student, normalized, fromPhone);
+            case "GENERATE_PAYMENT_GUIDE" -> generatePaymentGuideForCurrentMonth(session, metadata, student, normalized);
             case "VIEW_OVERDUE" -> buildOverdueChargesReply(session, metadata, student);
             case "REQUEST_RECEIPT" -> buildReceiptReply(student);
             case "FINANCIAL_SUMMARY" -> buildFinancialSummaryReply(student);
@@ -537,17 +620,15 @@ public class SecretariaPayWhatsappFinancialConversationService {
             WhatsappSession session,
             Map<String, String> metadata,
             Student student,
-            String normalized,
-            String requesterPhone
+            String normalized
     ) {
         String referenceMonth = resolveReferenceMonthFromText(normalized, currentReferenceMonth());
         Charge charge = resolveOrCreateMonthlyCharge(student, referenceMonth, "Atendimento WhatsApp");
-        WhatsAppCloudSendResult sendResult = sendPaymentGuideDocument(student, charge, requesterPhone);
+        WhatsAppCloudSendResult sendResult = sendPaymentGuideDocument(student, charge);
 
         metadata.put("secretariapayFinanceFlow", "true");
         metadata.put("expectedStep", "GUIDE_ACK");
         metadata.put("lastIntent", "PAYMENT_GUIDE_SENT");
-        metadata.put("conversationRecipientPhone", sanitizePhone(firstNonBlank(requesterPhone, student.getWhatsapp(), student.getPhone())));
         metadata.put("guideProviderMessageId", safe(sendResult.getProviderMessageId()));
         rememberStudent(metadata, student);
         rememberCharge(metadata, charge);
@@ -593,35 +674,95 @@ public class SecretariaPayWhatsappFinancialConversationService {
             Map<String, String> metadata,
             Student student
     ) {
-        LocalDate today = LocalDate.now();
-        List<Charge> overdue = chargeRepository.findByStudentIdOrderByDueDateDesc(student.getId())
-                .stream()
-                .filter(charge -> charge.getStatus() != ChargeStatus.PAID)
-                .filter(charge -> charge.getStatus() != ChargeStatus.CANCELLED)
-                .filter(charge -> charge.getDueDate() != null && charge.getDueDate().isBefore(today))
+        List<Charge> charges = chargeRepository.findByStudentIdOrderByDueDateDesc(student.getId());
+        List<Charge> overdue = charges.stream()
+                .filter(this::isOpenCharge)
+                .filter(this::isOverdueCharge)
                 .sorted(Comparator.comparing(Charge::getDueDate))
                 .toList();
 
+        List<Charge> pendingToDue = charges.stream()
+                .filter(this::isOpenCharge)
+                .filter(charge -> !isOverdueCharge(charge))
+                .sorted(Comparator.comparing(Charge::getDueDate, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+
         if (overdue.isEmpty()) {
-            return """
+            metadata.put("secretariapayFinanceFlow", "true");
+            metadata.put("lastIntent", "NO_OVERDUE_FOUND");
+            rememberStudent(metadata, student);
+
+            if (pendingToDue.isEmpty()) {
+                metadata.remove("expectedStep");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+
+                return """
+                        Consultei a sua situação financeira.
+
+                        Não encontrei mensalidades vencidas nem pendentes para este cadastro.
+                        Estado financeiro: Regular.
+
+                        Deseja fazer outra solicitação?
+                        1. Solicitar recibo
+                        2. Ver situação financeira
+                        3. Voltar ao menu
+                        """.trim();
+            }
+
+            Charge firstPending = pendingToDue.get(0);
+            rememberCharge(metadata, firstPending);
+            metadata.put("expectedStep", "NO_OVERDUE_PENDING_ACTION");
+            metadata.put("lastIntent", "NO_OVERDUE_PENDING_LISTED");
+            writeMetadata(session, metadata);
+            sessionRepository.save(session);
+
+            BigDecimal pendingTotal = pendingToDue.stream()
+                    .map(charge -> charge.getTotalAmount() == null ? BigDecimal.ZERO : charge.getTotalAmount())
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            StringBuilder reply = new StringBuilder();
+            reply.append("""
                     Consultei a sua situação financeira.
 
-                    Não encontrei mensalidades em atraso para este cadastro.
+                    Não encontrei mensalidades vencidas/em atraso para este cadastro.
 
-                    Deseja consultar ou gerar a guia do mês atual?
-                    1. Consultar mensalidade do mês
-                    2. Solicitar guia de pagamento
-                    3. Voltar ao menu
-                    """.trim();
+                    Existem mensalidades pendentes/a vencer:
+
+                    """);
+
+            int index = 1;
+            for (Charge charge : pendingToDue) {
+                reply.append(index++).append(". ")
+                        .append(humanReferenceMonth(charge.getReferenceMonth()))
+                        .append(" — ")
+                        .append(formatMoney(charge.getTotalAmount(), charge.getCurrency()))
+                        .append(" — Vencimento: ")
+                        .append(formatDate(charge.getDueDate()))
+                        .append("\n");
+            }
+
+            reply.append("\nTotal pendente/a vencer: ").append(formatMoney(pendingTotal, "AOA"));
+            reply.append("\nEstado académico: Sem atraso financeiro, mas com pagamento pendente.\n\n");
+            reply.append("O que deseja fazer?\n\n");
+            reply.append("1. Gerar guia do mês\n");
+            reply.append("2. Ver resumo financeiro\n");
+            reply.append("3. Voltar ao menu");
+
+            return reply.toString().trim();
         }
 
-        BigDecimal total = overdue.stream()
+        BigDecimal overdueTotal = overdue.stream()
                 .map(charge -> charge.getTotalAmount() == null ? BigDecimal.ZERO : charge.getTotalAmount())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         StringBuilder reply = new StringBuilder();
-        reply.append("Consultando a sua situação financeira...\n\n");
-        reply.append("Você possui mensalidades em atraso:\n\n");
+        reply.append("""
+                Consultando a sua situação financeira...
+
+                Você possui mensalidades vencidas/em atraso:
+
+                """);
 
         int index = 1;
         for (Charge charge : overdue) {
@@ -634,7 +775,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
                     .append("\n");
         }
 
-        reply.append("\nTotal em aberto: ").append(formatMoney(total, "AOA"));
+        reply.append("\nTotal vencido/em atraso: ").append(formatMoney(overdueTotal, "AOA"));
         reply.append("\nEstado académico: Atenção financeira\n\n");
         reply.append("Deseja regularizar agora?\n\n");
         reply.append("1. Gerar guia total\n");
@@ -645,6 +786,8 @@ public class SecretariaPayWhatsappFinancialConversationService {
 
         metadata.put("secretariapayFinanceFlow", "true");
         metadata.put("lastIntent", "OVERDUE_LISTED");
+        rememberStudent(metadata, student);
+        rememberCharge(metadata, overdue.get(0));
         writeMetadata(session, metadata);
         sessionRepository.save(session);
 
@@ -719,18 +862,34 @@ public class SecretariaPayWhatsappFinancialConversationService {
         List<Charge> charges = chargeRepository.findByStudentIdOrderByDueDateDesc(student.getId());
 
         long paid = charges.stream().filter(charge -> charge.getStatus() == ChargeStatus.PAID).count();
-        long pending = charges.stream().filter(charge -> charge.getStatus() == ChargeStatus.PENDING).count();
+        long pendingToDue = charges.stream()
+                .filter(this::isOpenCharge)
+                .filter(charge -> !isOverdueCharge(charge))
+                .count();
         long overdue = charges.stream()
-                .filter(charge -> charge.getStatus() != ChargeStatus.PAID)
-                .filter(charge -> charge.getStatus() != ChargeStatus.CANCELLED)
-                .filter(charge -> charge.getDueDate() != null && charge.getDueDate().isBefore(LocalDate.now()))
+                .filter(this::isOpenCharge)
+                .filter(this::isOverdueCharge)
                 .count();
 
         BigDecimal openTotal = charges.stream()
-                .filter(charge -> charge.getStatus() != ChargeStatus.PAID)
-                .filter(charge -> charge.getStatus() != ChargeStatus.CANCELLED)
+                .filter(this::isOpenCharge)
                 .map(charge -> charge.getTotalAmount() == null ? BigDecimal.ZERO : charge.getTotalAmount())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal overdueTotal = charges.stream()
+                .filter(this::isOpenCharge)
+                .filter(this::isOverdueCharge)
+                .map(charge -> charge.getTotalAmount() == null ? BigDecimal.ZERO : charge.getTotalAmount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        String financialStatus;
+        if (overdue > 0) {
+            financialStatus = "Com mensalidade vencida/em atraso";
+        } else if (pendingToDue > 0) {
+            financialStatus = "Com mensalidade pendente/a vencer";
+        } else {
+            financialStatus = "Regular";
+        }
 
         return ("""
                 Resumo financeiro do estudante:
@@ -741,27 +900,29 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 Estado financeiro: %s
 
                 Mensalidades pagas: %d
-                Mensalidades pendentes: %d
-                Mensalidades em atraso: %d
+                Mensalidades pendentes/a vencer: %d
+                Mensalidades vencidas/em atraso: %d
                 Total em aberto: %s
+                Total vencido/em atraso: %s
 
                 O que deseja fazer?
 
                 1. Gerar guia do mês
-                2. Gerar guia das mensalidades em atraso
+                2. Ver mensalidades vencidas/em atraso
                 3. Enviar comprovativo
                 4. Solicitar recibo
-                5. Negociar dívida
+                5. Negociar dívida em atraso
                 6. Falar com a secretaria
                 """).formatted(
                 safe(student.getFullName()),
                 firstNonBlank(student.getStudentNumber(), "-"),
                 resolveCourseName(student),
-                openTotal.compareTo(BigDecimal.ZERO) > 0 ? "Com pendências" : "Regular",
+                financialStatus,
                 paid,
-                pending,
+                pendingToDue,
                 overdue,
-                formatMoney(openTotal, "AOA")
+                formatMoney(openTotal, "AOA"),
+                formatMoney(overdueTotal, "AOA")
         ).trim();
     }
 
@@ -770,21 +931,75 @@ public class SecretariaPayWhatsappFinancialConversationService {
             Map<String, String> metadata,
             Student student
     ) {
-        BigDecimal openTotal = chargeRepository.findByStudentIdOrderByDueDateDesc(student.getId())
-                .stream()
-                .filter(charge -> charge.getStatus() != ChargeStatus.PAID)
-                .filter(charge -> charge.getStatus() != ChargeStatus.CANCELLED)
+        List<Charge> charges = chargeRepository.findByStudentIdOrderByDueDateDesc(student.getId());
+
+        List<Charge> overdue = charges.stream()
+                .filter(this::isOpenCharge)
+                .filter(this::isOverdueCharge)
+                .sorted(Comparator.comparing(Charge::getDueDate))
+                .toList();
+
+        List<Charge> openCharges = charges.stream()
+                .filter(this::isOpenCharge)
+                .sorted(Comparator.comparing(Charge::getDueDate, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+
+        BigDecimal overdueTotal = overdue.stream()
+                .map(charge -> charge.getTotalAmount() == null ? BigDecimal.ZERO : charge.getTotalAmount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal openTotal = openCharges.stream()
                 .map(charge -> charge.getTotalAmount() == null ? BigDecimal.ZERO : charge.getTotalAmount())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         metadata.put("secretariapayFinanceFlow", "true");
+        rememberStudent(metadata, student);
+
+        if (overdue.isEmpty()) {
+            if (openCharges.isEmpty()) {
+                metadata.remove("expectedStep");
+                metadata.put("lastIntent", "NEGOTIATION_NOT_REQUIRED");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+
+                return """
+                        Não encontrei mensalidades vencidas nem pendentes para negociação.
+                        Estado financeiro: Regular.
+
+                        Deseja fazer outra solicitação?
+                        1. Solicitar recibo
+                        2. Ver situação financeira
+                        3. Voltar ao menu
+                        """.trim();
+            }
+
+            rememberCharge(metadata, openCharges.get(0));
+            metadata.put("expectedStep", "NEGOTIATION_NO_OVERDUE_ACTION");
+            metadata.put("lastIntent", "NEGOTIATION_NO_OVERDUE_FOUND");
+            writeMetadata(session, metadata);
+            sessionRepository.save(session);
+
+            return ("""
+                    Não encontrei mensalidades vencidas/em atraso para negociação automática.
+
+                    Existe valor pendente/a vencer no total de %s.
+                    Isso ainda não é atraso, mas pode ser regularizado agora com a guia de pagamento.
+
+                    O que deseja fazer?
+                    1. Gerar guia do mês
+                    2. Falar com a secretaria
+                    3. Voltar ao menu
+                    """).formatted(formatMoney(openTotal, "AOA")).trim();
+        }
+
         metadata.put("expectedStep", "NEGOTIATION_PLAN");
         metadata.put("lastIntent", "NEGOTIATION_STARTED");
+        rememberCharge(metadata, overdue.get(0));
         writeMetadata(session, metadata);
         sessionRepository.save(session);
 
         return ("""
-                Entendi. Você possui pendências financeiras no valor total de %s.
+                Entendi. Você possui mensalidades vencidas/em atraso no valor total de %s.
 
                 Como deseja regularizar?
 
@@ -797,7 +1012,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
 
                 Exemplo:
                 Quero pagar em 2 parcelas.
-                """).formatted(formatMoney(openTotal, "AOA")).trim();
+                """).formatted(formatMoney(overdueTotal, "AOA")).trim();
     }
 
     private String confirmAutomaticPayment(
@@ -822,7 +1037,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 .setPaymentMethod(method)
                 .setAmount(DEFAULT_AMOUNT)
                 .setExternalTransactionId("WPP-ROTEIRO-" + method + "-" + chargeCode + "-" + System.currentTimeMillis())
-                .setPayerPhone(firstNonBlank(metadata.get("conversationRecipientPhone"), fromPhone))
+                .setPayerPhone(fromPhone)
                 .setBankName(resolveMockBankName(method))
                 .setBankReference(chargeCode)
                 .setNote("Pagamento mock confirmado automaticamente no roteiro financeiro via WhatsApp.");
@@ -830,8 +1045,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
         MockAutomaticPaymentResponse response = mockAutomaticPaymentService.confirmByChargeCode(
                 chargeCode,
                 method,
-                request,
-                firstNonBlank(metadata.get("conversationRecipientPhone"), fromPhone)
+                request
         );
 
         metadata.put("lastIntent", "PAYMENT_CONFIRMED_AUTOMATICALLY");
@@ -864,8 +1078,8 @@ public class SecretariaPayWhatsappFinancialConversationService {
         ).trim();
     }
 
-    private WhatsAppCloudSendResult sendPaymentGuideDocument(Student student, Charge charge, String requesterPhone) {
-        String recipientPhone = firstNonBlank(requesterPhone, student.getWhatsapp(), student.getPhone());
+    private WhatsAppCloudSendResult sendPaymentGuideDocument(Student student, Charge charge) {
+        String recipientPhone = firstNonBlank(student.getWhatsapp(), student.getPhone());
 
         String guideUrl = API_BASE_URL + "/api/v1/public/payment-guides/" + charge.getChargeCode() + "/pdf";
         String fileName = "guia-pagamento-" + charge.getChargeCode() + ".pdf";
@@ -1002,11 +1216,11 @@ public class SecretariaPayWhatsappFinancialConversationService {
 
                 1. Consultar mensalidade do mês
                 2. Solicitar guia / referência de pagamento
-                3. Ver mensalidades em atraso
+                3. Ver mensalidades vencidas/em atraso
                 4. Enviar comprovativo de pagamento
                 5. Solicitar recibo
                 6. Ver situação financeira
-                7. Negociar dívida ou atraso
+                7. Negociar dívida vencida/atraso
                 8. Falar com a secretaria
                 9. Outras solicitações académicas
 
@@ -1022,11 +1236,11 @@ public class SecretariaPayWhatsappFinancialConversationService {
 
                 1. Consultar mensalidade do mês
                 2. Solicitar guia / referência de pagamento
-                3. Ver mensalidades em atraso
+                3. Ver mensalidades vencidas/em atraso
                 4. Enviar comprovativo de pagamento
                 5. Solicitar recibo
                 6. Ver situação financeira
-                7. Negociar dívida ou atraso
+                7. Negociar dívida vencida/atraso
                 8. Falar com a secretaria
                 9. Outras solicitações académicas
                 """).formatted(firstName(student.getFullName())).trim();
@@ -1432,6 +1646,19 @@ public class SecretariaPayWhatsappFinancialConversationService {
         } while (chargeRepository.existsByChargeCode(code));
 
         return code;
+    }
+
+    private boolean isOpenCharge(Charge charge) {
+        return charge != null
+                && charge.getStatus() != null
+                && charge.getStatus() != ChargeStatus.PAID
+                && charge.getStatus() != ChargeStatus.CANCELLED;
+    }
+
+    private boolean isOverdueCharge(Charge charge) {
+        return isOpenCharge(charge)
+                && charge.getDueDate() != null
+                && charge.getDueDate().isBefore(LocalDate.now());
     }
 
     private boolean isTextLike(String type) {
