@@ -2,5 +2,6 @@ package com.secretariapay.api.entity.enums;
 
 public enum WhatsappSessionType {
     PASSENGER,
-    USER
+    USER,
+    SECRETARIAPAY_ACADEMICO
 }

@@ -5,6 +5,7 @@ import com.secretariapay.api.entity.financial.Charge;
 import com.secretariapay.api.repository.academic.StudentRepository;
 import com.secretariapay.api.repository.financial.ChargeRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.text.Normalizer;
@@ -31,15 +32,19 @@ public class SecretariaPayWhatsappAcademicSupportService {
 
     private final StudentRepository studentRepository;
     private final ChargeRepository chargeRepository;
+    private final SecretariaPayWhatsappConversationContextService conversationContextService;
 
     public SecretariaPayWhatsappAcademicSupportService(
             StudentRepository studentRepository,
-            ChargeRepository chargeRepository
+            ChargeRepository chargeRepository,
+            SecretariaPayWhatsappConversationContextService conversationContextService
     ) {
         this.studentRepository = studentRepository;
         this.chargeRepository = chargeRepository;
+        this.conversationContextService = conversationContextService;
     }
 
+    @Transactional
     public Optional<String> buildDatabaseAwareReply(
             String fromPhone,
             String messageType,
@@ -49,14 +54,33 @@ public class SecretariaPayWhatsappAcademicSupportService {
         String message = safe(rawMessage).trim();
         String normalized = normalize(message);
 
+        Optional<String> contextualReply = conversationContextService.resolveContextualReply(
+                fromPhone,
+                type,
+                message
+        );
+
+        if (contextualReply.isPresent()) {
+            return contextualReply;
+        }
+
         if ("image".equals(type) || "document".equals(type)) {
             return Optional.empty();
         }
 
         Optional<String> chargeCode = extractChargeCode(message);
+
         if (chargeCode.isPresent()) {
             return chargeRepository.findByChargeCode(chargeCode.get().toUpperCase(Locale.ROOT))
-                    .map(this::buildChargeDetailsReply)
+                    .map(charge -> {
+                        conversationContextService.rememberChargeContext(
+                                fromPhone,
+                                charge,
+                                "CHARGE_DETAILS"
+                        );
+
+                        return buildChargeDetailsReply(charge);
+                    })
                     .or(() -> Optional.of("""
                             Não encontrei uma cobrança com esse código.
 
@@ -68,15 +92,38 @@ public class SecretariaPayWhatsappAcademicSupportService {
         Optional<Student> studentByIdentifier = findStudentByMessageIdentifier(message);
 
         if (studentByIdentifier.isPresent()) {
-            return Optional.of(buildStudentFinancialSummaryReply(studentByIdentifier.get()));
+            Student student = studentByIdentifier.get();
+            Optional<Charge> firstOpenCharge = findFirstOpenCharge(student);
+
+            conversationContextService.rememberStudentContext(
+                    fromPhone,
+                    student,
+                    firstOpenCharge
+            );
+
+            return Optional.of(buildStudentFinancialSummaryReply(student));
         }
 
         if (isFinancialIntent(normalized)) {
             Optional<Student> studentByPhone = findStudentByPhone(fromPhone);
 
             if (studentByPhone.isPresent()) {
-                return Optional.of(buildStudentFinancialSummaryReply(studentByPhone.get()));
+                Student student = studentByPhone.get();
+                Optional<Charge> firstOpenCharge = findFirstOpenCharge(student);
+
+                conversationContextService.rememberStudentContext(
+                        fromPhone,
+                        student,
+                        firstOpenCharge
+                );
+
+                return Optional.of(buildStudentFinancialSummaryReply(student));
             }
+
+            conversationContextService.rememberWaitingIdentifier(
+                    fromPhone,
+                    message
+            );
 
             return Optional.of("""
                     Claro. Para consultar a sua situação financeira, envie um destes dados:
@@ -94,7 +141,16 @@ public class SecretariaPayWhatsappAcademicSupportService {
             List<Student> students = studentRepository.findTop5ByFullNameContainingIgnoreCaseOrderByFullNameAsc(message);
 
             if (students.size() == 1) {
-                return Optional.of(buildStudentFinancialSummaryReply(students.get(0)));
+                Student student = students.get(0);
+                Optional<Charge> firstOpenCharge = findFirstOpenCharge(student);
+
+                conversationContextService.rememberStudentContext(
+                        fromPhone,
+                        student,
+                        firstOpenCharge
+                );
+
+                return Optional.of(buildStudentFinancialSummaryReply(student));
             }
 
             if (students.size() > 1) {
@@ -113,8 +169,10 @@ public class SecretariaPayWhatsappAcademicSupportService {
         }
 
         Optional<String> bi = extractBi(clean);
+
         if (bi.isPresent()) {
             Optional<Student> byDocument = studentRepository.findByDocumentNumberIgnoreCase(bi.get());
+
             if (byDocument.isPresent()) {
                 return byDocument;
             }
@@ -127,11 +185,13 @@ public class SecretariaPayWhatsappAcademicSupportService {
                 .trim();
 
         Optional<Student> byStudentNumber = studentRepository.findByStudentNumber(withoutPrefix);
+
         if (byStudentNumber.isPresent()) {
             return byStudentNumber;
         }
 
         Optional<Student> byDocument = studentRepository.findByDocumentNumberIgnoreCase(withoutPrefix);
+
         if (byDocument.isPresent()) {
             return byDocument;
         }
@@ -155,17 +215,31 @@ public class SecretariaPayWhatsappAcademicSupportService {
 
         for (String variant : variants) {
             Optional<Student> byWhatsapp = studentRepository.findByWhatsapp(variant);
+
             if (byWhatsapp.isPresent()) {
                 return byWhatsapp;
             }
 
             Optional<Student> byPhone = studentRepository.findByPhone(variant);
+
             if (byPhone.isPresent()) {
                 return byPhone;
             }
         }
 
         return Optional.empty();
+    }
+
+    private Optional<Charge> findFirstOpenCharge(Student student) {
+        if (student == null || student.getId() == null) {
+            return Optional.empty();
+        }
+
+        return chargeRepository.findByStudentIdOrderByDueDateDesc(student.getId())
+                .stream()
+                .filter(this::isOpenCharge)
+                .sorted(Comparator.comparing(Charge::getDueDate))
+                .findFirst();
     }
 
     private String buildStudentFinancialSummaryReply(Student student) {
@@ -255,6 +329,7 @@ public class SecretariaPayWhatsappAcademicSupportService {
 
         if (charge.getStudent() != null) {
             Student student = charge.getStudent();
+
             reply.append("\nEstudante: ").append(student.getFullName());
 
             if (!isBlank(student.getStudentNumber())) {
