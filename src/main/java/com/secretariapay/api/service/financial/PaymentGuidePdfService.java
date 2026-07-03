@@ -55,28 +55,28 @@ public class PaymentGuidePdfService {
     public PaymentGuidePdfService(
             ChargeRepository chargeRepository,
 
-            @Value("${secretariapay.payment.bank-name:Banco da instituição}") String bankName,
-            @Value("${secretariapay.payment.account-holder:Instituto Superior Politécnico Metropolitano de Angola}") String accountHolder,
-            @Value("${secretariapay.payment.iban:A definir pela tesouraria}") String iban,
-            @Value("${secretariapay.payment.account-number:A definir}") String accountNumber,
-            @Value("${secretariapay.payment.multicaixa-reference:Transferência via Multicaixa Express para a conta indicada}") String multicaixaReference,
+            @Value("${secretariapay.payment.bank-name:Banco Angolano de Investimento}") String bankName,
+            @Value("${secretariapay.payment.account-holder:OMNEN INTELENGENDA}") String accountHolder,
+            @Value("${secretariapay.payment.iban:AO06 0040 0000 6014 4677 1017 1}") String iban,
+            @Value("${secretariapay.payment.account-number:060144677 10 001}") String accountNumber,
+            @Value("${secretariapay.payment.multicaixa-reference:Multicaixa Express / transferência bancária para a conta AKZ indicada}") String multicaixaReference,
             @Value("${secretariapay.payment.mobile-money-info:Unitel Money/Afrimoney quando autorizado pela instituição}") String mobileMoneyInfo,
             @Value("${secretariapay.payment.qr-enabled:true}") boolean paymentQrEnabled,
             @Value("${secretariapay.payment.qr-label:QRCode de pagamento}") String paymentQrLabel,
             @Value("${secretariapay.payment.qr-payload-template:}") String paymentQrPayloadTemplate,
-            @Value("${secretariapay.payment.qr-instructions:Ler no aplicativo de pagamento autorizado pela instituição.}") String paymentQrInstructions
+            @Value("${secretariapay.payment.qr-instructions:Ler no aplicativo bancário/Multicaixa autorizado, quando a instituição disponibilizar QR de pagamento.}") String paymentQrInstructions
     ) {
         this.chargeRepository = chargeRepository;
-        this.bankName = bankName;
-        this.accountHolder = accountHolder;
-        this.iban = iban;
-        this.accountNumber = accountNumber;
-        this.multicaixaReference = multicaixaReference;
-        this.mobileMoneyInfo = mobileMoneyInfo;
+        this.bankName = defaultIfBlankOrPlaceholder(bankName, "Banco Angolano de Investimento");
+        this.accountHolder = defaultIfBlankOrPlaceholder(accountHolder, "OMNEN INTELENGENDA");
+        this.iban = defaultIfBlankOrPlaceholder(iban, "AO06 0040 0000 6014 4677 1017 1");
+        this.accountNumber = defaultIfBlankOrPlaceholder(accountNumber, "060144677 10 001");
+        this.multicaixaReference = defaultIfBlankOrPlaceholder(multicaixaReference, "Multicaixa Express / transferência bancária para a conta AKZ indicada");
+        this.mobileMoneyInfo = defaultIfBlankOrPlaceholder(mobileMoneyInfo, "Unitel Money/Afrimoney quando autorizado pela instituição");
         this.paymentQrEnabled = paymentQrEnabled;
-        this.paymentQrLabel = paymentQrLabel;
+        this.paymentQrLabel = defaultIfBlankOrPlaceholder(paymentQrLabel, "QRCode de pagamento");
         this.paymentQrPayloadTemplate = paymentQrPayloadTemplate;
-        this.paymentQrInstructions = paymentQrInstructions;
+        this.paymentQrInstructions = defaultIfBlankOrPlaceholder(paymentQrInstructions, "Ler no aplicativo bancário/Multicaixa autorizado, quando a instituição disponibilizar QR de pagamento.");
     }
 
     @Transactional(readOnly = true)
@@ -168,13 +168,13 @@ public class PaymentGuidePdfService {
             drawPaymentQrBox(document, content, charge, margin + 346, y + 10);
         }
 
-        drawInfoRowWide(content, "Titular", safe(accountHolder), margin, y, 232);
+        drawInfoRowWide(content, "Coordenada", safe(accountHolder), margin, y, 232);
         y -= 20;
         drawInfoRowWide(content, "Banco", safe(bankName), margin, y, 232);
         y -= 20;
         drawInfoRowWide(content, "IBAN", safe(iban), margin, y, 232);
         y -= 20;
-        drawInfoRowWide(content, "Nº conta", safe(accountNumber), margin, y, 232);
+        drawInfoRowWide(content, "Nº Conta AKZ", safe(accountNumber), margin, y, 232);
         y -= 20;
         drawInfoRowWide(content, "Multicaixa", safe(multicaixaReference), margin, y, 232);
         y -= 20;
@@ -400,8 +400,10 @@ public class PaymentGuidePdfService {
         return "SECRETARIAPAY|TYPE=PAYMENT|CHARGE=" + safe(charge.getChargeCode())
                 + "|AMOUNT=" + amountPlain(charge.getTotalAmount())
                 + "|CURRENCY=" + safe(charge.getCurrency())
+                + "|BANK=" + safe(bankName)
+                + "|HOLDER=" + safe(accountHolder)
                 + "|IBAN=" + safe(iban)
-                + "|ACCOUNT=" + safe(accountNumber);
+                + "|ACCOUNT_AKZ=" + safe(accountNumber);
     }
 
     private String amountPlain(BigDecimal value) {
@@ -429,6 +431,38 @@ public class PaymentGuidePdfService {
         }
 
         return formatter.format(value) + " " + safeCurrency.toUpperCase(Locale.ROOT);
+    }
+
+
+    private String defaultIfBlankOrPlaceholder(String value, String fallback) {
+        String clean = value == null ? "" : value.trim();
+
+        if (clean.isBlank()) {
+            return fallback;
+        }
+
+        String normalized = clean
+                .toLowerCase(Locale.ROOT)
+                .replace("ç", "c")
+                .replace("ã", "a")
+                .replace("á", "a")
+                .replace("â", "a")
+                .replace("é", "e")
+                .replace("í", "i")
+                .replace("ó", "o")
+                .replace("ú", "u");
+
+        boolean placeholder = normalized.contains("a definir")
+                || normalized.contains("banco da instituicao")
+                || normalized.contains("banco da instituicao")
+                || normalized.contains("conta indicada")
+                || normalized.contains("tesouraria");
+
+        if (placeholder && !clean.equalsIgnoreCase("Multicaixa Express / transferência bancária para a conta AKZ indicada")) {
+            return fallback;
+        }
+
+        return clean;
     }
 
     private String safe(Object value) {
