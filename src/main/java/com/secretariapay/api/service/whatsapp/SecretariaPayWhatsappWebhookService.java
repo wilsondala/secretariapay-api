@@ -28,6 +28,7 @@ public class SecretariaPayWhatsappWebhookService {
 
     private final SecretariaPayWhatsappBrainService brainService;
     private final SecretariaPayWhatsappAcademicSupportService academicSupportService;
+    private final SecretariaPayWhatsappFullMockFlowService fullMockFlowService;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -52,7 +53,8 @@ public class SecretariaPayWhatsappWebhookService {
             String graphApiBaseUrl,
 
             SecretariaPayWhatsappBrainService brainService,
-            SecretariaPayWhatsappAcademicSupportService academicSupportService
+            SecretariaPayWhatsappAcademicSupportService academicSupportService,
+            SecretariaPayWhatsappFullMockFlowService fullMockFlowService
     ) {
         this.verifyToken = verifyToken;
         this.whatsappEnabled = whatsappEnabled;
@@ -62,6 +64,7 @@ public class SecretariaPayWhatsappWebhookService {
         this.graphApiBaseUrl = graphApiBaseUrl;
         this.brainService = brainService;
         this.academicSupportService = academicSupportService;
+        this.fullMockFlowService = fullMockFlowService;
 
         this.httpClient = HttpClient.newHttpClient();
         this.objectMapper = new ObjectMapper();
@@ -109,18 +112,25 @@ public class SecretariaPayWhatsappWebhookService {
 
         InboundWhatsappMessage message = inboundMessage.get();
 
-        String replyText = academicSupportService.buildDatabaseAwareReply(
-                        message.from(),
-                        message.type(),
-                        message.body(),
-                        message.mediaId(),
-                        message.fileName(),
-                        message.mimeType()
-                )
-                .orElseGet(() -> brainService.buildReply(
-                        message.type(),
-                        message.body()
-                ));
+        Optional<String> fullMockReply = fullMockFlowService.handle(
+                message.from(),
+                message.type(),
+                message.body()
+        );
+
+        String replyText = fullMockReply
+                .orElseGet(() -> academicSupportService.buildDatabaseAwareReply(
+                                message.from(),
+                                message.type(),
+                                message.body(),
+                                message.mediaId(),
+                                message.fileName(),
+                                message.mimeType()
+                        )
+                        .orElseGet(() -> brainService.buildReply(
+                                message.type(),
+                                message.body()
+                        )));
 
         WhatsappSendResult sendResult = sendTextMessage(
                 message.from(),
@@ -135,6 +145,10 @@ public class SecretariaPayWhatsappWebhookService {
         response.put("replyText", replyText);
         response.put("replySent", sendResult.success());
         response.put("providerStatusCode", sendResult.statusCode());
+
+        if (fullMockReply.isPresent()) {
+            response.put("flow", "WHATSAPP_FULL_MOCK_PAYMENT_FLOW");
+        }
 
         if (message.mediaId() != null && !message.mediaId().isBlank()) {
             response.put("mediaId", message.mediaId());
