@@ -28,7 +28,7 @@ public class SecretariaPayWhatsappWebhookService {
 
     private final SecretariaPayWhatsappBrainService brainService;
     private final SecretariaPayWhatsappAcademicSupportService academicSupportService;
-    private final SecretariaPayWhatsappFullMockFlowService fullMockFlowService;
+    private final SecretariaPayWhatsappFinancialConversationService financialConversationService;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -54,7 +54,7 @@ public class SecretariaPayWhatsappWebhookService {
 
             SecretariaPayWhatsappBrainService brainService,
             SecretariaPayWhatsappAcademicSupportService academicSupportService,
-            SecretariaPayWhatsappFullMockFlowService fullMockFlowService
+            SecretariaPayWhatsappFinancialConversationService financialConversationService
     ) {
         this.verifyToken = verifyToken;
         this.whatsappEnabled = whatsappEnabled;
@@ -64,7 +64,7 @@ public class SecretariaPayWhatsappWebhookService {
         this.graphApiBaseUrl = graphApiBaseUrl;
         this.brainService = brainService;
         this.academicSupportService = academicSupportService;
-        this.fullMockFlowService = fullMockFlowService;
+        this.financialConversationService = financialConversationService;
 
         this.httpClient = HttpClient.newHttpClient();
         this.objectMapper = new ObjectMapper();
@@ -112,13 +112,13 @@ public class SecretariaPayWhatsappWebhookService {
 
         InboundWhatsappMessage message = inboundMessage.get();
 
-        Optional<String> fullMockReply = fullMockFlowService.handle(
+        Optional<String> financialReply = financialConversationService.handle(
                 message.from(),
                 message.type(),
                 message.body()
         );
 
-        String replyText = fullMockReply
+        String replyText = financialReply
                 .orElseGet(() -> academicSupportService.buildDatabaseAwareReply(
                                 message.from(),
                                 message.type(),
@@ -146,8 +146,8 @@ public class SecretariaPayWhatsappWebhookService {
         response.put("replySent", sendResult.success());
         response.put("providerStatusCode", sendResult.statusCode());
 
-        if (fullMockReply.isPresent()) {
-            response.put("flow", "WHATSAPP_FULL_MOCK_PAYMENT_FLOW");
+        if (financialReply.isPresent()) {
+            response.put("flow", "SECRETARIAPAY_FINANCIAL_CONVERSATION_ROUTER");
         }
 
         if (message.mediaId() != null && !message.mediaId().isBlank()) {
