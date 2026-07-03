@@ -14,6 +14,7 @@ import com.secretariapay.api.exception.NotFoundException;
 import com.secretariapay.api.repository.financial.ChargeRepository;
 import com.secretariapay.api.repository.financial.PaymentProofRepository;
 import com.secretariapay.api.repository.financial.ReceiptRepository;
+import com.secretariapay.api.repository.whatsapp.SecretariaPayMessageRepository;
 import com.secretariapay.api.service.whatsapp.SecretariaPayMessageDispatchService;
 import com.secretariapay.api.service.whatsapp.SecretariaPayMessageHistoryService;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ public class SecretariaPayMockAutomaticPaymentService {
     private final PaymentProofRepository paymentProofRepository;
     private final ReceiptRepository receiptRepository;
     private final ReceiptService receiptService;
+    private final SecretariaPayMessageRepository messageRepository;
     private final SecretariaPayMessageHistoryService messageHistoryService;
     private final SecretariaPayMessageDispatchService messageDispatchService;
 
@@ -39,6 +41,7 @@ public class SecretariaPayMockAutomaticPaymentService {
             PaymentProofRepository paymentProofRepository,
             ReceiptRepository receiptRepository,
             ReceiptService receiptService,
+            SecretariaPayMessageRepository messageRepository,
             SecretariaPayMessageHistoryService messageHistoryService,
             SecretariaPayMessageDispatchService messageDispatchService
     ) {
@@ -46,30 +49,42 @@ public class SecretariaPayMockAutomaticPaymentService {
         this.paymentProofRepository = paymentProofRepository;
         this.receiptRepository = receiptRepository;
         this.receiptService = receiptService;
+        this.messageRepository = messageRepository;
         this.messageHistoryService = messageHistoryService;
         this.messageDispatchService = messageDispatchService;
     }
 
     @Transactional
     public MockAutomaticPaymentResponse confirmByChargeId(UUID chargeId, String forcedMethod, MockAutomaticPaymentRequest request) {
+        return confirmByChargeId(chargeId, forcedMethod, request, null);
+    }
+
+    @Transactional
+    public MockAutomaticPaymentResponse confirmByChargeId(UUID chargeId, String forcedMethod, MockAutomaticPaymentRequest request, String recipientPhoneOverride) {
         Charge charge = chargeRepository.findById(chargeId)
                 .orElseThrow(() -> new NotFoundException("Cobrança não encontrada."));
 
-        return confirmPayment(charge, forcedMethod, request);
+        return confirmPayment(charge, forcedMethod, request, recipientPhoneOverride);
     }
 
     @Transactional
     public MockAutomaticPaymentResponse confirmByChargeCode(String chargeCode, String forcedMethod, MockAutomaticPaymentRequest request) {
+        return confirmByChargeCode(chargeCode, forcedMethod, request, null);
+    }
+
+    @Transactional
+    public MockAutomaticPaymentResponse confirmByChargeCode(String chargeCode, String forcedMethod, MockAutomaticPaymentRequest request, String recipientPhoneOverride) {
         Charge charge = chargeRepository.findByChargeCode(chargeCode)
                 .orElseThrow(() -> new NotFoundException("Cobrança não encontrada."));
 
-        return confirmPayment(charge, forcedMethod, request);
+        return confirmPayment(charge, forcedMethod, request, recipientPhoneOverride);
     }
 
     private MockAutomaticPaymentResponse confirmPayment(
             Charge charge,
             String forcedMethod,
-            MockAutomaticPaymentRequest request
+            MockAutomaticPaymentRequest request,
+            String recipientPhoneOverride
     ) {
         MockAutomaticPaymentRequest safeRequest = request == null ? new MockAutomaticPaymentRequest() : request;
         LocalDateTime now = LocalDateTime.now();
@@ -103,6 +118,16 @@ public class SecretariaPayMockAutomaticPaymentService {
                 .orElseGet(() -> receiptService.issueForCharge(charge.getId()));
 
         SecretariaPayMessageResponse receiptMessage = messageHistoryService.generateReceiptIssued(receipt.getId());
+
+        String dispatchRecipientPhone = firstNonBlank(recipientPhoneOverride, safeRequest.getPayerPhone());
+
+        if (dispatchRecipientPhone != null && !dispatchRecipientPhone.isBlank()) {
+            messageRepository.findById(receiptMessage.getId())
+                    .ifPresent(message -> messageRepository.save(
+                            message.setRecipientPhone(dispatchRecipientPhone)
+                    ));
+        }
+
         SecretariaPayMessageDispatchResult dispatchResult = messageDispatchService.dispatch(receiptMessage.getId());
 
         return new MockAutomaticPaymentResponse()

@@ -218,7 +218,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 metadata.remove("expectedStep");
                 writeMetadata(session, metadata);
                 sessionRepository.save(session);
-                return Optional.of(generatePaymentGuideForCurrentMonth(session, metadata, student, normalized));
+                return Optional.of(generatePaymentGuideForCurrentMonth(session, metadata, student, normalized, fromPhone));
             }
 
             if ("2".equals(normalized) || containsAny(normalized, "atraso", "atrasada", "atrasadas")) {
@@ -262,7 +262,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 metadata.remove("expectedStep");
                 writeMetadata(session, metadata);
                 sessionRepository.save(session);
-                return Optional.of(generatePaymentGuideForCurrentMonth(session, metadata, student, normalized));
+                return Optional.of(generatePaymentGuideForCurrentMonth(session, metadata, student, normalized, fromPhone));
             }
 
             if ("2".equals(normalized) || containsAny(normalized, "formas", "pagamento")) {
@@ -397,7 +397,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
         }
 
         if (isOption(normalized, "2") || isPaymentGuideIntent(normalized)) {
-            return withStudent(session, metadata, "GENERATE_PAYMENT_GUIDE", message, student -> generatePaymentGuideForCurrentMonth(session, metadata, student, normalized));
+            return withStudent(session, metadata, "GENERATE_PAYMENT_GUIDE", message, student -> generatePaymentGuideForCurrentMonth(session, metadata, student, normalized, fromPhone));
         }
 
         if (isOption(normalized, "3") || isOverdueIntent(normalized)) {
@@ -489,7 +489,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
 
         return switch (pendingAction) {
             case "CONSULT_CURRENT_MONTH" -> consultCurrentMonth(session, metadata, student);
-            case "GENERATE_PAYMENT_GUIDE" -> generatePaymentGuideForCurrentMonth(session, metadata, student, normalized);
+            case "GENERATE_PAYMENT_GUIDE" -> generatePaymentGuideForCurrentMonth(session, metadata, student, normalized, fromPhone);
             case "VIEW_OVERDUE" -> buildOverdueChargesReply(session, metadata, student);
             case "REQUEST_RECEIPT" -> buildReceiptReply(student);
             case "FINANCIAL_SUMMARY" -> buildFinancialSummaryReply(student);
@@ -537,15 +537,17 @@ public class SecretariaPayWhatsappFinancialConversationService {
             WhatsappSession session,
             Map<String, String> metadata,
             Student student,
-            String normalized
+            String normalized,
+            String requesterPhone
     ) {
         String referenceMonth = resolveReferenceMonthFromText(normalized, currentReferenceMonth());
         Charge charge = resolveOrCreateMonthlyCharge(student, referenceMonth, "Atendimento WhatsApp");
-        WhatsAppCloudSendResult sendResult = sendPaymentGuideDocument(student, charge);
+        WhatsAppCloudSendResult sendResult = sendPaymentGuideDocument(student, charge, requesterPhone);
 
         metadata.put("secretariapayFinanceFlow", "true");
         metadata.put("expectedStep", "GUIDE_ACK");
         metadata.put("lastIntent", "PAYMENT_GUIDE_SENT");
+        metadata.put("conversationRecipientPhone", sanitizePhone(firstNonBlank(requesterPhone, student.getWhatsapp(), student.getPhone())));
         metadata.put("guideProviderMessageId", safe(sendResult.getProviderMessageId()));
         rememberStudent(metadata, student);
         rememberCharge(metadata, charge);
@@ -820,7 +822,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 .setPaymentMethod(method)
                 .setAmount(DEFAULT_AMOUNT)
                 .setExternalTransactionId("WPP-ROTEIRO-" + method + "-" + chargeCode + "-" + System.currentTimeMillis())
-                .setPayerPhone(fromPhone)
+                .setPayerPhone(firstNonBlank(metadata.get("conversationRecipientPhone"), fromPhone))
                 .setBankName(resolveMockBankName(method))
                 .setBankReference(chargeCode)
                 .setNote("Pagamento mock confirmado automaticamente no roteiro financeiro via WhatsApp.");
@@ -828,7 +830,8 @@ public class SecretariaPayWhatsappFinancialConversationService {
         MockAutomaticPaymentResponse response = mockAutomaticPaymentService.confirmByChargeCode(
                 chargeCode,
                 method,
-                request
+                request,
+                firstNonBlank(metadata.get("conversationRecipientPhone"), fromPhone)
         );
 
         metadata.put("lastIntent", "PAYMENT_CONFIRMED_AUTOMATICALLY");
@@ -861,8 +864,8 @@ public class SecretariaPayWhatsappFinancialConversationService {
         ).trim();
     }
 
-    private WhatsAppCloudSendResult sendPaymentGuideDocument(Student student, Charge charge) {
-        String recipientPhone = firstNonBlank(student.getWhatsapp(), student.getPhone());
+    private WhatsAppCloudSendResult sendPaymentGuideDocument(Student student, Charge charge, String requesterPhone) {
+        String recipientPhone = firstNonBlank(requesterPhone, student.getWhatsapp(), student.getPhone());
 
         String guideUrl = API_BASE_URL + "/api/v1/public/payment-guides/" + charge.getChargeCode() + "/pdf";
         String fileName = "guia-pagamento-" + charge.getChargeCode() + ".pdf";
