@@ -1,11 +1,12 @@
 package com.secretariapay.api.service.whatsapp;
 
+import com.secretariapay.api.dto.financial.MockAutomaticPaymentRequest;
+import com.secretariapay.api.dto.financial.MockAutomaticPaymentResponse;
 import com.secretariapay.api.entity.academic.Student;
 import com.secretariapay.api.entity.financial.Charge;
-import com.secretariapay.api.entity.whatsapp.SecretariaPayMessage;
 import com.secretariapay.api.repository.academic.StudentRepository;
 import com.secretariapay.api.repository.financial.ChargeRepository;
-import com.secretariapay.api.repository.whatsapp.SecretariaPayMessageRepository;
+import com.secretariapay.api.service.financial.SecretariaPayMockAutomaticPaymentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,7 +14,6 @@ import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -35,19 +35,19 @@ public class SecretariaPayWhatsappAcademicSupportService {
 
     private final StudentRepository studentRepository;
     private final ChargeRepository chargeRepository;
-    private final SecretariaPayMessageRepository messageRepository;
     private final SecretariaPayWhatsappConversationContextService conversationContextService;
+    private final SecretariaPayMockAutomaticPaymentService mockAutomaticPaymentService;
 
     public SecretariaPayWhatsappAcademicSupportService(
             StudentRepository studentRepository,
             ChargeRepository chargeRepository,
-            SecretariaPayMessageRepository messageRepository,
-            SecretariaPayWhatsappConversationContextService conversationContextService
+            SecretariaPayWhatsappConversationContextService conversationContextService,
+            SecretariaPayMockAutomaticPaymentService mockAutomaticPaymentService
     ) {
         this.studentRepository = studentRepository;
         this.chargeRepository = chargeRepository;
-        this.messageRepository = messageRepository;
         this.conversationContextService = conversationContextService;
+        this.mockAutomaticPaymentService = mockAutomaticPaymentService;
     }
 
     @Transactional
@@ -92,19 +92,19 @@ public class SecretariaPayWhatsappAcademicSupportService {
             return contextualReply;
         }
 
-        if ("text".equals(type) && isPaymentGuideAcknowledgement(normalized)) {
-            Optional<String> acknowledgementReply = buildPaymentGuideAcknowledgementReply(fromPhone);
-
-            if (acknowledgementReply.isPresent()) {
-                return acknowledgementReply;
-            }
-        }
-
         if ("image".equals(type) || "document".equals(type)) {
             return Optional.empty();
         }
 
         Optional<String> chargeCode = extractChargeCode(message);
+
+        if (chargeCode.isPresent() && isMockAutomaticPaymentIntent(normalized)) {
+            return Optional.of(confirmMockAutomaticPaymentFromWhatsapp(
+                    fromPhone,
+                    normalized,
+                    chargeCode.get().toUpperCase(Locale.ROOT)
+            ));
+        }
 
         if (chargeCode.isPresent()) {
             return chargeRepository.findByChargeCode(chargeCode.get().toUpperCase(Locale.ROOT))
@@ -197,84 +197,101 @@ public class SecretariaPayWhatsappAcademicSupportService {
         return Optional.empty();
     }
 
-    private Optional<String> buildPaymentGuideAcknowledgementReply(String fromPhone) {
-        Optional<SecretariaPayMessage> latestGuide = messageRepository
-                .findFirstByRecipientPhoneInAndTypeOrderByCreatedAtDesc(
-                        phoneVariants(fromPhone),
-                        "PAYMENT_GUIDE"
-                );
+    private String confirmMockAutomaticPaymentFromWhatsapp(
+            String fromPhone,
+            String normalized,
+            String chargeCode
+    ) {
+        String method = resolveMockPaymentMethod(normalized);
 
-        if (latestGuide.isEmpty()) {
-            return Optional.of("""
-                    Perfeito, obrigado pela confirmação.
+        MockAutomaticPaymentRequest request = new MockAutomaticPaymentRequest()
+                .setPaymentMethod(method)
+                .setExternalTransactionId("WPP-MOCK-" + method + "-" + chargeCode + "-" + System.currentTimeMillis())
+                .setPayerPhone(fromPhone)
+                .setBankReference(chargeCode)
+                .setBankName(resolveMockBankName(method))
+                .setNote("Pagamento automático mock acionado por mensagem real recebida no WhatsApp.");
 
-                    Para associar esta confirmação à cobrança correta, envie também o código da guia ou o seu número de estudante.
-                    """.trim());
-        }
-
-        SecretariaPayMessage guideMessage = latestGuide.get();
-        String chargeCode = guideMessage.getChargeCode();
-
-        Optional<Charge> chargeOptional = isBlank(chargeCode)
-                ? Optional.empty()
-                : chargeRepository.findByChargeCode(chargeCode);
-
-        chargeOptional.ifPresent(charge -> conversationContextService.rememberChargeContext(
-                fromPhone,
-                charge,
-                "PAYMENT_GUIDE_ACKNOWLEDGED"
-        ));
+        MockAutomaticPaymentResponse response = mockAutomaticPaymentService.confirmByChargeCode(
+                chargeCode,
+                method,
+                request
+        );
 
         StringBuilder reply = new StringBuilder();
 
-        reply.append("Perfeito. Confirmamos o recebimento da guia de pagamento.");
+        reply.append("Pagamento automático mock confirmado.\n\n");
+        reply.append("Cobrança: ").append(response.getChargeCode()).append("\n");
+        reply.append("Método: ").append(response.getPaymentMethod()).append("\n");
+        reply.append("Estado da cobrança: ").append(response.getChargeStatus()).append("\n");
 
-        if (!isBlank(chargeCode)) {
-            reply.append("\n\nCobrança: ").append(chargeCode);
+        if (response.getReceiptCode() != null && !response.getReceiptCode().isBlank()) {
+            reply.append("Recibo: ").append(response.getReceiptCode()).append("\n");
         }
 
-        chargeOptional.ifPresent(charge -> {
-            reply.append("\nValor: ").append(formatMoney(charge.getTotalAmount(), charge.getCurrency()));
+        reply.append("\nO recibo digital em PDF foi emitido e enviado automaticamente aqui no WhatsApp.");
+        reply.append("\n\nSecretáriaPay Académico");
 
-            if (charge.getDueDate() != null) {
-                reply.append("\nVencimento: ").append(formatDate(charge.getDueDate()));
-            }
-        });
-
-        reply.append("""
-
-
-Agora aguardamos o pagamento.
-
-Após pagar, envie o comprovativo por aqui em imagem ou PDF para a tesouraria validar.
-
-O recibo digital será emitido apenas após a confirmação do pagamento.
-                """);
-
-        return Optional.of(reply.toString().trim());
+        return reply.toString().trim();
     }
 
-    private boolean isPaymentGuideAcknowledgement(String normalized) {
-        if (isBlank(normalized)) {
-            return false;
+    private String resolveMockPaymentMethod(String normalized) {
+        if (containsAny(normalized, List.of("outro banco", "banco diferente", "iban outro"))) {
+            return "IBAN_OUTRO_BANCO";
         }
 
-        if (containsAny(normalized, List.of(
-                "recebi",
-                "recebido",
-                "ja recebi",
-                "guia recebida",
-                "pdf recebido",
-                "documento recebido",
-                "confirmo recebimento",
-                "confirmo que recebi",
-                "acusei recebimento"
-        ))) {
-            return true;
+        if (containsAny(normalized, List.of("iban", "transferencia", "transferência", "mesmo banco"))) {
+            return "IBAN_MESMO_BANCO";
         }
 
-        return containsAny(normalized, List.of("ok", "certo", "confirmado"))
-                && containsAny(normalized, List.of("guia", "pdf", "documento", "pagamento"));
+        if (containsAny(normalized, List.of("deposito", "depósito"))) {
+            return "DEPOSITO_BANCARIO";
+        }
+
+        if (containsAny(normalized, List.of("unitel", "unitel money"))) {
+            return "UNITEL_MONEY";
+        }
+
+        if (containsAny(normalized, List.of("afrimoney", "afri money"))) {
+            return "AFRIMONEY";
+        }
+
+        return "MULTICAIXA_EXPRESS";
+    }
+
+    private String resolveMockBankName(String method) {
+        return switch (method) {
+            case "IBAN_OUTRO_BANCO" -> "Banco de origem diferente - Mock";
+            case "IBAN_MESMO_BANCO", "MULTICAIXA_EXPRESS", "DEPOSITO_BANCARIO" -> "Banco Angolano de Investimento - Mock";
+            case "UNITEL_MONEY" -> "Unitel Money - Mock";
+            case "AFRIMONEY" -> "Afrimoney - Mock";
+            default -> "Integração bancária mock";
+        };
+    }
+
+    private boolean isMockAutomaticPaymentIntent(String normalized) {
+        boolean hasTestWord = containsAny(normalized, List.of(
+                "mock",
+                "teste",
+                "simular",
+                "simulado",
+                "automatico",
+                "automático"
+        ));
+
+        boolean hasPaymentWord = containsAny(normalized, List.of(
+                "pagamento",
+                "paguei",
+                "pago",
+                "multicaixa",
+                "iban",
+                "deposito",
+                "depósito",
+                "unitel",
+                "afrimoney"
+        ));
+
+        return hasTestWord && hasPaymentWord;
     }
 
     private Optional<Student> findStudentByMessageIdentifier(String message) {
@@ -551,31 +568,6 @@ O recibo digital será emitido apenas após a confirmação do pagamento.
         }
 
         return Optional.empty();
-    }
-
-    private List<String> phoneVariants(String fromPhone) {
-        String sanitized = sanitizePhone(fromPhone);
-        List<String> variants = new ArrayList<>();
-
-        if (sanitized.isBlank()) {
-            return variants;
-        }
-
-        variants.add(sanitized);
-        variants.add("+" + sanitized);
-
-        if (sanitized.startsWith("244") && sanitized.length() > 3) {
-            variants.add("0" + sanitized.substring(3));
-        }
-
-        if (sanitized.startsWith("55") && sanitized.length() > 2) {
-            variants.add("0" + sanitized.substring(2));
-        }
-
-        return variants.stream()
-                .filter(value -> value != null && !value.isBlank())
-                .distinct()
-                .toList();
     }
 
     private String formatMoney(BigDecimal value, String currency) {
