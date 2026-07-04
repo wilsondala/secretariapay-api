@@ -125,6 +125,9 @@ public class SecretariaPayMessageHistoryService {
     }
 
     private SecretariaPayMessageResponse save(SecretariaPayMessagePreviewResponse preview) {
+        String recipientPhone = WhatsappRecipientOverrideContext.current()
+                .orElse(preview.getStudentWhatsapp());
+
         SecretariaPayMessage message = new SecretariaPayMessage()
                 .setInstitutionId(preview.getInstitutionId())
                 .setInstitutionName(preview.getInstitutionName())
@@ -139,7 +142,7 @@ public class SecretariaPayMessageHistoryService {
                 .setType(preview.getType())
                 .setChannel(preview.getChannel())
                 .setLanguage(preview.getLanguage())
-                .setRecipientPhone(preview.getStudentWhatsapp())
+                .setRecipientPhone(recipientPhone)
                 .setMessage(preview.getMessage())
                 .setStatus(SecretariaPayMessageStatus.GENERATED);
 

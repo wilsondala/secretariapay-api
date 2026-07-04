@@ -112,30 +112,40 @@ public class SecretariaPayWhatsappWebhookService {
 
         InboundWhatsappMessage message = inboundMessage.get();
 
-        Optional<String> financialReply = financialConversationService.handle(
-                message.from(),
-                message.type(),
-                message.body()
-        );
+        Optional<String> financialReply;
+        String replyText;
+        WhatsappSendResult sendResult;
 
-        String replyText = financialReply
-                .orElseGet(() -> academicSupportService.buildDatabaseAwareReply(
-                                message.from(),
-                                message.type(),
-                                message.body(),
-                                message.mediaId(),
-                                message.fileName(),
-                                message.mimeType()
-                        )
-                        .orElseGet(() -> brainService.buildReply(
-                                message.type(),
-                                message.body()
-                        )));
+        WhatsappRecipientOverrideContext.set(message.from());
 
-        WhatsappSendResult sendResult = sendTextMessage(
-                message.from(),
-                replyText
-        );
+        try {
+            financialReply = financialConversationService.handle(
+                    message.from(),
+                    message.type(),
+                    message.body()
+            );
+
+            replyText = financialReply
+                    .orElseGet(() -> academicSupportService.buildDatabaseAwareReply(
+                                    message.from(),
+                                    message.type(),
+                                    message.body(),
+                                    message.mediaId(),
+                                    message.fileName(),
+                                    message.mimeType()
+                            )
+                            .orElseGet(() -> brainService.buildReply(
+                                    message.type(),
+                                    message.body()
+                            )));
+
+            sendResult = sendTextMessage(
+                    message.from(),
+                    replyText
+            );
+        } finally {
+            WhatsappRecipientOverrideContext.clear();
+        }
 
         response.put("processed", true);
         response.put("status", sendResult.success() ? "AUTO_REPLY_SENT" : "AUTO_REPLY_FAILED");
@@ -366,19 +376,19 @@ public class SecretariaPayWhatsappWebhookService {
                     .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(
+            HttpResponse<String> httpResponse = httpClient.send(
                     request,
                     HttpResponse.BodyHandlers.ofString()
             );
 
-            boolean success = response.statusCode() >= 200 && response.statusCode() < 300;
-            String providerMessageId = extractProviderMessageId(response.body());
+            boolean success = httpResponse.statusCode() >= 200 && httpResponse.statusCode() < 300;
+            String providerMessageId = extractProviderMessageId(httpResponse.body());
 
             return new WhatsappSendResult(
                     success,
-                    response.statusCode(),
+                    httpResponse.statusCode(),
                     providerMessageId,
-                    success ? null : response.body()
+                    success ? null : httpResponse.body()
             );
         } catch (Exception exception) {
             return new WhatsappSendResult(
