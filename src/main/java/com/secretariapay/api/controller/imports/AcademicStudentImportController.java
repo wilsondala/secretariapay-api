@@ -1,5 +1,6 @@
 package com.secretariapay.api.controller.imports;
 
+import com.secretariapay.api.dto.imports.AcademicStudentImportSyncResponse;
 import com.secretariapay.api.dto.imports.AcademicStudentImportValidationResponse;
 import com.secretariapay.api.entity.imports.AcademicStudentImportBatch;
 import com.secretariapay.api.entity.imports.AcademicStudentImportRow;
@@ -69,5 +70,11 @@ public class AcademicStudentImportController {
     @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'DIRECAO', 'ROLE_DIRECAO', 'SECRETARIA', 'ROLE_SECRETARIA', 'TIC', 'ROLE_TIC')")
     public AcademicStudentImportValidationResponse completeBatch(@PathVariable UUID id) {
         return service.completeBatch(id);
+    }
+
+    @PatchMapping("/{id}/sync")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'DIRECAO', 'ROLE_DIRECAO', 'SECRETARIA', 'ROLE_SECRETARIA', 'TIC', 'ROLE_TIC')")
+    public AcademicStudentImportSyncResponse syncBatch(@PathVariable UUID id) {
+        return service.syncBatch(id);
     }
 }

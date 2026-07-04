@@ -5,5 +5,6 @@ public enum AcademicStudentImportRowStatus {
     VALID,
     INVALID,
     IMPORTED,
+    SYNCED,
     DUPLICATE
 }
