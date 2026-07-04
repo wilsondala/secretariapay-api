@@ -1,0 +1,9 @@
+package com.secretariapay.api.controller.core;
+import com.secretariapay.api.service.core.CoreFinanceOperationsService;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import java.util.*;
+
+@RestController @RequestMapping("/api/v1/support-tickets")
+public class SupportTicketController { private final CoreFinanceOperationsService service; public SupportTicketController(CoreFinanceOperationsService service){this.service=service;} @PostMapping @ResponseStatus(HttpStatus.CREATED) @PreAuthorize("hasAnyAuthority('ADMIN','ROLE_ADMIN','FINANCEIRO','ROLE_FINANCEIRO','TESOURARIA','ROLE_TESOURARIA','SECRETARIA','ROLE_SECRETARIA')") public Map<String,Object> create(@RequestBody Map<String,Object> r){return service.createTicket(r);} @GetMapping @PreAuthorize("hasAnyAuthority('ADMIN','ROLE_ADMIN','DIRECAO','ROLE_DIRECAO','FINANCEIRO','ROLE_FINANCEIRO','TESOURARIA','ROLE_TESOURARIA','SECRETARIA','ROLE_SECRETARIA')") public List<Map<String,Object>> all(){return service.tickets();} @PatchMapping("/{id}/assign") @PreAuthorize("hasAnyAuthority('ADMIN','ROLE_ADMIN','SECRETARIA','ROLE_SECRETARIA')") public Map<String,Object> assign(@PathVariable UUID id,@RequestBody Map<String,Object> r){return service.updateTicket(id,"IN_PROGRESS",r);} @PatchMapping("/{id}/close") @PreAuthorize("hasAnyAuthority('ADMIN','ROLE_ADMIN','SECRETARIA','ROLE_SECRETARIA')") public Map<String,Object> close(@PathVariable UUID id,@RequestBody(required=false) Map<String,Object> r){return service.updateTicket(id,"CLOSED",r==null?Map.of():r);} @PostMapping("/{id}/messages") @ResponseStatus(HttpStatus.CREATED) @PreAuthorize("hasAnyAuthority('ADMIN','ROLE_ADMIN','SECRETARIA','ROLE_SECRETARIA','FINANCEIRO','ROLE_FINANCEIRO')") public Map<String,Object> message(@PathVariable UUID id,@RequestBody Map<String,Object> r){return service.addMessage(id,r);} }
