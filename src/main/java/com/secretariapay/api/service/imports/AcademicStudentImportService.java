@@ -162,6 +162,8 @@ public class AcademicStudentImportService {
                         .setValidationMessage("Linha marcada como importada para staging WebSchool. Sincronização com cadastro final será feita na próxima fase.");
                 rowRepository.save(row);
                 imported++;
+            } else if (row.getStatus() == AcademicStudentImportRowStatus.IMPORTED) {
+                imported++;
             }
         }
 
@@ -179,7 +181,7 @@ public class AcademicStudentImportService {
                 .setInvalidRows(batch.getInvalidRows())
                 .setDuplicateRows(0)
                 .setStatus(batch.getStatus().name())
-                .setMessage("Lote concluído. Linhas válidas foram marcadas como IMPORTED no staging.");
+                .setMessage("Lote concluído. Linhas válidas/importadas foram contabilizadas como IMPORTED no staging.");
     }
 
     private void refreshBatchCounters(UUID batchId) {
