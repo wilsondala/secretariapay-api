@@ -10,8 +10,11 @@ import com.secretariapay.api.entity.academic.Course;
 import com.secretariapay.api.entity.academic.Institution;
 import com.secretariapay.api.entity.academic.Student;
 import com.secretariapay.api.entity.enums.financial.ChargeStatus;
+import com.secretariapay.api.entity.enums.whatsapp.SecretariaPayMessageStatus;
 import com.secretariapay.api.entity.financial.Charge;
+import com.secretariapay.api.entity.whatsapp.SecretariaPayMessage;
 import com.secretariapay.api.repository.financial.ChargeRepository;
+import com.secretariapay.api.repository.whatsapp.SecretariaPayMessageRepository;
 import com.secretariapay.api.service.notification.NotificationDispatchResult;
 import com.secretariapay.api.service.notification.SecretariaPayEmailNotificationService;
 import com.secretariapay.api.service.notification.SecretariaPaySmsNotificationService;
@@ -32,6 +35,7 @@ public class TuitionChargeGuideDeliveryService {
     private static final String API_BASE_URL = "https://secretariapay-api.paixaoangola.com";
 
     private final ChargeRepository chargeRepository;
+    private final SecretariaPayMessageRepository messageRepository;
     private final SecretariaPayPaymentGuideMessageService paymentGuideMessageService;
     private final SecretariaPayMessageDispatchService messageDispatchService;
     private final SecretariaPayEmailNotificationService emailNotificationService;
@@ -39,12 +43,14 @@ public class TuitionChargeGuideDeliveryService {
 
     public TuitionChargeGuideDeliveryService(
             ChargeRepository chargeRepository,
+            SecretariaPayMessageRepository messageRepository,
             SecretariaPayPaymentGuideMessageService paymentGuideMessageService,
             SecretariaPayMessageDispatchService messageDispatchService,
             SecretariaPayEmailNotificationService emailNotificationService,
             SecretariaPaySmsNotificationService smsNotificationService
     ) {
         this.chargeRepository = chargeRepository;
+        this.messageRepository = messageRepository;
         this.paymentGuideMessageService = paymentGuideMessageService;
         this.messageDispatchService = messageDispatchService;
         this.emailNotificationService = emailNotificationService;
@@ -54,6 +60,8 @@ public class TuitionChargeGuideDeliveryService {
     @Transactional
     public TuitionChargeGuideDeliveryResponse sendGuides(TuitionChargeGuideDeliveryRequest request) {
         List<Charge> selectedCharges = selectCharges(request);
+        boolean forceResend = Boolean.TRUE.equals(request.getForceResend());
+
         TuitionChargeGuideDeliveryResponse response = new TuitionChargeGuideDeliveryResponse()
                 .setInstitutionId(request.getInstitutionId())
                 .setReferenceMonth(clean(request.getReferenceMonth()))
@@ -70,6 +78,7 @@ public class TuitionChargeGuideDeliveryService {
         int failedSms = 0;
         int skippedNoContact = 0;
         int skippedNotPending = 0;
+        int skippedAlreadySent = 0;
 
         for (Charge charge : selectedCharges) {
             TuitionChargeGuideDeliveryItem item = baseItem(charge);
@@ -82,6 +91,14 @@ public class TuitionChargeGuideDeliveryService {
                 continue;
             }
 
+            if (!forceResend && hasAlreadySentPaymentGuide(charge)) {
+                skippedAlreadySent++;
+                item.setFinalStatus("ALREADY_SENT")
+                        .setWhatsappStatus("ALREADY_SENT")
+                        .setAction("Guia já enviada anteriormente. Use forceResend=true apenas para reenvio manual autorizado pela DCR.");
+                continue;
+            }
+
             processed++;
             Student student = charge.getStudent();
             boolean hasWhatsapp = student != null && !isBlank(student.getWhatsapp());
@@ -91,7 +108,7 @@ public class TuitionChargeGuideDeliveryService {
 
             if (Boolean.TRUE.equals(request.getSendWhatsapp()) && hasWhatsapp) {
                 try {
-                    SecretariaPayMessageResponse message = paymentGuideMessageService.generatePaymentGuideMessage(charge.getId());
+                    SecretariaPayMessageResponse message = paymentGuideMessageService.generatePaymentGuideMessage(charge.getId(), forceResend);
                     SecretariaPayMessageDispatchResult dispatchResult = messageDispatchService.dispatch(message.getId());
                     item.setWhatsappMessageId(dispatchResult.getMessageId())
                             .setWhatsappStatus(dispatchResult.getStatus())
@@ -161,8 +178,9 @@ public class TuitionChargeGuideDeliveryService {
                 .setFailedSms(failedSms)
                 .setSkippedNoContact(skippedNoContact)
                 .setSkippedNotPending(skippedNotPending)
+                .setSkippedAlreadySent(skippedAlreadySent)
                 .setStatus("COMPLETED")
-                .setMessage("Envio multicanal de guias concluído. WhatsApp usa PDF; e-mail e SMS registram link público da guia.");
+                .setMessage("Envio multicanal de guias concluído. Por padrão, guias já enviadas não são reenviadas; use forceResend=true para reenvio manual autorizado.");
     }
 
     private List<Charge> selectCharges(TuitionChargeGuideDeliveryRequest request) {
@@ -182,6 +200,28 @@ public class TuitionChargeGuideDeliveryService {
                 .filter(charge -> isBlank(request.getStatus()) || safeStatus(charge).equalsIgnoreCase(request.getStatus().trim()))
                 .limit(limit)
                 .toList();
+    }
+
+    private boolean hasAlreadySentPaymentGuide(Charge charge) {
+        if (charge == null || charge.getId() == null) {
+            return false;
+        }
+
+        return messageRepository.findByChargeIdOrderByCreatedAtDesc(charge.getId())
+                .stream()
+                .anyMatch(message -> isPaymentGuideMessage(message)
+                        && message.getStatus() == SecretariaPayMessageStatus.SENT);
+    }
+
+    private boolean isPaymentGuideMessage(SecretariaPayMessage message) {
+        if (message == null || message.getType() == null) {
+            return false;
+        }
+
+        String type = message.getType().trim().toUpperCase();
+        return type.equals("PAYMENT_GUIDE")
+                || type.equals("PAYMENT_GUIDE_EMAIL")
+                || type.equals("PAYMENT_GUIDE_SMS");
     }
 
     private TuitionChargeGuideDeliveryItem baseItem(Charge charge) {

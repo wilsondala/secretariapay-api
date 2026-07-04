@@ -20,6 +20,7 @@ public class TuitionChargeGuideDeliveryResponse {
     private int failedSms;
     private int skippedNoContact;
     private int skippedNotPending;
+    private int skippedAlreadySent;
     private int skippedByFilter;
     private String status;
     private String message;
@@ -52,6 +53,8 @@ public class TuitionChargeGuideDeliveryResponse {
     public TuitionChargeGuideDeliveryResponse setSkippedNoContact(int skippedNoContact) { this.skippedNoContact = skippedNoContact; return this; }
     public int getSkippedNotPending() { return skippedNotPending; }
     public TuitionChargeGuideDeliveryResponse setSkippedNotPending(int skippedNotPending) { this.skippedNotPending = skippedNotPending; return this; }
+    public int getSkippedAlreadySent() { return skippedAlreadySent; }
+    public TuitionChargeGuideDeliveryResponse setSkippedAlreadySent(int skippedAlreadySent) { this.skippedAlreadySent = skippedAlreadySent; return this; }
     public int getSkippedByFilter() { return skippedByFilter; }
     public TuitionChargeGuideDeliveryResponse setSkippedByFilter(int skippedByFilter) { this.skippedByFilter = skippedByFilter; return this; }
     public String getStatus() { return status; }

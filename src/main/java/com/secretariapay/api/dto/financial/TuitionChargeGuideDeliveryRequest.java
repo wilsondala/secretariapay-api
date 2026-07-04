@@ -26,6 +26,8 @@ public class TuitionChargeGuideDeliveryRequest {
 
     private Boolean sendSms = true;
 
+    private Boolean forceResend = false;
+
     private Integer maxItems = 50;
 
     public UUID getInstitutionId() {
@@ -106,6 +108,15 @@ public class TuitionChargeGuideDeliveryRequest {
 
     public TuitionChargeGuideDeliveryRequest setSendSms(Boolean sendSms) {
         this.sendSms = sendSms;
+        return this;
+    }
+
+    public Boolean getForceResend() {
+        return forceResend;
+    }
+
+    public TuitionChargeGuideDeliveryRequest setForceResend(Boolean forceResend) {
+        this.forceResend = forceResend;
         return this;
     }
 

@@ -19,6 +19,7 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -40,6 +41,18 @@ public class SecretariaPayPaymentGuideMessageService {
 
     @Transactional
     public SecretariaPayMessageResponse generatePaymentGuideMessage(UUID chargeId) {
+        return generatePaymentGuideMessage(chargeId, false);
+    }
+
+    @Transactional
+    public SecretariaPayMessageResponse generatePaymentGuideMessage(UUID chargeId, boolean forceResend) {
+        if (!forceResend) {
+            Optional<SecretariaPayMessage> alreadySent = findAlreadySentPaymentGuide(chargeId);
+            if (alreadySent.isPresent()) {
+                return toResponse(alreadySent.get());
+            }
+        }
+
         Charge charge = chargeRepository.findById(chargeId)
                 .orElseThrow(() -> new NotFoundException("Cobrança não encontrada."));
 
@@ -92,6 +105,18 @@ public class SecretariaPayPaymentGuideMessageService {
                 .setStatus(SecretariaPayMessageStatus.GENERATED);
 
         return toResponse(messageRepository.save(message));
+    }
+
+    private Optional<SecretariaPayMessage> findAlreadySentPaymentGuide(UUID chargeId) {
+        if (chargeId == null) {
+            return Optional.empty();
+        }
+
+        return messageRepository.findByChargeIdOrderByCreatedAtDesc(chargeId)
+                .stream()
+                .filter(message -> message.getStatus() == SecretariaPayMessageStatus.SENT)
+                .filter(message -> "PAYMENT_GUIDE".equalsIgnoreCase(message.getType()))
+                .findFirst();
     }
 
     private String paymentGuideUrl(Charge charge) {
