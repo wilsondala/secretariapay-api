@@ -1,5 +1,9 @@
-package secretariapay.api.entity.enums.restriction;
+package com.secretariapay.api.entity.enums.restriction;
 
 public enum AcademicRestrictionSource {
-    MANUAL, FINANCIAL_RULE, CAMPAIGN, INTEGRATION, MOCK_TEST
+    MANUAL,
+    FINANCIAL_RULE,
+    CAMPAIGN,
+    INTEGRATION,
+    MOCK_TEST
 }

@@ -1,5 +1,7 @@
-package secretariapay.api.entity.enums.restriction;
+package com.secretariapay.api.entity.enums.restriction;
 
 public enum AcademicRestrictionStatus {
-    ACTIVE, RELEASED, CANCELLED
+    ACTIVE,
+    RELEASED,
+    CANCELLED
 }

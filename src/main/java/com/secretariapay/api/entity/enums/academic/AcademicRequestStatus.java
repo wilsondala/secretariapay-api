@@ -1,5 +1,10 @@
-package secretariapay.api.entity.enums.academic;
+package com.secretariapay.api.entity.enums.academic;
 
 public enum AcademicRequestStatus {
-    REQUESTED, IN_REVIEW, APPROVED, REJECTED, COMPLETED, CANCELLED
+    REQUESTED,
+    IN_REVIEW,
+    APPROVED,
+    REJECTED,
+    COMPLETED,
+    CANCELLED
 }

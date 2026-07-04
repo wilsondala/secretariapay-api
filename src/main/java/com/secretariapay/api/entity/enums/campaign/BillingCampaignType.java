@@ -1,5 +1,14 @@
-package secretariapay.api.entity.enums.campaign;
+package com.secretariapay.api.entity.enums.campaign;
 
 public enum BillingCampaignType {
-    BEFORE_DUE, DUE_TODAY, OVERDUE_LIGHT, OVERDUE_MEDIUM, RISK_BLOCK, BLOCK_APPLIED, REGULARIZATION, ENROLLMENT_REMINDER, EXAM_REGISTRATION, CUSTOM
+    BEFORE_DUE,
+    DUE_TODAY,
+    OVERDUE_LIGHT,
+    OVERDUE_MEDIUM,
+    RISK_BLOCK,
+    BLOCK_APPLIED,
+    REGULARIZATION,
+    ENROLLMENT_REMINDER,
+    EXAM_REGISTRATION,
+    CUSTOM
 }
