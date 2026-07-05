@@ -14,9 +14,15 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
 
     Optional<Student> findByDocumentNumberIgnoreCase(String documentNumber);
 
+    Optional<Student> findByEmailIgnoreCase(String email);
+
+    Optional<Student> findByGuardianEmailIgnoreCase(String guardianEmail);
+
     Optional<Student> findByWhatsapp(String whatsapp);
 
     Optional<Student> findByPhone(String phone);
+
+    Optional<Student> findByGuardianPhone(String guardianPhone);
 
     boolean existsByStudentNumber(String studentNumber);
 

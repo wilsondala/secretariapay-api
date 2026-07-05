@@ -10,11 +10,19 @@ import java.util.regex.Pattern;
 @Service
 public class SecretariaPayWhatsappBrainService {
 
+    private static final String IMETRO_NAME = "Instituto Superior Politécnico Metropolitano de Angola (IMETRO)";
+
     private static final Pattern ANGOLA_BI_PATTERN =
             Pattern.compile(".*\\b\\d{8,9}[a-zA-Z]{2}\\d{3}\\b.*");
 
     private static final Pattern CHARGE_CODE_PATTERN =
-            Pattern.compile(".*\\bCHG\\d{6,}\\b.*", Pattern.CASE_INSENSITIVE);
+            Pattern.compile(".*\\b(?:CHG\\d{6,}|IMT-[A-Z0-9_\\-]+)\\b.*", Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern EMAIL_PATTERN =
+            Pattern.compile(".*\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b.*", Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern PHONE_PATTERN =
+            Pattern.compile(".*(?:\\+?244|\\+?55)?[0-9][0-9\\s().-]{7,}.*");
 
     public String buildReply(String messageType, String rawMessage) {
         String type = safe(messageType).toLowerCase();
@@ -31,48 +39,42 @@ public class SecretariaPayWhatsappBrainService {
 
         if (isThanks(normalized)) {
             return """
-                    De nada. Estou aqui para ajudar.
+                    De nada. Estou aqui para ajudar no atendimento académico-financeiro do IMETRO.
 
-                    Quando precisar, pode escolher uma opção:
-                    1. Consultar propina
+                    Pode escolher uma opção:
+                    1. Consultar propina ou dívida
                     2. Enviar comprovativo
                     3. Ver recibos
-                    4. Falar com a secretaria
+                    4. Falar com a DCR/Secretaria
                     """.trim();
         }
 
-        if (looksLikeBiOrStudentNumber(message)) {
+        if (looksLikeRegisteredIdentifier(message)) {
             return """
-                    Recebi os seus dados.
+                    Recebi os dados informados.
 
-                    Vou encaminhar a consulta da sua situação financeira. Para uma validação mais segura, envie também o seu nome completo.
+                    Por segurança, o SecretáriaPay só envia guias, situação financeira e recibos para os contactos cadastrados oficialmente no IMETRO.
 
-                    Se deseja continuar pelo menu, responda:
-                    1. Consultar propina
-                    2. Enviar comprovativo
-                    3. Ver recibos
-                    4. Falar com a secretaria
-                    """.trim();
-        }
+                    Dados aceites para localização:
+                    • Número de estudante/carteira
+                    • E-mail cadastrado
+                    • Telefone cadastrado
+                    • Código da cobrança
 
-        if (looksLikeChargeCode(message)) {
-            return """
-                    Recebi o código da cobrança.
-
-                    A secretaria financeira poderá validar este código e confirmar a situação do pagamento. Caso já tenha pago, envie o comprovativo por aqui em imagem ou PDF.
+                    Se o cadastro existir, a informação será enviada apenas para o WhatsApp, telefone/SMS ou e-mail registado na universidade.
                     """.trim();
         }
 
         if (isPropinaIntent(normalized)) {
             return """
-                    Claro. Para consultar a sua propina, envie por favor um destes dados:
+                    Claro. Para consultar propina, dívida ou guia de pagamento, envie um destes dados cadastrados no IMETRO:
 
-                    • Número de estudante
-                    • BI
-                    • Nome completo
+                    • Número de estudante/carteira
+                    • E-mail cadastrado
+                    • Telefone cadastrado
+                    • Código da cobrança
 
-                    Exemplo:
-                    BI 000000000LA000
+                    Regra de segurança: mesmo que a solicitação venha de outro telefone, a informação será enviada apenas para os contactos oficiais cadastrados na universidade.
                     """.trim();
         }
 
@@ -80,102 +82,99 @@ public class SecretariaPayWhatsappBrainService {
             return """
                     Pode enviar o comprovativo por aqui em imagem ou PDF.
 
-                    Depois do envio, a tesouraria fará a validação. Assim que aprovado, o sistema enviará o recibo digital e atualizará a sua situação académica.
+                    A DCR — Divisão de Cobranças e Recebimentos fará a validação manual. O recibo institucional só será emitido após confirmação da DCR.
+
+                    Para facilitar a identificação, envie também o número de estudante/carteira ou o código da cobrança.
                     """.trim();
         }
 
         if (isReceiptIntent(normalized)) {
             return """
-                    Para localizar o seu recibo, envie um destes dados:
+                    Para localizar recibos, envie um destes dados:
 
-                    • Número de estudante
-                    • BI
+                    • Número de estudante/carteira
+                    • E-mail cadastrado
+                    • Telefone cadastrado
                     • Código da cobrança
 
-                    Exemplo:
-                    CHG1783012061065
+                    Por segurança, o recibo será enviado apenas para os contactos cadastrados oficialmente no IMETRO.
                     """.trim();
         }
 
         if (isHumanIntent(normalized)) {
             return """
-                    Entendido. Vou encaminhar o seu pedido para a secretaria.
+                    Entendido. Vou orientar o atendimento com a DCR/Secretaria do IMETRO.
 
-                    Para agilizar o atendimento, envie por favor:
+                    Envie por favor:
+                    • Número de estudante/carteira
                     • Nome completo
-                    • Número de estudante ou BI
                     • Motivo do contacto
+
+                    Não envie dados sensíveis de terceiros. O sistema valida as informações com o cadastro oficial da universidade.
                     """.trim();
         }
 
         if (isPaymentMethodIntent(normalized)) {
             return """
-                    Os meios de pagamento dependem da configuração da instituição.
+                    As formas de pagamento permanecem conforme a guia oficial gerada pelo IMETRO.
 
-                    Normalmente o SecretáriaPay pode trabalhar com:
-                    • Referência de pagamento
-                    • Transferência bancária
-                    • Multicaixa Express
-                    • Unitel Money
-                    • Afrimoney
-                    • Upload de comprovativo pelo WhatsApp
+                    A guia pode trazer dados bancários, IBAN, Multicaixa Express e instruções definidas pela instituição.
 
-                    Para este atendimento, envie o seu número de estudante ou BI para localizar a cobrança.
+                    Envie o número de estudante/carteira, e-mail cadastrado, telefone cadastrado ou código da cobrança para localizar a guia.
                     """.trim();
         }
 
         if (isDelayIntent(normalized)) {
             return """
-                    Entendi. Para verificar atraso, multa ou juros, envie o seu número de estudante ou BI.
+                    Para verificar atraso, multa, dívida ou inadimplência, envie um destes dados cadastrados no IMETRO:
 
-                    A secretaria poderá confirmar o valor atualizado e orientar a regularização.
+                    • Número de estudante/carteira
+                    • E-mail cadastrado
+                    • Telefone cadastrado
+                    • Código da cobrança
+
+                    A DCR valida os pagamentos e regularizações manualmente.
                     """.trim();
         }
 
         if (isScheduleIntent(normalized)) {
             return """
-                    O horário de atendimento pode variar conforme a secretaria da instituição.
+                    Este é o canal digital académico-financeiro do IMETRO.
 
-                    Para este canal, pode deixar a sua solicitação por aqui. Envie o seu nome completo, BI ou número de estudante e o motivo do contacto.
+                    As solicitações podem ser recebidas por aqui, mas cobranças, guias e recibos só são enviados para contactos cadastrados oficialmente na universidade.
                     """.trim();
         }
 
         if (isMatriculaIntent(normalized)) {
             return """
-                    Para assuntos de matrícula, inscrição ou situação académica, envie:
+                    Para matrícula, inscrição, declaração, certificado ou situação académica, envie:
 
+                    • Número de estudante/carteira
                     • Nome completo
-                    • BI
-                    • Curso
-                    • Ano académico ou turma, se souber
+                    • Curso/turma, se souber
+                    • Motivo da solicitação
 
-                    A secretaria analisará a sua solicitação.
+                    A secretaria do IMETRO analisará conforme o cadastro académico oficial.
                     """.trim();
         }
 
         if (isNumericOption(normalized)) {
             return switch (normalized) {
                 case "1" -> """
-                        Claro. Para consultar a sua propina, envie por favor o seu número de estudante ou BI.
+                        Para consultar propina ou dívida, envie o número de estudante/carteira, e-mail cadastrado, telefone cadastrado ou código da cobrança.
 
-                        Exemplo:
-                        BI 000000000LA000
+                        A resposta financeira será enviada apenas para os contactos oficiais cadastrados no IMETRO.
                         """.trim();
                 case "2" -> """
                         Pode enviar o comprovativo por aqui em imagem ou PDF.
 
-                        Depois do envio, a tesouraria fará a validação e o sistema enviará o recibo digital.
+                        A DCR fará a validação manual. O recibo só será emitido após confirmação.
                         """.trim();
                 case "3" -> """
-                        Para localizar recibos, envie o seu número de estudante, BI ou código da cobrança.
-
-                        Exemplo:
-                        CHG1783012061065
+                        Para localizar recibos, envie o número de estudante/carteira, e-mail cadastrado, telefone cadastrado ou código da cobrança.
                         """.trim();
                 case "4" -> """
-                        Certo. Vou encaminhar para a secretaria.
-
-                        Envie por favor o seu nome completo, número de estudante ou BI e descreva o que precisa.
+                        Certo. Para encaminhar corretamente, envie o número de estudante/carteira, nome completo e motivo do contacto.
                         """.trim();
                 default -> fallback();
             };
@@ -188,15 +187,18 @@ public class SecretariaPayWhatsappBrainService {
         String greeting = greetingByTime();
 
         return (greeting + """
-                ! Aqui é a SecretáriaPay Académico.
+                ! Aqui é o atendimento digital do SecretáriaPay Académico para o IMETRO.
+
+                Instituição: Instituto Superior Politécnico Metropolitano de Angola (IMETRO)
+                Área: DCR — Divisão de Cobranças e Recebimentos
 
                 Posso ajudar com:
-                1. Consultar propina
+                1. Consultar propina ou dívida
                 2. Enviar comprovativo
                 3. Ver recibos
-                4. Falar com a secretaria
+                4. Falar com a DCR/Secretaria
 
-                Pode responder com o número da opção ou escrever o que precisa.
+                Regra de segurança: guias, recibos e situação financeira só são enviados para os contactos cadastrados oficialmente na universidade.
                 """).trim();
     }
 
@@ -204,9 +206,9 @@ public class SecretariaPayWhatsappBrainService {
         return """
                 Comprovativo recebido.
 
-                A tesouraria fará a validação. Assim que aprovado, o sistema enviará o recibo digital e atualizará a sua situação académica.
+                A DCR — Divisão de Cobranças e Recebimentos fará a validação manual. O recibo institucional só será emitido após confirmação da DCR.
 
-                Se quiser, envie também o seu nome completo e número de estudante ou BI para facilitar a identificação.
+                Envie também o número de estudante/carteira ou o código da cobrança para facilitar a identificação.
                 """.trim();
     }
 
@@ -215,12 +217,14 @@ public class SecretariaPayWhatsappBrainService {
                 Entendi.
 
                 Para te ajudar melhor, escolha uma opção:
-                1. Consultar propina
+                1. Consultar propina ou dívida
                 2. Enviar comprovativo
                 3. Ver recibos
-                4. Falar com a secretaria
+                4. Falar com a DCR/Secretaria
 
-                Também pode enviar o seu BI, número de estudante ou código da cobrança.
+                Também pode enviar número de estudante/carteira, e-mail cadastrado, telefone cadastrado ou código da cobrança.
+
+                Por segurança, as informações financeiras só são enviadas para contactos cadastrados oficialmente no IMETRO.
                 """.trim();
     }
 
@@ -240,147 +244,57 @@ public class SecretariaPayWhatsappBrainService {
 
     private boolean isGreeting(String value) {
         return containsAny(value, List.of(
-                "ola",
-                "oi",
-                "bom dia",
-                "boa tarde",
-                "boa noite",
-                "saudacoes",
-                "saudacao",
-                "hello",
-                "menu",
-                "inicio",
-                "comecar",
-                "começar"
+                "ola", "olá", "oi", "bom dia", "boa tarde", "boa noite", "saudacoes", "saudação", "menu", "inicio", "início", "comecar", "começar"
         ));
     }
 
     private boolean isThanks(String value) {
-        return containsAny(value, List.of(
-                "obrigado",
-                "obrigada",
-                "valeu",
-                "muito obrigado",
-                "agradeco",
-                "agradeço"
-        ));
+        return containsAny(value, List.of("obrigado", "obrigada", "valeu", "muito obrigado", "agradeco", "agradeço"));
     }
 
     private boolean isPropinaIntent(String value) {
         return containsAny(value, List.of(
-                "propina",
-                "mensalidade",
-                "consultar",
-                "cobranca",
-                "cobrança",
-                "divida",
-                "dívida",
-                "quanto devo",
-                "valor em aberto",
-                "pagamento em aberto",
-                "situacao financeira",
-                "situação financeira"
+                "propina", "mensalidade", "consultar", "cobranca", "cobrança", "divida", "dívida", "quanto devo", "valor em aberto", "pagamento em aberto", "situacao financeira", "situação financeira", "guia", "boleto"
         ));
     }
 
     private boolean isComprovativoIntent(String value) {
         return containsAny(value, List.of(
-                "comprovativo",
-                "comprovante",
-                "paguei",
-                "pagamento",
-                "transferencia",
-                "transferência",
-                "recibo do banco",
-                "enviei dinheiro",
-                "multicaixa",
-                "unitel money",
-                "afrimoney"
+                "comprovativo", "comprovante", "paguei", "pagamento", "transferencia", "transferência", "recibo do banco", "enviei dinheiro", "multicaixa", "unitel money", "afrimoney"
         ));
     }
 
     private boolean isReceiptIntent(String value) {
         return containsAny(value, List.of(
-                "recibo",
-                "recibos",
-                "segunda via",
-                "2 via",
-                "comprovante institucional",
-                "confirmacao de pagamento",
-                "confirmação de pagamento"
+                "recibo", "recibos", "segunda via", "2 via", "comprovante institucional", "confirmacao de pagamento", "confirmação de pagamento"
         ));
     }
 
     private boolean isHumanIntent(String value) {
         return containsAny(value, List.of(
-                "falar",
-                "secretaria",
-                "atendente",
-                "humano",
-                "tesouraria",
-                "financeiro",
-                "operador",
-                "pessoa",
-                "ajuda"
+                "falar", "secretaria", "atendente", "humano", "tesouraria", "financeiro", "operador", "pessoa", "ajuda", "dcr"
         ));
     }
 
     private boolean isPaymentMethodIntent(String value) {
         return containsAny(value, List.of(
-                "como pagar",
-                "forma de pagamento",
-                "meio de pagamento",
-                "referencia",
-                "referência",
-                "iban",
-                "banco",
-                "multicaixa express",
-                "unitel money",
-                "afrimoney"
+                "como pagar", "forma de pagamento", "meio de pagamento", "referencia", "referência", "iban", "banco", "multicaixa express", "unitel money", "afrimoney"
         ));
     }
 
     private boolean isDelayIntent(String value) {
         return containsAny(value, List.of(
-                "atraso",
-                "atrasado",
-                "multa",
-                "juros",
-                "bloqueado",
-                "bloqueio",
-                "restricao",
-                "restrição",
-                "regularizar",
-                "regularizacao",
-                "regularização"
+                "atraso", "atrasado", "multa", "juros", "bloqueado", "bloqueio", "restricao", "restrição", "regularizar", "regularizacao", "regularização", "inadimplencia", "inadimplência"
         ));
     }
 
     private boolean isScheduleIntent(String value) {
-        return containsAny(value, List.of(
-                "horario",
-                "horário",
-                "quando abre",
-                "quando fecha",
-                "atendimento",
-                "expediente"
-        ));
+        return containsAny(value, List.of("horario", "horário", "quando abre", "quando fecha", "atendimento", "expediente"));
     }
 
     private boolean isMatriculaIntent(String value) {
         return containsAny(value, List.of(
-                "matricula",
-                "matrícula",
-                "inscricao",
-                "inscrição",
-                "curso",
-                "turma",
-                "classe",
-                "ano academico",
-                "ano académico",
-                "declaracao",
-                "declaração",
-                "certificado"
+                "matricula", "matrícula", "inscricao", "inscrição", "curso", "turma", "classe", "ano academico", "ano académico", "declaracao", "declaração", "certificado", "tfc", "formatura"
         ));
     }
 
@@ -388,7 +302,7 @@ public class SecretariaPayWhatsappBrainService {
         return value != null && value.matches("[1-4]");
     }
 
-    private boolean looksLikeBiOrStudentNumber(String value) {
+    private boolean looksLikeRegisteredIdentifier(String value) {
         String clean = safe(value).trim();
 
         if (clean.isBlank()) {
@@ -398,17 +312,21 @@ public class SecretariaPayWhatsappBrainService {
         String normalized = normalize(clean);
 
         return ANGOLA_BI_PATTERN.matcher(clean).matches()
+                || CHARGE_CODE_PATTERN.matcher(clean).matches()
+                || EMAIL_PATTERN.matcher(clean).matches()
+                || PHONE_PATTERN.matcher(clean).matches()
                 || normalized.startsWith("bi ")
                 || normalized.startsWith("bi:")
                 || normalized.startsWith("estudante ")
                 || normalized.startsWith("numero ")
                 || normalized.startsWith("n ")
                 || normalized.startsWith("nº ")
-                || normalized.startsWith("n. ");
-    }
-
-    private boolean looksLikeChargeCode(String value) {
-        return CHARGE_CODE_PATTERN.matcher(safe(value)).matches();
+                || normalized.startsWith("n. ")
+                || normalized.startsWith("carteira ")
+                || normalized.startsWith("email ")
+                || normalized.startsWith("telefone ")
+                || normalized.startsWith("telemovel ")
+                || normalized.startsWith("telemóvel ");
     }
 
     private boolean containsAny(String value, List<String> keywords) {

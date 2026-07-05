@@ -1,12 +1,15 @@
 package com.secretariapay.api.service.whatsapp;
 
-import com.secretariapay.api.dto.financial.MockAutomaticPaymentRequest;
-import com.secretariapay.api.dto.financial.MockAutomaticPaymentResponse;
+import com.secretariapay.api.dto.financial.TuitionChargeGuideDeliveryRequest;
+import com.secretariapay.api.dto.financial.TuitionChargeGuideDeliveryResponse;
+import com.secretariapay.api.entity.academic.AcademicClass;
+import com.secretariapay.api.entity.academic.Course;
+import com.secretariapay.api.entity.academic.Institution;
 import com.secretariapay.api.entity.academic.Student;
 import com.secretariapay.api.entity.financial.Charge;
 import com.secretariapay.api.repository.academic.StudentRepository;
 import com.secretariapay.api.repository.financial.ChargeRepository;
-import com.secretariapay.api.service.financial.SecretariaPayMockAutomaticPaymentService;
+import com.secretariapay.api.service.financial.TuitionChargeGuideDeliveryService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,20 +18,30 @@ import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
 public class SecretariaPayWhatsappAcademicSupportService {
 
+    private static final String IMETRO_NAME = "Instituto Superior Politécnico Metropolitano de Angola (IMETRO)";
+
     private static final Pattern CHARGE_CODE_PATTERN =
-            Pattern.compile("\\bCHG\\d{6,}\\b", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("\\b(?:CHG\\d{6,}|IMT-[A-Z0-9_\\-]+)\\b", Pattern.CASE_INSENSITIVE);
 
     private static final Pattern BI_PATTERN =
             Pattern.compile("\\b\\d{8,9}[a-zA-Z]{2}\\d{3}\\b");
+
+    private static final Pattern EMAIL_PATTERN =
+            Pattern.compile("\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b", Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern PHONE_PATTERN =
+            Pattern.compile("(?:\\+?244|\\+?55)?[0-9][0-9\\s().-]{7,}");
 
     private static final DateTimeFormatter DATE_FORMATTER =
             DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -36,18 +49,18 @@ public class SecretariaPayWhatsappAcademicSupportService {
     private final StudentRepository studentRepository;
     private final ChargeRepository chargeRepository;
     private final SecretariaPayWhatsappConversationContextService conversationContextService;
-    private final SecretariaPayMockAutomaticPaymentService mockAutomaticPaymentService;
+    private final TuitionChargeGuideDeliveryService guideDeliveryService;
 
     public SecretariaPayWhatsappAcademicSupportService(
             StudentRepository studentRepository,
             ChargeRepository chargeRepository,
             SecretariaPayWhatsappConversationContextService conversationContextService,
-            SecretariaPayMockAutomaticPaymentService mockAutomaticPaymentService
+            TuitionChargeGuideDeliveryService guideDeliveryService
     ) {
         this.studentRepository = studentRepository;
         this.chargeRepository = chargeRepository;
         this.conversationContextService = conversationContextService;
-        this.mockAutomaticPaymentService = mockAutomaticPaymentService;
+        this.guideDeliveryService = guideDeliveryService;
     }
 
     @Transactional
@@ -98,62 +111,28 @@ public class SecretariaPayWhatsappAcademicSupportService {
 
         Optional<String> chargeCode = extractChargeCode(message);
 
-        if (chargeCode.isPresent() && isMockAutomaticPaymentIntent(normalized)) {
-            return Optional.of(confirmMockAutomaticPaymentFromWhatsapp(
-                    fromPhone,
-                    normalized,
-                    chargeCode.get().toUpperCase(Locale.ROOT)
-            ));
-        }
-
         if (chargeCode.isPresent()) {
             return chargeRepository.findByChargeCode(chargeCode.get().toUpperCase(Locale.ROOT))
-                    .map(charge -> {
-                        conversationContextService.rememberChargeContext(
-                                fromPhone,
-                                charge,
-                                "CHARGE_DETAILS"
-                        );
-
-                        return buildChargeDetailsReply(charge);
-                    })
+                    .map(charge -> handleChargeLocated(fromPhone, charge))
                     .or(() -> Optional.of("""
-                            Não encontrei uma cobrança com esse código.
+                            Não encontrei uma cobrança com esse código no cadastro do IMETRO.
 
                             Confirme se o código está correto. Exemplo:
-                            CHG1783012061065
+                            IMT-PROPINA-2026_07-20200629
                             """.trim()));
         }
 
         Optional<Student> studentByIdentifier = findStudentByMessageIdentifier(message);
 
         if (studentByIdentifier.isPresent()) {
-            Student student = studentByIdentifier.get();
-            Optional<Charge> firstOpenCharge = findFirstOpenCharge(student);
-
-            conversationContextService.rememberStudentContext(
-                    fromPhone,
-                    student,
-                    firstOpenCharge
-            );
-
-            return Optional.of(buildStudentFinancialSummaryReply(student));
+            return Optional.of(handleStudentLocated(fromPhone, studentByIdentifier.get()));
         }
 
         if (isFinancialIntent(normalized)) {
             Optional<Student> studentByPhone = findStudentByPhone(fromPhone);
 
             if (studentByPhone.isPresent()) {
-                Student student = studentByPhone.get();
-                Optional<Charge> firstOpenCharge = findFirstOpenCharge(student);
-
-                conversationContextService.rememberStudentContext(
-                        fromPhone,
-                        student,
-                        firstOpenCharge
-                );
-
-                return Optional.of(buildStudentFinancialSummaryReply(student));
+                return Optional.of(handleStudentLocated(fromPhone, studentByPhone.get()));
             }
 
             conversationContextService.rememberWaitingIdentifier(
@@ -162,136 +141,157 @@ public class SecretariaPayWhatsappAcademicSupportService {
             );
 
             return Optional.of("""
-                    Claro. Para consultar a sua situação financeira, envie um destes dados:
+                    Claro. Para consultar propina, dívida ou guia de pagamento do IMETRO, envie um destes dados cadastrados na universidade:
 
-                    • Número de estudante
-                    • BI
+                    • Número de estudante/carteira
+                    • E-mail cadastrado
+                    • Telefone cadastrado
                     • Código da cobrança
 
-                    Exemplo:
-                    BI 000000000LA000
+                    Regra de segurança: mesmo que a solicitação venha de outro telefone, a informação financeira será enviada apenas para os contactos oficiais cadastrados no IMETRO.
                     """.trim());
         }
 
         if (looksLikeFullName(message)) {
-            List<Student> students = studentRepository.findTop5ByFullNameContainingIgnoreCaseOrderByFullNameAsc(message);
+            return Optional.of("""
+                    Para proteger os dados dos estudantes, a busca por nome completo foi desativada neste canal.
 
-            if (students.size() == 1) {
-                Student student = students.get(0);
-                Optional<Charge> firstOpenCharge = findFirstOpenCharge(student);
-
-                conversationContextService.rememberStudentContext(
-                        fromPhone,
-                        student,
-                        firstOpenCharge
-                );
-
-                return Optional.of(buildStudentFinancialSummaryReply(student));
-            }
-
-            if (students.size() > 1) {
-                return Optional.of(buildMultipleStudentsReply(students));
-            }
+                    Envie o número de estudante/carteira, e-mail cadastrado, telefone cadastrado ou código da cobrança.
+                    """.trim());
         }
 
         return Optional.empty();
     }
 
-    private String confirmMockAutomaticPaymentFromWhatsapp(
-            String fromPhone,
-            String normalized,
-            String chargeCode
-    ) {
-        String method = resolveMockPaymentMethod(normalized);
+    private String handleChargeLocated(String fromPhone, Charge charge) {
+        Student student = charge.getStudent();
 
-        MockAutomaticPaymentRequest request = new MockAutomaticPaymentRequest()
-                .setPaymentMethod(method)
-                .setExternalTransactionId("WPP-MOCK-" + method + "-" + chargeCode + "-" + System.currentTimeMillis())
-                .setPayerPhone(fromPhone)
-                .setBankReference(chargeCode)
-                .setBankName(resolveMockBankName(method))
-                .setNote("Pagamento automático mock acionado por mensagem real recebida no WhatsApp.");
+        if (student == null) {
+            return "Cobrança localizada, mas sem estudante vinculado. A DCR deve revisar este registo.";
+        }
 
-        MockAutomaticPaymentResponse response = mockAutomaticPaymentService.confirmByChargeCode(
-                chargeCode,
-                method,
-                request
+        boolean requesterIsRegistered = isIncomingRegisteredForStudent(fromPhone, student);
+        Optional<Charge> firstOpenCharge = findFirstOpenCharge(student);
+
+        conversationContextService.rememberStudentContext(
+                fromPhone,
+                student,
+                firstOpenCharge.isPresent() ? firstOpenCharge : Optional.of(charge)
         );
 
-        StringBuilder reply = new StringBuilder();
+        TuitionChargeGuideDeliveryResponse delivery = deliverChargeGuidesToRegisteredContacts(student, List.of(charge));
 
-        reply.append("Pagamento automático mock confirmado.\n\n");
-        reply.append("Cobrança: ").append(response.getChargeCode()).append("\n");
-        reply.append("Método: ").append(response.getPaymentMethod()).append("\n");
-        reply.append("Estado da cobrança: ").append(response.getChargeStatus()).append("\n");
-
-        if (response.getReceiptCode() != null && !response.getReceiptCode().isBlank()) {
-            reply.append("Recibo: ").append(response.getReceiptCode()).append("\n");
+        if (requesterIsRegistered) {
+            return buildChargeDetailsReply(charge)
+                    + "\n\n"
+                    + buildDeliverySummaryForRegisteredRequester(delivery);
         }
 
-        reply.append("\nO recibo digital em PDF foi emitido e enviado automaticamente aqui no WhatsApp.");
-        reply.append("\n\nSecretáriaPay Académico");
-
-        return reply.toString().trim();
+        return buildSecureForwardedReply(delivery);
     }
 
-    private String resolveMockPaymentMethod(String normalized) {
-        if (containsAny(normalized, List.of("outro banco", "banco diferente", "iban outro"))) {
-            return "IBAN_OUTRO_BANCO";
+    private String handleStudentLocated(String fromPhone, Student student) {
+        boolean requesterIsRegistered = isIncomingRegisteredForStudent(fromPhone, student);
+        List<Charge> openCharges = findOpenCharges(student);
+        Optional<Charge> firstOpenCharge = openCharges.stream().findFirst();
+
+        conversationContextService.rememberStudentContext(
+                fromPhone,
+                student,
+                firstOpenCharge
+        );
+
+        TuitionChargeGuideDeliveryResponse delivery = deliverChargeGuidesToRegisteredContacts(student, openCharges);
+
+        if (requesterIsRegistered) {
+            return buildStudentFinancialSummaryReply(student)
+                    + "\n\n"
+                    + buildDeliverySummaryForRegisteredRequester(delivery);
         }
 
-        if (containsAny(normalized, List.of("iban", "transferencia", "transferência", "mesmo banco"))) {
-            return "IBAN_MESMO_BANCO";
-        }
-
-        if (containsAny(normalized, List.of("deposito", "depósito"))) {
-            return "DEPOSITO_BANCARIO";
-        }
-
-        if (containsAny(normalized, List.of("unitel", "unitel money"))) {
-            return "UNITEL_MONEY";
-        }
-
-        if (containsAny(normalized, List.of("afrimoney", "afri money"))) {
-            return "AFRIMONEY";
-        }
-
-        return "MULTICAIXA_EXPRESS";
+        return buildSecureForwardedReply(delivery);
     }
 
-    private String resolveMockBankName(String method) {
-        return switch (method) {
-            case "IBAN_OUTRO_BANCO" -> "Banco de origem diferente - Mock";
-            case "IBAN_MESMO_BANCO", "MULTICAIXA_EXPRESS", "DEPOSITO_BANCARIO" -> "Banco Angolano de Investimento - Mock";
-            case "UNITEL_MONEY" -> "Unitel Money - Mock";
-            case "AFRIMONEY" -> "Afrimoney - Mock";
-            default -> "Integração bancária mock";
-        };
+    private TuitionChargeGuideDeliveryResponse deliverChargeGuidesToRegisteredContacts(Student student, List<Charge> charges) {
+        List<UUID> chargeIds = charges == null
+                ? List.of()
+                : charges.stream()
+                .filter(charge -> charge != null && charge.getId() != null)
+                .sorted(Comparator.comparing(Charge::getDueDate, Comparator.nullsLast(Comparator.naturalOrder())))
+                .limit(5)
+                .map(Charge::getId)
+                .toList();
+
+        TuitionChargeGuideDeliveryRequest request = new TuitionChargeGuideDeliveryRequest()
+                .setInstitutionId(resolveInstitutionId(student))
+                .setChargeIds(chargeIds)
+                .setChargeCodePrefix("")
+                .setOnlyPending(true)
+                .setSendWhatsapp(true)
+                .setSendEmail(true)
+                .setSendSms(true)
+                .setForceResend(false)
+                .setMaxItems(5);
+
+        return guideDeliveryService.sendGuides(request);
     }
 
-    private boolean isMockAutomaticPaymentIntent(String normalized) {
-        boolean hasTestWord = containsAny(normalized, List.of(
-                "mock",
-                "teste",
-                "simular",
-                "simulado",
-                "automatico",
-                "automático"
-        ));
+    private String buildSecureForwardedReply(TuitionChargeGuideDeliveryResponse delivery) {
+        if (delivery == null || delivery.getSelectedCharges() == 0) {
+            return """
+                    Cadastro localizado no IMETRO.
 
-        boolean hasPaymentWord = containsAny(normalized, List.of(
-                "pagamento",
-                "paguei",
-                "pago",
-                "multicaixa",
-                "iban",
-                "deposito",
-                "depósito",
-                "unitel",
-                "afrimoney"
-        ));
+                    Por segurança, não posso mostrar dados financeiros neste telefone porque ele não corresponde ao contacto cadastrado na universidade.
 
-        return hasTestWord && hasPaymentWord;
+                    Não há cobranças pendentes para envio automático neste momento. Para mais detalhes, contacte a DCR/Secretaria com o número de estudante/carteira.
+                    """.trim();
+        }
+
+        if (delivery.getSentWhatsapp() > 0 || delivery.getSentEmail() > 0 || delivery.getSentSms() > 0 || delivery.getSkippedAlreadySent() > 0) {
+            return """
+                    Cadastro localizado no IMETRO.
+
+                    Por segurança, a informação financeira não será enviada para este telefone.
+
+                    A guia ou situação solicitada foi enviada, ou já estava enviada, para os contactos oficiais cadastrados na universidade: WhatsApp, SMS/telefone ou e-mail.
+                    """.trim();
+        }
+
+        if (delivery.getSkippedNoContact() > 0) {
+            return """
+                    Cadastro localizado no IMETRO.
+
+                    Porém, o estudante não possui WhatsApp, telefone ou e-mail cadastrado para envio seguro da guia.
+
+                    A DCR/Secretaria deve atualizar o contacto oficial no cadastro académico antes do envio.
+                    """.trim();
+        }
+
+        return """
+                Cadastro localizado no IMETRO.
+
+                Não foi possível entregar a guia nos contactos oficiais cadastrados. A DCR deve revisar o cadastro e o histórico de envio.
+                """.trim();
+    }
+
+    private String buildDeliverySummaryForRegisteredRequester(TuitionChargeGuideDeliveryResponse delivery) {
+        if (delivery == null || delivery.getSelectedCharges() == 0) {
+            return "Não há guia pendente para envio automático neste momento.";
+        }
+
+        if (delivery.getSentWhatsapp() > 0 || delivery.getSentEmail() > 0 || delivery.getSentSms() > 0) {
+            return "A guia foi enviada para os contactos cadastrados no IMETRO.";
+        }
+
+        if (delivery.getSkippedAlreadySent() > 0) {
+            return "A guia já tinha sido enviada anteriormente. Para reenvio manual, a DCR deve autorizar.";
+        }
+
+        if (delivery.getSkippedNoContact() > 0) {
+            return "O cadastro não possui contacto oficial suficiente para envio da guia. Atualize o WhatsApp, telefone ou e-mail na secretaria.";
+        }
+
+        return "Não foi possível entregar a guia automaticamente. A DCR deve verificar o histórico de envio.";
     }
 
     private Optional<Student> findStudentByMessageIdentifier(String message) {
@@ -299,6 +299,23 @@ public class SecretariaPayWhatsappAcademicSupportService {
 
         if (clean.isBlank()) {
             return Optional.empty();
+        }
+
+        Optional<String> email = extractEmail(clean);
+
+        if (email.isPresent()) {
+            Optional<Student> byEmail = studentRepository.findByEmailIgnoreCase(email.get());
+            if (byEmail.isPresent()) return byEmail;
+
+            Optional<Student> byGuardianEmail = studentRepository.findByGuardianEmailIgnoreCase(email.get());
+            if (byGuardianEmail.isPresent()) return byGuardianEmail;
+        }
+
+        Optional<String> phone = extractPhone(clean);
+
+        if (phone.isPresent()) {
+            Optional<Student> byPhone = findStudentByPhone(phone.get());
+            if (byPhone.isPresent()) return byPhone;
         }
 
         Optional<String> bi = extractBi(clean);
@@ -314,7 +331,13 @@ public class SecretariaPayWhatsappAcademicSupportService {
         String withoutPrefix = clean
                 .replaceFirst("(?i)^BI\\s*[:\\-]?\\s*", "")
                 .replaceFirst("(?i)^N[º°.]?\\s*[:\\-]?\\s*", "")
+                .replaceFirst("(?i)^NUMERO\\s*[:\\-]?\\s*", "")
+                .replaceFirst("(?i)^NÚMERO\\s*[:\\-]?\\s*", "")
                 .replaceFirst("(?i)^ESTUDANTE\\s*[:\\-]?\\s*", "")
+                .replaceFirst("(?i)^CARTEIRA\\s*[:\\-]?\\s*", "")
+                .replaceFirst("(?i)^EMAIL\\s*[:\\-]?\\s*", "")
+                .replaceFirst("(?i)^TELEFONE\\s*[:\\-]?\\s*", "")
+                .replaceFirst("(?i)^TELEM[ÓO]VEL\\s*[:\\-]?\\s*", "")
                 .trim();
 
         Optional<Student> byStudentNumber = studentRepository.findByStudentNumber(withoutPrefix);
@@ -339,58 +362,84 @@ public class SecretariaPayWhatsappAcademicSupportService {
             return Optional.empty();
         }
 
-        List<String> variants = List.of(
-                sanitized,
-                "+" + sanitized,
-                sanitized.replaceFirst("^244", "0"),
-                sanitized.replaceFirst("^55", "0")
-        );
-
-        for (String variant : variants) {
+        for (String variant : phoneVariants(sanitized)) {
             Optional<Student> byWhatsapp = studentRepository.findByWhatsapp(variant);
-
-            if (byWhatsapp.isPresent()) {
-                return byWhatsapp;
-            }
+            if (byWhatsapp.isPresent()) return byWhatsapp;
 
             Optional<Student> byPhone = studentRepository.findByPhone(variant);
+            if (byPhone.isPresent()) return byPhone;
 
-            if (byPhone.isPresent()) {
-                return byPhone;
-            }
+            Optional<Student> byGuardianPhone = studentRepository.findByGuardianPhone(variant);
+            if (byGuardianPhone.isPresent()) return byGuardianPhone;
         }
 
         return Optional.empty();
     }
 
-    private Optional<Charge> findFirstOpenCharge(Student student) {
+    private boolean isIncomingRegisteredForStudent(String fromPhone, Student student) {
+        String sanitized = sanitizePhone(fromPhone);
+
+        if (sanitized.isBlank() || student == null) {
+            return false;
+        }
+
+        LinkedHashSet<String> registered = new LinkedHashSet<>();
+        registered.add(sanitizePhone(student.getWhatsapp()));
+        registered.add(sanitizePhone(student.getPhone()));
+        registered.add(sanitizePhone(student.getGuardianPhone()));
+
+        registered.removeIf(String::isBlank);
+
+        return registered.stream().anyMatch(phone -> phone.equals(sanitized));
+    }
+
+    private List<String> phoneVariants(String sanitized) {
+        LinkedHashSet<String> variants = new LinkedHashSet<>();
+        variants.add(sanitized);
+        variants.add("+" + sanitized);
+
+        if (sanitized.startsWith("244")) {
+            variants.add(sanitized.substring(3));
+            variants.add("0" + sanitized.substring(3));
+        }
+
+        if (sanitized.startsWith("55")) {
+            variants.add(sanitized.substring(2));
+            variants.add("0" + sanitized.substring(2));
+        }
+
+        return variants.stream().filter(value -> !value.isBlank()).toList();
+    }
+
+    private List<Charge> findOpenCharges(Student student) {
         if (student == null || student.getId() == null) {
-            return Optional.empty();
+            return List.of();
         }
 
         return chargeRepository.findByStudentIdOrderByDueDateDesc(student.getId())
                 .stream()
                 .filter(this::isOpenCharge)
-                .sorted(Comparator.comparing(Charge::getDueDate))
-                .findFirst();
+                .sorted(Comparator.comparing(Charge::getDueDate, Comparator.nullsLast(Comparator.naturalOrder())))
+                .limit(5)
+                .toList();
+    }
+
+    private Optional<Charge> findFirstOpenCharge(Student student) {
+        return findOpenCharges(student).stream().findFirst();
     }
 
     private String buildStudentFinancialSummaryReply(Student student) {
-        List<Charge> charges = chargeRepository.findByStudentIdOrderByDueDateDesc(student.getId());
-
-        List<Charge> openCharges = charges.stream()
-                .filter(this::isOpenCharge)
-                .sorted(Comparator.comparing(Charge::getDueDate))
-                .limit(5)
-                .toList();
+        List<Charge> openCharges = findOpenCharges(student);
 
         StringBuilder reply = new StringBuilder();
 
-        reply.append("Encontrei o estudante:\n\n");
+        reply.append(IMETRO_NAME).append("\n");
+        reply.append("DCR — Divisão de Cobranças e Recebimentos\n\n");
+        reply.append("Estudante localizado no cadastro oficial:\n\n");
         reply.append(student.getFullName()).append("\n");
 
         if (!isBlank(student.getStudentNumber())) {
-            reply.append("Nº estudante: ").append(student.getStudentNumber()).append("\n");
+            reply.append("Nº estudante/carteira: ").append(student.getStudentNumber()).append("\n");
         }
 
         if (!isBlank(student.getDocumentNumber())) {
@@ -412,7 +461,7 @@ public class SecretariaPayWhatsappAcademicSupportService {
 
                     Não encontrei cobranças em aberto para este cadastro.
 
-                    Caso já tenha pago recentemente, envie o comprovativo ou fale com a secretaria para confirmação.
+                    Caso já tenha pago recentemente, envie o comprovativo para validação manual da DCR.
                     """);
 
             return reply.toString().trim();
@@ -436,10 +485,7 @@ public class SecretariaPayWhatsappAcademicSupportService {
 
         reply.append("""
 
-                Deseja continuar?
-                1. Enviar comprovativo
-                2. Ver dados de pagamento
-                3. Falar com a secretaria
+                O recibo institucional só será emitido após confirmação manual da DCR.
                 """);
 
         return reply.toString().trim();
@@ -448,7 +494,9 @@ public class SecretariaPayWhatsappAcademicSupportService {
     private String buildChargeDetailsReply(Charge charge) {
         StringBuilder reply = new StringBuilder();
 
-        reply.append("Encontrei a cobrança:\n\n");
+        reply.append(IMETRO_NAME).append("\n");
+        reply.append("DCR — Divisão de Cobranças e Recebimentos\n\n");
+        reply.append("Cobrança localizada:\n\n");
         reply.append(charge.getDescription()).append("\n");
         reply.append("Código: ").append(charge.getChargeCode()).append("\n");
 
@@ -466,35 +514,14 @@ public class SecretariaPayWhatsappAcademicSupportService {
             reply.append("\nEstudante: ").append(student.getFullName());
 
             if (!isBlank(student.getStudentNumber())) {
-                reply.append("\nNº estudante: ").append(student.getStudentNumber());
+                reply.append("\nNº estudante/carteira: ").append(student.getStudentNumber());
             }
         }
 
         reply.append("""
 
-
-                Deseja continuar?
-                1. Enviar comprovativo
-                2. Falar com a secretaria
+                O recibo institucional só será emitido após confirmação manual da DCR.
                 """);
-
-        return reply.toString().trim();
-    }
-
-    private String buildMultipleStudentsReply(List<Student> students) {
-        StringBuilder reply = new StringBuilder();
-
-        reply.append("Encontrei mais de um estudante com esse nome.\n\n");
-        reply.append("Para evitar erro, envie o BI ou número de estudante.\n\n");
-        reply.append("Possíveis cadastros:\n");
-
-        for (Student student : students) {
-            reply.append("\n• ").append(student.getFullName());
-
-            if (!isBlank(student.getStudentNumber())) {
-                reply.append(" — Nº ").append(student.getStudentNumber());
-            }
-        }
 
         return reply.toString().trim();
     }
@@ -513,22 +540,7 @@ public class SecretariaPayWhatsappAcademicSupportService {
 
     private boolean isFinancialIntent(String normalized) {
         return containsAny(normalized, List.of(
-                "propina",
-                "mensalidade",
-                "consultar",
-                "quanto devo",
-                "divida",
-                "dívida",
-                "cobranca",
-                "cobrança",
-                "valor em aberto",
-                "pagamento em aberto",
-                "situacao financeira",
-                "situação financeira",
-                "estou em atraso",
-                "atraso",
-                "bloqueado",
-                "regularizar"
+                "propina", "mensalidade", "consultar", "quanto devo", "divida", "dívida", "cobranca", "cobrança", "valor em aberto", "pagamento em aberto", "situacao financeira", "situação financeira", "estou em atraso", "atraso", "bloqueado", "regularizar", "guia", "boleto", "recibo"
         ));
     }
 
@@ -539,7 +551,7 @@ public class SecretariaPayWhatsappAcademicSupportService {
             return false;
         }
 
-        if (extractBi(clean).isPresent() || extractChargeCode(clean).isPresent()) {
+        if (extractBi(clean).isPresent() || extractChargeCode(clean).isPresent() || extractEmail(clean).isPresent() || extractPhone(clean).isPresent()) {
             return false;
         }
 
@@ -568,6 +580,40 @@ public class SecretariaPayWhatsappAcademicSupportService {
         }
 
         return Optional.empty();
+    }
+
+    private Optional<String> extractEmail(String message) {
+        Matcher matcher = EMAIL_PATTERN.matcher(safe(message));
+
+        if (matcher.find()) {
+            return Optional.of(matcher.group().trim());
+        }
+
+        return Optional.empty();
+    }
+
+    private Optional<String> extractPhone(String message) {
+        Matcher matcher = PHONE_PATTERN.matcher(safe(message));
+
+        if (matcher.find()) {
+            String phone = matcher.group().trim();
+            String sanitized = sanitizePhone(phone);
+
+            if (sanitized.length() >= 8) {
+                return Optional.of(phone);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private UUID resolveInstitutionId(Student student) {
+        if (student == null || student.getAcademicClass() == null) return null;
+        AcademicClass academicClass = student.getAcademicClass();
+        if (academicClass.getCourse() == null) return null;
+        Course course = academicClass.getCourse();
+        Institution institution = course.getInstitution();
+        return institution != null ? institution.getId() : null;
     }
 
     private String formatMoney(BigDecimal value, String currency) {
