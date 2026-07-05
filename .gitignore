@@ -10,3 +10,11 @@ bilhete-SecretariaPay.pdf
 .env.production
 
 
+
+# Produção / backups locais
+.env.production
+.env.production.backup.*
+.env.production.bak-*
+*.bak-*
+*.backup
+recibo-imetro*.pdf

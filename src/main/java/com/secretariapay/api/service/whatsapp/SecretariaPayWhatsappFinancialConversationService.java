@@ -90,6 +90,10 @@ public class SecretariaPayWhatsappFinancialConversationService {
         WhatsappSession session = getOrCreateSession(fromPhone);
         Map<String, String> metadata = readMetadata(session);
 
+        if (isCloseIntent(normalized)) {
+            return Optional.of(closeAttendance(session, metadata, message));
+        }
+
         if (isRestartIntent(normalized) || isMainMenuIntent(normalized)) {
             resetFinancialMetadata(session, metadata, message);
             return Optional.of(buildMainMenuGreeting());
@@ -201,7 +205,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
 
                     1. Sim, sou eu
                     2. Não, os dados estão errados
-                    3. Quero falar com a secretaria
+                    3. Quero falar com a DCR
                     """.trim());
         }
 
@@ -235,7 +239,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
                         Posso encaminhar para a secretaria ou gerar a mensalidade do mês atual.
 
                         1. Gerar mensalidade do mês atual
-                        2. Falar com a secretaria
+                        2. Falar com a DCR
                         """.trim());
             }
 
@@ -300,10 +304,10 @@ public class SecretariaPayWhatsappFinancialConversationService {
 
                         Agora aguardamos o pagamento.
 
-                        Para este teste automático, responda:
+                        Após o pagamento, envie o comprovativo para validação da DCR.
                         paguei
 
-                        O sistema irá simular a confirmação bancária, emitir o recibo e enviar o PDF automaticamente.
+                        O recibo institucional será emitido somente após validação manual da DCR.
                         """).formatted(firstNonBlank(metadata.get("lastChargeCode"), "-")).trim());
             }
 
@@ -338,7 +342,71 @@ public class SecretariaPayWhatsappFinancialConversationService {
                     paguei
 
                     Se preferir atendimento humano, responda:
-                    falar com a secretaria
+                    falar com a DCR
+                    """.trim());
+        }
+
+        if ("OVERDUE_ACTION".equalsIgnoreCase(expected)) {
+            Student student = loadStudentFromMetadata(metadata);
+            if (student == null) {
+                metadata.put("expectedStep", "STUDENT_IDENTIFIER");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of(askForStudentIdentification());
+            }
+
+            if ("1".equals(normalized) || containsAny(normalized, "guia total", "pagar tudo", "regularizar agora")) {
+                metadata.remove("expectedStep");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of(sendFirstOverduePaymentGuide(session, metadata, student));
+            }
+
+            if ("2".equals(normalized) || containsAny(normalized, "guia parcial", "parcial")) {
+                metadata.put("expectedStep", "HUMAN_REASON");
+                metadata.put("lastIntent", "PARTIAL_PAYMENT_GUIDE_REQUESTED");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of("""
+                        Para guia parcial, a DCR precisa validar a condição de pagamento.
+
+                        Informe o valor que pretende pagar ou descreva a sua solicitação.
+                        Exemplo: Quero pagar 30.000 Kz agora.
+                        """.trim());
+            }
+
+            if ("3".equals(normalized) || containsAny(normalized, "negociar", "negociação", "negociacao", "parcelar", "parcelamento")) {
+                metadata.remove("expectedStep");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of(buildNegotiationMenu(session, metadata, student));
+            }
+
+            if ("4".equals(normalized) || containsAny(normalized, "consequencia", "consequência", "consequencias", "consequências", "atraso")) {
+                metadata.put("expectedStep", "OVERDUE_ACTION");
+                metadata.put("lastIntent", "OVERDUE_CONSEQUENCES_VIEWED");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of(buildOverdueConsequencesReply(student));
+            }
+
+            if ("5".equals(normalized) || isHumanRequestIntent(normalized)) {
+                metadata.put("expectedStep", "HUMAN_REASON");
+                metadata.put("lastIntent", "HUMAN_SUPPORT_REASON_REQUESTED");
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+                return Optional.of(buildHumanSupportReasonMenu());
+            }
+
+            return Optional.of("""
+                    Escolha uma opção para a mensalidade vencida:
+
+                    1. Gerar guia total
+                    2. Gerar guia parcial
+                    3. Solicitar negociação
+                    4. Ver consequências do atraso
+                    5. Falar com a DCR
+                0. Encerrar atendimento
                     """.trim());
         }
 
@@ -420,7 +488,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
 
                     Escolha uma opção:
                     1. Gerar guia do mês
-                    2. Falar com a secretaria
+                    2. Falar com a DCR
                     3. Voltar ao menu
                     """.trim());
         }
@@ -437,12 +505,12 @@ public class SecretariaPayWhatsappFinancialConversationService {
                     Proposta recebida: %s
                     Protocolo: NEG-%s
 
-                    A Secretaria Financeira irá analisar a solicitação.
+                    A DCR irá analisar a solicitação.
 
                     Deseja gerar a guia da primeira parcela?
                     1. Sim
                     2. Aguardar aprovação
-                    3. Falar com a secretaria
+                    3. Falar com a DCR
                     """).formatted(message, protocol()).trim());
         }
 
@@ -453,7 +521,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
             sessionRepository.save(session);
 
             return Optional.of(("""
-                    Obrigado. Sua solicitação foi encaminhada para a Secretaria Financeira.
+                    Obrigado. Sua solicitação foi encaminhada para a DCR.
 
                     Motivo informado: %s
                     Protocolo: ATD-%s
@@ -656,10 +724,17 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 3. Transferência bancária
                 4. Unitel Money
                 5. Afrimoney
-                6. Pagamento presencial na tesouraria
+                6. Pagamento presencial na DCR/DCR
 
                 Quando receber a guia, responda: recebi
-                Depois do pagamento simulado, responda: paguei
+                Depois do pagamento, envie o comprovativo para validação da DCR.
+
+                Precisa de mais alguma coisa?
+                3. Ver mensalidades vencidas/em atraso
+                5. Solicitar recibo
+                6. Ver situação financeira
+                8. Falar com a DCR
+                0. Encerrar atendimento
                 """).formatted(
                 safe(student.getFullName()),
                 firstNonBlank(student.getStudentNumber(), "-"),
@@ -782,10 +857,11 @@ public class SecretariaPayWhatsappFinancialConversationService {
         reply.append("2. Gerar guia parcial\n");
         reply.append("3. Solicitar negociação\n");
         reply.append("4. Ver consequências do atraso\n");
-        reply.append("5. Falar com a secretaria");
+        reply.append("5. Falar com a DCR");
 
         metadata.put("secretariapayFinanceFlow", "true");
         metadata.put("lastIntent", "OVERDUE_LISTED");
+        metadata.put("expectedStep", "OVERDUE_ACTION");
         rememberStudent(metadata, student);
         rememberCharge(metadata, overdue.get(0));
         writeMetadata(session, metadata);
@@ -810,7 +886,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
         return """
                 Perfeito. Envie agora o comprovativo de pagamento em imagem ou PDF.
 
-                Após o envio, farei o registo e encaminharei para validação da tesouraria.
+                Após o envio, farei o registo e encaminharei para validação da DCR.
                 """.trim();
     }
 
@@ -828,7 +904,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
             return """
                     Ainda não encontrei recibos emitidos para este cadastro.
 
-                    Se já pagou recentemente, envie o comprovativo ou aguarde a validação da tesouraria.
+                    Se já pagou recentemente, envie o comprovativo ou aguarde a validação da DCR.
                     """.trim();
         }
 
@@ -912,7 +988,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 3. Enviar comprovativo
                 4. Solicitar recibo
                 5. Negociar dívida em atraso
-                6. Falar com a secretaria
+                6. Falar com a DCR
                 """).formatted(
                 safe(student.getFullName()),
                 firstNonBlank(student.getStudentNumber(), "-"),
@@ -923,6 +999,106 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 overdue,
                 formatMoney(openTotal, "AOA"),
                 formatMoney(overdueTotal, "AOA")
+        ).trim();
+    }
+
+    private String buildOverdueConsequencesReply(Student student) {
+        return ("""
+                Consequências do atraso no IMETRO/DCR:
+
+                Estudante: %s
+                Matrícula: %s
+
+                Regras financeiras:
+                • Até ao dia 10: pagamento sem multa.
+                • Após o dia 10: multa de 20%%.
+                • Após o dia 15: multa de 30%%.
+                • Após 30 dias: a pendência passa a dívida.
+                • Após 90 dias: pode ser classificada como inadimplência.
+                • A situação pode gerar restrição académica até regularização.
+
+                Para regularizar, escolha:
+                1. Gerar guia total
+                2. Gerar guia parcial
+                3. Solicitar negociação
+                5. Falar com a DCR
+                0. Encerrar atendimento
+                """).formatted(
+                safe(student.getFullName()),
+                firstNonBlank(student.getStudentNumber(), "-")
+        ).trim();
+    }
+
+    private String sendFirstOverduePaymentGuide(
+            WhatsappSession session,
+            Map<String, String> metadata,
+            Student student
+    ) {
+        List<Charge> overdue = chargeRepository.findByStudentIdOrderByDueDateDesc(student.getId())
+                .stream()
+                .filter(this::isOpenCharge)
+                .filter(this::isOverdueCharge)
+                .sorted(Comparator.comparing(Charge::getDueDate))
+                .toList();
+
+        if (overdue.isEmpty()) {
+            metadata.remove("expectedStep");
+            writeMetadata(session, metadata);
+            sessionRepository.save(session);
+
+            return """
+                    Não encontrei mensalidades vencidas para gerar guia total.
+
+                    Pode consultar a propina do mês ou falar com a DCR.
+                    """.trim();
+        }
+
+        Charge charge = overdue.get(0);
+        WhatsAppCloudSendResult sendResult = sendPaymentGuideDocument(student, charge);
+
+        metadata.put("secretariapayFinanceFlow", "true");
+        metadata.put("expectedStep", "GUIDE_ACK");
+        metadata.put("lastIntent", "OVERDUE_PAYMENT_GUIDE_SENT");
+        metadata.put("guideProviderMessageId", safe(sendResult.getProviderMessageId()));
+        rememberStudent(metadata, student);
+        rememberCharge(metadata, charge);
+        writeMetadata(session, metadata);
+
+        session.setCurrentStep(WhatsappConversationStep.SECRETARIAPAY_CHARGE_FOUND)
+                .setLastMessageText("guia vencida enviada")
+                .setExpiresAt(LocalDateTime.now().plusHours(SESSION_DURATION_HOURS));
+
+        sessionRepository.save(session);
+
+        return ("""
+                ✅ Guia de pagamento da mensalidade vencida enviada.
+
+                Estudante: %s
+                Matrícula: %s
+                Cobrança: %s
+                Descrição: %s
+                Valor: %s
+                Vencimento: %s
+                Estado: Aguardando pagamento/validação
+
+                O PDF da guia foi enviado para o contacto oficial cadastrado no IMETRO.
+
+                Após o pagamento, envie o comprovativo em imagem ou PDF para validação manual da DCR.
+
+                Precisa de mais alguma coisa?
+                2. Receber outra guia de pagamento
+                3. Ver mensalidades vencidas/em atraso
+                5. Solicitar recibo
+                6. Ver situação financeira
+                8. Falar com a DCR
+                0. Encerrar atendimento
+                """).formatted(
+                safe(student.getFullName()),
+                firstNonBlank(student.getStudentNumber(), "-"),
+                safe(charge.getChargeCode()),
+                safe(charge.getDescription()),
+                formatMoney(charge.getTotalAmount(), charge.getCurrency()),
+                formatDate(charge.getDueDate())
         ).trim();
     }
 
@@ -987,7 +1163,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
 
                     O que deseja fazer?
                     1. Gerar guia do mês
-                    2. Falar com a secretaria
+                    2. Falar com a DCR
                     3. Voltar ao menu
                     """).formatted(formatMoney(openTotal, "AOA")).trim();
         }
@@ -1008,7 +1184,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 3. Solicitar parcelamento
                 4. Solicitar prazo adicional
                 5. Enviar justificativa
-                6. Falar com a secretaria
+                6. Falar com a DCR
 
                 Exemplo:
                 Quero pagar em 2 parcelas.
@@ -1021,61 +1197,26 @@ public class SecretariaPayWhatsappFinancialConversationService {
             String fromPhone,
             String normalized
     ) {
-        String chargeCode = metadata.get("lastChargeCode");
-
-        if (isBlank(chargeCode)) {
-            return """
-                    Para confirmar o pagamento, preciso primeiro identificar a cobrança.
-
-                    Envie o código da cobrança ou solicite a guia novamente.
-                    """.trim();
-        }
-
-        String method = resolvePaymentMethod(normalized);
-
-        MockAutomaticPaymentRequest request = new MockAutomaticPaymentRequest()
-                .setPaymentMethod(method)
-                .setAmount(DEFAULT_AMOUNT)
-                .setExternalTransactionId("WPP-ROTEIRO-" + method + "-" + chargeCode + "-" + System.currentTimeMillis())
-                .setPayerPhone(fromPhone)
-                .setBankName(resolveMockBankName(method))
-                .setBankReference(chargeCode)
-                .setNote("Pagamento mock confirmado automaticamente no roteiro financeiro via WhatsApp.");
-
-        MockAutomaticPaymentResponse response = mockAutomaticPaymentService.confirmByChargeCode(
-                chargeCode,
-                method,
-                request
-        );
-
-        metadata.put("lastIntent", "PAYMENT_CONFIRMED_AUTOMATICALLY");
-        metadata.put("expectedStep", "ATTENDANCE_CLOSE");
-        metadata.put("receiptCode", safe(response.getReceiptCode()));
-        metadata.put("paymentMethod", safe(response.getPaymentMethod()));
-        metadata.put("providerMessageId", safe(response.getProviderMessageId()));
+        metadata.put("lastIntent", "PAYMENT_PROOF_REQUIRED_DCR_VALIDATION");
+        metadata.put("expectedStep", "WAITING_PAYMENT_PROOF");
         writeMetadata(session, metadata);
-        session.setCurrentStep(WhatsappConversationStep.SECRETARIAPAY_FINISHED)
-                .setLastMessageText("pagamento confirmado")
+
+        session.setCurrentStep(WhatsappConversationStep.SECRETARIAPAY_WAITING_PAYMENT_PROOF)
+                .setLastMessageText("pagamento informado - aguardando comprovativo")
                 .setExpiresAt(LocalDateTime.now().plusHours(SESSION_DURATION_HOURS));
+
         sessionRepository.save(session);
 
-        return ("""
-                ✅ Pagamento confirmado automaticamente.
+        return """
+                Entendi que pretende informar um pagamento.
 
-                Cobrança: %s
-                Método: %s
-                Estado: %s
-                Recibo: %s
+                Para segurança institucional do IMETRO, o pagamento não é confirmado automaticamente pelo WhatsApp.
 
-                O recibo digital em PDF foi emitido e enviado aqui no WhatsApp.
+                Envie o comprovativo em imagem ou PDF por aqui.
+                A DCR fará a validação manual e o recibo institucional só será emitido após confirmação.
 
-                Quando terminar, responda: obrigado
-                """).formatted(
-                response.getChargeCode(),
-                response.getPaymentMethod(),
-                response.getChargeStatus(),
-                response.getReceiptCode()
-        ).trim();
+                DCR / IMETRO
+                """.trim();
     }
 
     private WhatsAppCloudSendResult sendPaymentGuideDocument(Student student, Charge charge) {
@@ -1093,12 +1234,12 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 Vencimento: %s
 
                 O PDF da guia segue em anexo.
-                Após pagar, responda: paguei
+                Após pagar, envie o comprovativo para validação da DCR.
 
                 Link público:
                 %s
 
-                SecretáriaPay Académico
+                DCR / IMETRO
                 """).formatted(
                 safe(student.getFullName()),
                 safe(charge.getChargeCode()),
@@ -1195,7 +1336,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
 
                 1. Sim, sou eu
                 2. Não, os dados estão errados
-                3. Quero falar com a secretaria
+                3. Quero falar com a DCR
                 """).formatted(
                 safe(student.getFullName()),
                 firstNonBlank(student.getStudentNumber(), "-"),
@@ -1208,25 +1349,28 @@ public class SecretariaPayWhatsappFinancialConversationService {
     private String buildMainMenuGreeting() {
         return """
                 Boa tarde! 👋
-                Sou a Secretária Financeira Virtual da Universidade.
+                Sou o Assistente Virtual da DCR do Instituto Superior Politécnico Metropolitano de Angola (IMETRO).
 
-                Posso ajudar você com pagamentos, propinas, guias, comprovativos, recibos, mensalidades em atraso e outros serviços financeiros académicos.
+                Posso ajudar com propinas, guias de pagamento, comprovativos, recibos e situação financeira académica.
+
+                Por segurança, informações financeiras, guias e recibos são enviados apenas para os contactos cadastrados oficialmente no IMETRO.
 
                 Para começar, escolha uma opção:
 
-                1. Consultar mensalidade do mês
-                2. Solicitar guia / referência de pagamento
+                1. Consultar propina do mês
+                2. Receber guia de pagamento
                 3. Ver mensalidades vencidas/em atraso
                 4. Enviar comprovativo de pagamento
                 5. Solicitar recibo
                 6. Ver situação financeira
-                7. Negociar dívida vencida/atraso
-                8. Falar com a secretaria
+                7. Solicitar negociação de dívida
+                8. Falar com a DCR
                 9. Outras solicitações académicas
 
-                Você pode responder com o número da opção.
+                Você pode responder com o número da opção ou 0 para encerrar o atendimento.
                 """.trim();
     }
+
 
     private String buildMainMenuForStudent(Student student) {
         return ("""
@@ -1241,7 +1385,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 5. Solicitar recibo
                 6. Ver situação financeira
                 7. Negociar dívida vencida/atraso
-                8. Falar com a secretaria
+                8. Falar com a DCR
                 9. Outras solicitações académicas
                 """).formatted(firstName(student.getFullName())).trim();
     }
@@ -1287,15 +1431,23 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 3. Transferência bancária
                 4. Unitel Money
                 5. Afrimoney
-                6. Pagamento presencial na tesouraria
+                6. Pagamento presencial na DCR/DCR
 
-                Após o pagamento, envie o comprovativo por aqui ou, no teste automático, responda: paguei
+                Após o pagamento, envie o comprovativo em imagem ou PDF para validação manual da DCR.
+
+                Precisa de mais alguma coisa?
+                2. Receber outra guia de pagamento
+                3. Ver mensalidades vencidas/em atraso
+                5. Solicitar recibo
+                6. Ver situação financeira
+                8. Falar com a DCR
+                0. Encerrar atendimento
                 """.trim();
     }
 
     private String buildHumanSupportReasonMenu() {
         return """
-                Certo. Vou encaminhar o seu atendimento para a Secretaria Financeira.
+                Certo. Vou encaminhar o seu atendimento para a DCR.
 
                 Antes disso, informe o motivo:
 
@@ -1323,7 +1475,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 6. Atualização de dados pessoais
                 7. Calendário académico
                 8. Situação de documentos
-                9. Falar com a secretaria académica
+                9. Falar com a DCR académica
                 """.trim();
     }
 
@@ -1359,7 +1511,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
                 O atendimento foi encerrado automaticamente.
                 Sempre que precisar, envie nova mensagem por aqui.
 
-                SecretáriaPay Académico
+                DCR / IMETRO
                 """.trim();
     }
 
@@ -1709,7 +1861,7 @@ public class SecretariaPayWhatsappFinancialConversationService {
     }
 
     private boolean isHumanRequestIntent(String normalized) {
-        return containsAny(normalized, "humano", "atendente", "secretaria", "falar com alguem", "falar com alguém", "tesouraria");
+        return containsAny(normalized, "humano", "atendente", "secretaria", "falar com alguem", "falar com alguém", "DCR");
     }
 
     private boolean isAcademicRequestIntent(String normalized) {
@@ -1722,6 +1874,21 @@ public class SecretariaPayWhatsappFinancialConversationService {
 
     private boolean isPaymentIntent(String normalized) {
         return containsAny(normalized, "paguei", "ja paguei", "já paguei", "pago", "pagamento feito", "pagamento realizado", "paguei multicaixa", "simular pagamento", "pagamento simulado");
+    }
+
+    private boolean isCloseIntent(String normalized) {
+        return "0".equals(normalized)
+                || containsAny(
+                normalized,
+                "encerrar",
+                "finalizar",
+                "terminar",
+                "sair",
+                "fechar atendimento",
+                "fim",
+                "não preciso de mais nada",
+                "nao preciso de mais nada"
+        );
     }
 
     private boolean isThanksIntent(String normalized) {
