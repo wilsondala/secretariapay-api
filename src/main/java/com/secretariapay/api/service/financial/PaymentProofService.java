@@ -12,6 +12,8 @@ import com.secretariapay.api.exception.NotFoundException;
 import com.secretariapay.api.repository.UserRepository;
 import com.secretariapay.api.repository.financial.ChargeRepository;
 import com.secretariapay.api.repository.financial.PaymentProofRepository;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -84,13 +86,13 @@ public class PaymentProofService {
     @Transactional
     public PaymentProofResponse approve(UUID id, PaymentProofReviewRequest request) {
         PaymentProof proof = findEntityById(id);
-        User reviewer = findUser(request.getReviewedByUserId());
+        User reviewer = resolveReviewer(request);
         LocalDateTime now = LocalDateTime.now();
 
         proof
                 .setStatus(PaymentProofStatus.APPROVED)
                 .setReviewedBy(reviewer)
-                .setReviewNote(request.getReviewNote())
+                .setReviewNote(resolveReviewNote(request, "Aprovado pela DCR no painel."))
                 .setReviewedAt(now);
 
         Charge charge = proof.getCharge();
@@ -106,12 +108,12 @@ public class PaymentProofService {
     @Transactional
     public PaymentProofResponse reject(UUID id, PaymentProofReviewRequest request) {
         PaymentProof proof = findEntityById(id);
-        User reviewer = findUser(request.getReviewedByUserId());
+        User reviewer = resolveReviewer(request);
 
         proof
                 .setStatus(PaymentProofStatus.REJECTED)
                 .setReviewedBy(reviewer)
-                .setReviewNote(request.getReviewNote())
+                .setReviewNote(resolveReviewNote(request, "Comprovativo rejeitado pela DCR."))
                 .setReviewedAt(LocalDateTime.now());
 
         return toResponse(paymentProofRepository.save(proof));
@@ -148,5 +150,36 @@ public class PaymentProofService {
     private User findUser(UUID userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("Utilizador não encontrado."));
+    }
+
+    private User resolveReviewer(PaymentProofReviewRequest request) {
+        UUID reviewedByUserId = request != null ? request.getReviewedByUserId() : null;
+
+        if (reviewedByUserId != null) {
+            return findUser(reviewedByUserId);
+        }
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication != null && authentication.isAuthenticated()) {
+            String username = authentication.getName();
+
+            if (username != null && !username.isBlank() && !"anonymousUser".equalsIgnoreCase(username)) {
+                return userRepository.findByEmailIgnoreCase(username)
+                        .orElseThrow(() -> new IllegalArgumentException("Utilizador autenticado não encontrado para validar o comprovativo."));
+            }
+        }
+
+        throw new IllegalArgumentException("Não foi possível identificar o utilizador responsável pela validação do comprovativo.");
+    }
+
+    private String resolveReviewNote(PaymentProofReviewRequest request, String fallback) {
+        String reviewNote = request != null ? request.getReviewNote() : null;
+
+        if (reviewNote == null || reviewNote.isBlank()) {
+            return fallback;
+        }
+
+        return reviewNote.trim();
     }
 }
