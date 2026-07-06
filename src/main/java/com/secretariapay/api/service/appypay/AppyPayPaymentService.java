@@ -3,6 +3,7 @@ package com.secretariapay.api.service.appypay;
 import com.secretariapay.api.dto.appypay.AppyPayChargeRequest;
 import com.secretariapay.api.dto.appypay.AppyPayChargeResponse;
 import com.secretariapay.api.dto.appypay.AppyPayProviderResponse;
+import com.secretariapay.api.dto.appypay.AppyPayWebhookResponse;
 import com.secretariapay.api.entity.financial.Charge;
 import com.secretariapay.api.exception.NotFoundException;
 import com.secretariapay.api.repository.financial.ChargeRepository;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -21,6 +23,7 @@ public class AppyPayPaymentService {
     private static final int MAX_MERCHANT_TRANSACTION_ID_LENGTH = 15;
 
     private final AppyPayClient appyPayClient;
+    private final AppyPayWebhookService appyPayWebhookService;
     private final ChargeRepository chargeRepository;
     private final String referencePaymentMethod;
     private final String gpoPaymentMethod;
@@ -28,12 +31,14 @@ public class AppyPayPaymentService {
 
     public AppyPayPaymentService(
             AppyPayClient appyPayClient,
+            AppyPayWebhookService appyPayWebhookService,
             ChargeRepository chargeRepository,
             @Value("${APPYPAY_PAYMENT_METHOD_REF:}") String referencePaymentMethod,
             @Value("${APPYPAY_PAYMENT_METHOD_GPO:}") String gpoPaymentMethod,
             @Value("${APPYPAY_REFERENCE_ENTITY:00348}") String referenceEntity
     ) {
         this.appyPayClient = appyPayClient;
+        this.appyPayWebhookService = appyPayWebhookService;
         this.chargeRepository = chargeRepository;
         this.referencePaymentMethod = referencePaymentMethod == null ? "" : referencePaymentMethod.trim();
         this.gpoPaymentMethod = gpoPaymentMethod == null ? "" : gpoPaymentMethod.trim();
@@ -52,7 +57,7 @@ public class AppyPayPaymentService {
                 .setReferenceNumber(extractString(provider.getBody(), "referenceNumber", "reference", "paymentReference"));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AppyPayChargeResponse createGpoCharge(AppyPayChargeRequest request) {
         Charge charge = findCharge(request.getChargeId());
         String phoneNumber = normalizePhone(request.getPhoneNumber());
@@ -62,7 +67,23 @@ public class AppyPayPaymentService {
         payload.put("paymentMethod", gpoPaymentMethod);
         payload.put("paymentInfo", Map.of("phoneNumber", phoneNumber));
         AppyPayProviderResponse provider = appyPayClient.createCharge(payload);
-        return toChargeResponse("GPO", charge, merchantTransactionId, provider);
+
+        AppyPayChargeResponse response = toChargeResponse("GPO", charge, merchantTransactionId, provider);
+        if (provider.isSuccess() && isPaidProviderResponse(provider.getBody())) {
+            AppyPayWebhookResponse confirmation = appyPayWebhookService.process(Map.of(
+                    "merchantTransactionId", merchantTransactionId,
+                    "status", "Success"
+            ));
+
+            if (confirmation.isPaid()) {
+                response
+                        .setPaid(true)
+                        .setMessage("Pagamento Multicaixa Express confirmado pela AppyPay, recibo emitido e envio automático acionado.")
+                        .setReceiptCode(confirmation.getReceiptCode())
+                        .setReceiptPdfUrl(confirmation.getReceiptPdfUrl());
+            }
+        }
+        return response;
     }
 
     public AppyPayProviderResponse processReferenceInSandbox(String entity, String referenceNumber) {
@@ -121,6 +142,11 @@ public class AppyPayPaymentService {
         return digits;
     }
 
+    private boolean isPaidProviderResponse(Object source) {
+        String value = firstNonBlank(extractString(source, "status", "state", "paymentStatus", "transactionStatus", "message", "code")).toLowerCase();
+        return containsAny(value, List.of("success", "approved", "paid", "completed", "confirmed", "processed", "sucesso", "aprovado", "pago"));
+    }
+
     private String extractString(Object source, String... keys) {
         if (source == null || keys == null) return "";
         if (source instanceof Map<?, ?> map) {
@@ -131,8 +157,24 @@ public class AppyPayPaymentService {
                     }
                 }
             }
+            for (Object value : map.values()) {
+                String found = extractString(value, keys);
+                if (!found.isBlank()) return found;
+            }
+        }
+        if (source instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                String found = extractString(item, keys);
+                if (!found.isBlank()) return found;
+            }
         }
         return "";
+    }
+
+    private boolean containsAny(String value, List<String> terms) {
+        if (value == null) return false;
+        for (String term : terms) if (value.contains(term)) return true;
+        return false;
     }
 
     private String firstNonBlank(String... values) {
