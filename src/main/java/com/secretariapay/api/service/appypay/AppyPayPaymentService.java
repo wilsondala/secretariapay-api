@@ -47,7 +47,7 @@ public class AppyPayPaymentService {
 
     @Transactional(readOnly = true)
     public AppyPayChargeResponse createReferenceCharge(AppyPayChargeRequest request) {
-        Charge charge = findCharge(request.getChargeId());
+        Charge charge = findCharge(request);
         String merchantTransactionId = merchantTransactionIdFor(charge);
         Map<String, Object> payload = basePayload(charge, merchantTransactionId, firstNonBlank(request.getDescription(), charge.getDescription()));
         payload.put("paymentMethod", referencePaymentMethod);
@@ -59,7 +59,7 @@ public class AppyPayPaymentService {
 
     @Transactional
     public AppyPayChargeResponse createGpoCharge(AppyPayChargeRequest request) {
-        Charge charge = findCharge(request.getChargeId());
+        Charge charge = findCharge(request);
         String phoneNumber = normalizePhone(request.getPhoneNumber());
         if (phoneNumber.isBlank()) throw new IllegalArgumentException("Telefone Multicaixa Express obrigatório.");
         String merchantTransactionId = merchantTransactionIdFor(charge);
@@ -115,8 +115,27 @@ public class AppyPayPaymentService {
                 .setProviderResponse(provider.getBody());
     }
 
-    private Charge findCharge(UUID chargeId) {
-        return chargeRepository.findById(chargeId).orElseThrow(() -> new NotFoundException("Cobrança não encontrada."));
+    private Charge findCharge(AppyPayChargeRequest request) {
+        if (request == null) {
+            throw new NotFoundException("Cobrança não informada.");
+        }
+
+        if (request.getChargeId() != null) {
+            return chargeRepository.findById(request.getChargeId())
+                    .orElseGet(() -> findByChargeCodeOrThrow(request.getChargeCode()));
+        }
+
+        return findByChargeCodeOrThrow(request.getChargeCode());
+    }
+
+    private Charge findByChargeCodeOrThrow(String chargeCode) {
+        String safeChargeCode = firstNonBlank(chargeCode);
+        if (safeChargeCode.isBlank()) {
+            throw new NotFoundException("Cobrança não encontrada. Informe chargeId UUID ou chargeCode.");
+        }
+
+        return chargeRepository.findByChargeCode(safeChargeCode)
+                .orElseThrow(() -> new NotFoundException("Cobrança não encontrada."));
     }
 
     private String merchantTransactionIdFor(Charge charge) {
