@@ -4,6 +4,7 @@ import com.secretariapay.api.dto.whatsapp.WhatsAppCloudSendResult;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -53,6 +54,38 @@ public class WhatsAppCloudApiClient {
         return sendPayload(payload);
     }
 
+    public ResponseEntity<byte[]> downloadMediaByReference(String mediaReference) {
+        if (accessToken == null || accessToken.isBlank()) {
+            throw new IllegalArgumentException("WhatsApp Cloud API: access-token não configurado.");
+        }
+
+        String mediaId = extractMediaId(mediaReference);
+        if (mediaId.isBlank()) {
+            throw new IllegalArgumentException("Media ID do WhatsApp inválido.");
+        }
+
+        String metadataUrl = "%s/%s/%s".formatted(graphApiBaseUrl, graphApiVersion, mediaId);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> metadata = restClient.get()
+                .uri(metadataUrl)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(Map.class);
+
+        Object providerUrl = metadata == null ? null : metadata.get("url");
+        if (providerUrl == null || providerUrl.toString().isBlank()) {
+            throw new IllegalArgumentException("WhatsApp Cloud API não retornou URL da mídia.");
+        }
+
+        return restClient.get()
+                .uri(providerUrl.toString())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .retrieve()
+                .toEntity(byte[].class);
+    }
+
     private WhatsAppCloudSendResult validateBasicConfiguration(String recipientPhone) {
         if (phoneNumberId == null || phoneNumberId.isBlank()) return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: phone-number-id não configurado.", null);
         if (accessToken == null || accessToken.isBlank()) return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: access-token não configurado.", null);
@@ -84,6 +117,17 @@ public class WhatsAppCloudApiClient {
         if (!(first instanceof Map<?, ?> messageMap)) return null;
         Object id = messageMap.get("id");
         return id != null ? id.toString() : null;
+    }
+
+    private String extractMediaId(String mediaReference) {
+        if (mediaReference == null || mediaReference.isBlank()) return "";
+        String value = mediaReference.trim();
+        if (value.startsWith("whatsapp-cloud-media://")) {
+            value = value.substring("whatsapp-cloud-media://".length());
+        }
+        if (value.startsWith("unknown/")) return "";
+        int slashIndex = value.indexOf('/');
+        return slashIndex >= 0 ? value.substring(0, slashIndex) : value;
     }
 
     private String normalizePhone(String phone) { if (phone == null) return ""; String digits = phone.replaceAll("[^0-9]", ""); return digits.startsWith("00") ? digits.substring(2) : digits; }
