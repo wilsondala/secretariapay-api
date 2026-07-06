@@ -12,15 +12,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 public class AppyPayPaymentService {
 
     private static final int MAX_MERCHANT_TRANSACTION_ID_LENGTH = 15;
+    private static final int MAX_APPYPAY_DESCRIPTION_LENGTH = 120;
 
     private final AppyPayClient appyPayClient;
     private final AppyPayWebhookService appyPayWebhookService;
@@ -94,7 +95,7 @@ public class AppyPayPaymentService {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("amount", charge.getTotalAmount() == null ? BigDecimal.ZERO : charge.getTotalAmount());
         payload.put("currency", firstNonBlank(charge.getCurrency(), "AOA"));
-        payload.put("description", firstNonBlank(description, "Propina IMETRO - " + charge.getChargeCode()));
+        payload.put("description", sanitizeDescription(firstNonBlank(description, "Propina IMETRO " + charge.getChargeCode())));
         payload.put("merchantTransactionId", merchantTransactionId);
         return payload;
     }
@@ -159,6 +160,17 @@ public class AppyPayPaymentService {
         if (digits.startsWith("00")) digits = digits.substring(2);
         if (digits.length() == 9 && digits.startsWith("9")) digits = "244" + digits;
         return digits;
+    }
+
+    private String sanitizeDescription(String description) {
+        String value = firstNonBlank(description, "Propina IMETRO");
+        value = Normalizer.normalize(value, Normalizer.Form.NFD).replaceAll("\\p{M}", "");
+        value = value.replaceAll("[^A-Za-z0-9 ]", " ").replaceAll("\\s+", " ").trim();
+        if (value.isBlank()) value = "Propina IMETRO";
+        if (value.length() > MAX_APPYPAY_DESCRIPTION_LENGTH) {
+            value = value.substring(0, MAX_APPYPAY_DESCRIPTION_LENGTH).trim();
+        }
+        return value;
     }
 
     private boolean isPaidProviderResponse(Object source) {
