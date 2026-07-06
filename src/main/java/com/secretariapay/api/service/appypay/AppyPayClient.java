@@ -22,8 +22,8 @@ public class AppyPayClient {
     public AppyPayClient(
             RestClient.Builder restClientBuilder,
             AppyPayTokenService tokenService,
-            @Value("${secretariapay.appypay.enabled:false}") boolean enabled,
-            @Value("${secretariapay.appypay.api-base-url:}") String apiBaseUrl
+            @Value("${APPYPAY_ENABLED:false}") boolean enabled,
+            @Value("${APPYPAY_API_BASE_URL:}") String apiBaseUrl
     ) {
         this.restClient = restClientBuilder.build();
         this.tokenService = tokenService;
