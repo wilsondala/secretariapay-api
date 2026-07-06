@@ -45,22 +45,21 @@ public class ReceiptService {
                     throw new IllegalArgumentException("Já existe recibo emitido para esta cobrança.");
                 });
 
-        String receiptCode = generateReceiptCode();
-        String validationUrl = buildValidationUrl(receiptCode);
-        String qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + validationUrl;
+        return issueNewReceipt(charge);
+    }
 
-        Receipt receipt = new Receipt()
-                .setCharge(charge)
-                .setReceiptCode(receiptCode)
-                .setValidationUrl(validationUrl)
-                .setQrCodeUrl(qrCodeUrl)
-                .setStatus(ReceiptStatus.VALID);
+    @Transactional
+    public ReceiptResponse issueOrFindForCharge(UUID chargeId) {
+        Charge charge = chargeRepository.findById(chargeId)
+                .orElseThrow(() -> new NotFoundException("Cobrança não encontrada."));
 
-        Receipt savedReceipt = receiptRepository.save(receipt);
+        if (charge.getStatus() != ChargeStatus.PAID) {
+            throw new IllegalArgumentException("Só é possível emitir recibo para cobrança paga.");
+        }
 
-        savedReceipt.setPdfUrl(buildPdfUrl(savedReceipt.getReceiptCode()));
-
-        return toResponse(receiptRepository.save(savedReceipt));
+        return receiptRepository.findByChargeId(chargeId)
+                .map(this::toResponse)
+                .orElseGet(() -> issueNewReceipt(charge));
     }
 
     @Transactional(readOnly = true)
@@ -122,6 +121,25 @@ public class ReceiptService {
                 .setCancelledAt(receipt.getCancelledAt())
                 .setCreatedAt(receipt.getCreatedAt())
                 .setUpdatedAt(receipt.getUpdatedAt());
+    }
+
+    private ReceiptResponse issueNewReceipt(Charge charge) {
+        String receiptCode = generateReceiptCode();
+        String validationUrl = buildValidationUrl(receiptCode);
+        String qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + validationUrl;
+
+        Receipt receipt = new Receipt()
+                .setCharge(charge)
+                .setReceiptCode(receiptCode)
+                .setValidationUrl(validationUrl)
+                .setQrCodeUrl(qrCodeUrl)
+                .setStatus(ReceiptStatus.VALID);
+
+        Receipt savedReceipt = receiptRepository.save(receipt);
+
+        savedReceipt.setPdfUrl(buildPdfUrl(savedReceipt.getReceiptCode()));
+
+        return toResponse(receiptRepository.save(savedReceipt));
     }
 
     private Receipt findEntityById(UUID id) {
