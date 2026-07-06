@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/payments/appypay")
+@RequestMapping("/api/v1/financial/appypay")
 public class AppyPayQueryController {
 
     private final AppyPayClient appyPayClient;
