@@ -5,6 +5,7 @@ import com.secretariapay.api.dto.financial.ReceiptResponse;
 import com.secretariapay.api.entity.enums.financial.ChargeStatus;
 import com.secretariapay.api.entity.financial.Charge;
 import com.secretariapay.api.repository.financial.ChargeRepository;
+import com.secretariapay.api.service.financial.ReceiptDeliveryService;
 import com.secretariapay.api.service.financial.ReceiptService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,10 +22,16 @@ public class AppyPayWebhookService {
 
     private final ChargeRepository chargeRepository;
     private final ReceiptService receiptService;
+    private final ReceiptDeliveryService receiptDeliveryService;
 
-    public AppyPayWebhookService(ChargeRepository chargeRepository, ReceiptService receiptService) {
+    public AppyPayWebhookService(
+            ChargeRepository chargeRepository,
+            ReceiptService receiptService,
+            ReceiptDeliveryService receiptDeliveryService
+    ) {
         this.chargeRepository = chargeRepository;
         this.receiptService = receiptService;
+        this.receiptDeliveryService = receiptDeliveryService;
     }
 
     @Transactional
@@ -59,12 +66,14 @@ public class AppyPayWebhookService {
         }
 
         ReceiptResponse receipt = receiptService.issueOrFindForCharge(charge.getId());
+        receiptDeliveryService.sendAfterGateway(charge, receipt);
+
         return response
                 .setProcessed(true)
                 .setPaid(true)
                 .setReceiptCode(receipt.getReceiptCode())
                 .setReceiptPdfUrl(receipt.getPdfUrl())
-                .setMessage("Pagamento confirmado pela AppyPay e recibo emitido.");
+                .setMessage("Pagamento confirmado pela AppyPay, recibo emitido e envio automático acionado.");
     }
 
     private Optional<Charge> findChargeByMerchantTransactionId(String merchantTransactionId) {
