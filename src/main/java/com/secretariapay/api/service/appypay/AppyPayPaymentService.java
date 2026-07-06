@@ -27,9 +27,9 @@ public class AppyPayPaymentService {
     public AppyPayPaymentService(
             AppyPayClient appyPayClient,
             ChargeRepository chargeRepository,
-            @Value("${secretariapay.appypay.payment-method-ref:}") String referencePaymentMethod,
-            @Value("${secretariapay.appypay.payment-method-gpo:}") String gpoPaymentMethod,
-            @Value("${secretariapay.appypay.reference-entity:00348}") String referenceEntity
+            @Value("${APPYPAY_PAYMENT_METHOD_REF:}") String referencePaymentMethod,
+            @Value("${APPYPAY_PAYMENT_METHOD_GPO:}") String gpoPaymentMethod,
+            @Value("${APPYPAY_REFERENCE_ENTITY:00348}") String referenceEntity
     ) {
         this.appyPayClient = appyPayClient;
         this.chargeRepository = chargeRepository;
