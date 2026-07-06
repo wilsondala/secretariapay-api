@@ -24,11 +24,11 @@ public class AppyPayTokenService {
 
     public AppyPayTokenService(
             RestClient.Builder restClientBuilder,
-            @Value("${secretariapay.appypay.auth-url:}") String authUrl,
-            @Value("${secretariapay.appypay.grant-type:client_credentials}") String grantType,
-            @Value("${secretariapay.appypay.client-id:}") String clientId,
-            @Value("${secretariapay.appypay.client-password:}") String clientPassword,
-            @Value("${secretariapay.appypay.resource:}") String resource
+            @Value("${APPYPAY_AUTH_URL:}") String authUrl,
+            @Value("${APPYPAY_GRANT_TYPE:client_credentials}") String grantType,
+            @Value("${APPYPAY_CLIENT_ID:}") String clientId,
+            @Value("${APPYPAY_CLIENT_PASSWORD:}") String clientPassword,
+            @Value("${APPYPAY_RESOURCE:}") String resource
     ) {
         this.restClient = restClientBuilder.build();
         this.authUrl = authUrl == null ? "" : authUrl.trim();
