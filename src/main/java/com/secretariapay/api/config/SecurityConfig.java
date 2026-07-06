@@ -141,6 +141,7 @@ public class SecurityConfig {
                                                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/secretariapay/whatsapp/webhook").permitAll()
                                                 .requestMatchers(HttpMethod.POST, "/api/v1/secretariapay/whatsapp/webhook").permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/api/v1/payments/appypay/webhook").permitAll()
                                                 .requestMatchers("/api/v1/admin/**")
                                                 .hasAnyAuthority("ADMIN", "ROLE_ADMIN")
 
