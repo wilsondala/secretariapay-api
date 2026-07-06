@@ -27,7 +27,7 @@ public class AppyPayTokenService {
             @Value("${secretariapay.appypay.auth-url:}") String authUrl,
             @Value("${secretariapay.appypay.grant-type:client_credentials}") String grantType,
             @Value("${secretariapay.appypay.client-id:}") String clientId,
-            @Value("${secretariapay.appypay.client-secret:}") String clientPassword,
+            @Value("${secretariapay.appypay.client-password:}") String clientPassword,
             @Value("${secretariapay.appypay.resource:}") String resource
     ) {
         this.restClient = restClientBuilder.build();
