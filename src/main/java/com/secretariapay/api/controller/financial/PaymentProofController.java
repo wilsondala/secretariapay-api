@@ -4,9 +4,11 @@ import com.secretariapay.api.dto.financial.PaymentProofRequest;
 import com.secretariapay.api.dto.financial.PaymentProofResponse;
 import com.secretariapay.api.dto.financial.PaymentProofReviewRequest;
 import com.secretariapay.api.entity.enums.financial.PaymentProofStatus;
+import com.secretariapay.api.service.financial.PaymentProofAttachmentService;
 import com.secretariapay.api.service.financial.PaymentProofService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,9 +20,11 @@ import java.util.UUID;
 public class PaymentProofController {
 
     private final PaymentProofService service;
+    private final PaymentProofAttachmentService attachmentService;
 
-    public PaymentProofController(PaymentProofService service) {
+    public PaymentProofController(PaymentProofService service, PaymentProofAttachmentService attachmentService) {
         this.service = service;
+        this.attachmentService = attachmentService;
     }
 
     @PostMapping
@@ -39,6 +43,12 @@ public class PaymentProofController {
     @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
     public PaymentProofResponse findById(@PathVariable UUID id) {
         return service.findById(id);
+    }
+
+    @GetMapping("/{id}/attachment")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    public ResponseEntity<byte[]> openAttachment(@PathVariable UUID id) {
+        return attachmentService.openAttachment(id);
     }
 
     @GetMapping("/status/{status}")
