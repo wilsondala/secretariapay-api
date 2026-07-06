@@ -17,6 +17,8 @@ import java.util.Optional;
 @Service
 public class AppyPayWebhookService {
 
+    private static final int MAX_MERCHANT_TRANSACTION_ID_LENGTH = 15;
+
     private final ChargeRepository chargeRepository;
     private final ReceiptService receiptService;
 
@@ -39,7 +41,7 @@ public class AppyPayWebhookService {
             return response.setProcessed(false).setMessage("Webhook recebido sem merchantTransactionId.");
         }
 
-        Optional<Charge> optionalCharge = chargeRepository.findByChargeCode(merchantTransactionId.trim());
+        Optional<Charge> optionalCharge = findChargeByMerchantTransactionId(merchantTransactionId);
         if (optionalCharge.isEmpty()) {
             return response.setProcessed(false).setMessage("Cobrança não encontrada.");
         }
@@ -63,6 +65,38 @@ public class AppyPayWebhookService {
                 .setReceiptCode(receipt.getReceiptCode())
                 .setReceiptPdfUrl(receipt.getPdfUrl())
                 .setMessage("Pagamento confirmado pela AppyPay e recibo emitido.");
+    }
+
+    private Optional<Charge> findChargeByMerchantTransactionId(String merchantTransactionId) {
+        String normalized = normalizeMerchantTransactionId(merchantTransactionId);
+        if (normalized.isBlank()) return Optional.empty();
+
+        Optional<Charge> exact = chargeRepository.findByChargeCode(merchantTransactionId.trim());
+        if (exact.isPresent()) return exact;
+
+        return chargeRepository.findAll()
+                .stream()
+                .filter(charge -> normalized.equals(merchantTransactionIdFor(charge)))
+                .findFirst();
+    }
+
+    private String merchantTransactionIdFor(Charge charge) {
+        String source = firstNonBlank(charge.getChargeCode(), charge.getId() != null ? charge.getId().toString() : "");
+        String sanitized = normalizeMerchantTransactionId(source);
+
+        if (sanitized.isBlank()) {
+            sanitized = "SP" + System.currentTimeMillis();
+        }
+
+        if (sanitized.length() <= MAX_MERCHANT_TRANSACTION_ID_LENGTH) {
+            return sanitized;
+        }
+
+        return sanitized.substring(sanitized.length() - MAX_MERCHANT_TRANSACTION_ID_LENGTH);
+    }
+
+    private String normalizeMerchantTransactionId(String value) {
+        return value == null ? "" : value.replaceAll("[^A-Za-z0-9]", "").trim();
     }
 
     private boolean isPaidStatus(String status, Map<String, Object> payload) {
