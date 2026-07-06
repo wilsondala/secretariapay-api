@@ -18,6 +18,8 @@ import java.util.UUID;
 @Service
 public class AppyPayPaymentService {
 
+    private static final int MAX_MERCHANT_TRANSACTION_ID_LENGTH = 15;
+
     private final AppyPayClient appyPayClient;
     private final ChargeRepository chargeRepository;
     private final String referencePaymentMethod;
@@ -41,7 +43,7 @@ public class AppyPayPaymentService {
     @Transactional(readOnly = true)
     public AppyPayChargeResponse createReferenceCharge(AppyPayChargeRequest request) {
         Charge charge = findCharge(request.getChargeId());
-        String merchantTransactionId = charge.getChargeCode();
+        String merchantTransactionId = merchantTransactionIdFor(charge);
         Map<String, Object> payload = basePayload(charge, merchantTransactionId, firstNonBlank(request.getDescription(), charge.getDescription()));
         payload.put("paymentMethod", referencePaymentMethod);
         AppyPayProviderResponse provider = appyPayClient.createCharge(payload);
@@ -55,7 +57,7 @@ public class AppyPayPaymentService {
         Charge charge = findCharge(request.getChargeId());
         String phoneNumber = normalizePhone(request.getPhoneNumber());
         if (phoneNumber.isBlank()) throw new IllegalArgumentException("Telefone Multicaixa Express obrigatório.");
-        String merchantTransactionId = charge.getChargeCode();
+        String merchantTransactionId = merchantTransactionIdFor(charge);
         Map<String, Object> payload = basePayload(charge, merchantTransactionId, firstNonBlank(request.getDescription(), charge.getDescription()));
         payload.put("paymentMethod", gpoPaymentMethod);
         payload.put("paymentInfo", Map.of("phoneNumber", phoneNumber));
@@ -94,6 +96,21 @@ public class AppyPayPaymentService {
 
     private Charge findCharge(UUID chargeId) {
         return chargeRepository.findById(chargeId).orElseThrow(() -> new NotFoundException("Cobrança não encontrada."));
+    }
+
+    private String merchantTransactionIdFor(Charge charge) {
+        String source = firstNonBlank(charge.getChargeCode(), charge.getId() != null ? charge.getId().toString() : "");
+        String sanitized = source.replaceAll("[^A-Za-z0-9]", "");
+
+        if (sanitized.isBlank()) {
+            sanitized = "SP" + System.currentTimeMillis();
+        }
+
+        if (sanitized.length() <= MAX_MERCHANT_TRANSACTION_ID_LENGTH) {
+            return sanitized;
+        }
+
+        return sanitized.substring(sanitized.length() - MAX_MERCHANT_TRANSACTION_ID_LENGTH);
     }
 
     private String normalizePhone(String phoneNumber) {
