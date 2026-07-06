@@ -20,6 +20,9 @@ public class PaymentProofResponse {
     private UUID reviewedByUserId;
     private String reviewedByName;
     private String reviewNote;
+    private String receiptCode;
+    private String receiptPdfUrl;
+    private String receiptValidationUrl;
     private LocalDateTime reviewedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -138,6 +141,33 @@ public class PaymentProofResponse {
 
     public PaymentProofResponse setReviewNote(String reviewNote) {
         this.reviewNote = reviewNote;
+        return this;
+    }
+
+    public String getReceiptCode() {
+        return receiptCode;
+    }
+
+    public PaymentProofResponse setReceiptCode(String receiptCode) {
+        this.receiptCode = receiptCode;
+        return this;
+    }
+
+    public String getReceiptPdfUrl() {
+        return receiptPdfUrl;
+    }
+
+    public PaymentProofResponse setReceiptPdfUrl(String receiptPdfUrl) {
+        this.receiptPdfUrl = receiptPdfUrl;
+        return this;
+    }
+
+    public String getReceiptValidationUrl() {
+        return receiptValidationUrl;
+    }
+
+    public PaymentProofResponse setReceiptValidationUrl(String receiptValidationUrl) {
+        this.receiptValidationUrl = receiptValidationUrl;
         return this;
     }
 
