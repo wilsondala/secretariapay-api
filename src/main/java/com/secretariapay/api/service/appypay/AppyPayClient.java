@@ -15,20 +15,20 @@ import java.util.Map;
 public class AppyPayClient {
 
     private final RestClient restClient;
+    private final AppyPayTokenService tokenService;
     private final boolean enabled;
     private final String apiBaseUrl;
-    private final String staticBearerToken;
 
     public AppyPayClient(
             RestClient.Builder restClientBuilder,
+            AppyPayTokenService tokenService,
             @Value("${secretariapay.appypay.enabled:false}") boolean enabled,
-            @Value("${secretariapay.appypay.api-base-url:}") String apiBaseUrl,
-            @Value("${secretariapay.appypay.bearer-token:}") String staticBearerToken
+            @Value("${secretariapay.appypay.api-base-url:}") String apiBaseUrl
     ) {
         this.restClient = restClientBuilder.build();
+        this.tokenService = tokenService;
         this.enabled = enabled;
         this.apiBaseUrl = stripTrailingSlash(apiBaseUrl);
-        this.staticBearerToken = safe(staticBearerToken);
     }
 
     public AppyPayProviderResponse createCharge(Map<String, Object> payload) {
@@ -55,7 +55,7 @@ public class AppyPayClient {
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restClient.post()
                     .uri(apiBaseUrl + path)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + staticBearerToken)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenService.getToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
                     .body(payload)
@@ -76,7 +76,7 @@ public class AppyPayClient {
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restClient.get()
                     .uri(apiBaseUrl + path)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + staticBearerToken)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenService.getToken())
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(Map.class);
@@ -90,7 +90,7 @@ public class AppyPayClient {
 
     private AppyPayProviderResponse validateConfiguration() {
         if (!enabled) return failed(null, "Integração AppyPay desativada.");
-        if (isBlank(apiBaseUrl) || isBlank(staticBearerToken)) return failed(null, "Configuração AppyPay incompleta.");
+        if (isBlank(apiBaseUrl)) return failed(null, "Configuração AppyPay incompleta.");
         return null;
     }
 
@@ -98,6 +98,5 @@ public class AppyPayClient {
     private AppyPayProviderResponse failed(Integer httpStatus, String errorMessage) { return new AppyPayProviderResponse().setSuccess(false).setHttpStatus(httpStatus).setErrorMessage(errorMessage); }
     private String stripTrailingSlash(String value) { if (value == null || value.isBlank()) return ""; return value.endsWith("/") ? value.substring(0, value.length() - 1) : value.trim(); }
     private boolean isBlank(String value) { return value == null || value.isBlank(); }
-    private String safe(String value) { return value == null ? "" : value.trim(); }
     private String safeBody(String body) { if (body == null || body.isBlank()) return "sem detalhes"; return body.length() > 700 ? body.substring(0, 700) + "..." : body; }
 }
