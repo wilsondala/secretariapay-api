@@ -10,7 +10,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/payments/appypay")
+@RequestMapping("/api/v1/financial/appypay")
 public class AppyPayPaymentController {
 
     private final AppyPayPaymentService service;
