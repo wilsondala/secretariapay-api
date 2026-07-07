@@ -8,6 +8,8 @@ import com.secretariapay.api.service.financial.SecretariaPayMockAutomaticPayment
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -21,7 +23,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SecretariaPayWhatsappFinancialDemoConversationService extends SecretariaPayWhatsappFinancialConversationService {
 
     private static final int SESSION_MINUTES = 60;
+    private static final String API_BASE_URL = "https://secretariapay-api.paixaoangola.com";
+
     private final Map<String, DemoSession> sessions = new ConcurrentHashMap<>();
+    private final WhatsAppCloudApiClient whatsAppCloudApiClient;
 
     public SecretariaPayWhatsappFinancialDemoConversationService(
             StudentRepository studentRepository,
@@ -32,6 +37,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
             SecretariaPayMockAutomaticPaymentService mockAutomaticPaymentService
     ) {
         super(studentRepository, chargeRepository, receiptRepository, sessionRepository, whatsAppCloudApiClient, mockAutomaticPaymentService);
+        this.whatsAppCloudApiClient = whatsAppCloudApiClient;
     }
 
     @Override
@@ -56,7 +62,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
             DemoSession current = sessions.get(phone);
             if (current != null && "WAITING_PROOF".equals(current.step())) {
                 sessions.remove(phone);
-                return Optional.of(buildProofApprovedReceipt(current));
+                return Optional.of(buildProofApprovedReceipt(phone, current));
             }
 
             return Optional.of("""
@@ -118,7 +124,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
             if ("RECEIPT".equals(session.action())) {
                 sessions.remove(phone);
-                return buildReceiptLookup(message);
+                return buildReceiptLookup(phone, message);
             }
 
             if ("SUMMARY".equals(session.action())) {
@@ -146,22 +152,22 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
             if ("1".equals(normalized) || containsAny(normalized, "multicaixa express", "express")) {
                 sessions.put(phone, DemoSession.waitingAutoSimulation(session.studentIdentifier(), session.referenceMonth(), "Multicaixa Express"));
-                return buildGuideAndAskAutoSimulation(session, "Multicaixa Express");
+                return buildGuideAndAskAutoSimulation(phone, session, "Multicaixa Express");
             }
 
             if ("2".equals(normalized) || containsAny(normalized, "referencia", "referência")) {
                 sessions.put(phone, DemoSession.waitingAutoSimulation(session.studentIdentifier(), session.referenceMonth(), "Pagamento por Referência"));
-                return buildGuideAndAskAutoSimulation(session, "Pagamento por Referência");
+                return buildGuideAndAskAutoSimulation(phone, session, "Pagamento por Referência");
             }
 
             if ("3".equals(normalized) || containsAny(normalized, "mesmo banco", "transferencia", "transferência")) {
                 sessions.put(phone, DemoSession.waitingAutoSimulation(session.studentIdentifier(), session.referenceMonth(), "Transferência mesmo banco"));
-                return buildGuideAndAskAutoSimulation(session, "Transferência mesmo banco");
+                return buildGuideAndAskAutoSimulation(phone, session, "Transferência mesmo banco");
             }
 
             if ("4".equals(normalized) || containsAny(normalized, "deposito", "depósito", "balcao", "balcão", "outro banco", "tpa", "presencial")) {
                 sessions.put(phone, DemoSession.waitingManualSimulation(session.studentIdentifier(), session.referenceMonth(), "Depósito/balcão/outro banco"));
-                return buildGuideAndAskManualPayment(session);
+                return buildGuideAndAskManualPayment(phone, session);
             }
 
             return askPaymentMethod(session.studentIdentifier(), session.referenceMonth(), "OVERDUE".equals(session.action()));
@@ -170,7 +176,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         if ("WAITING_AUTO_SIMULATION".equals(session.step())) {
             if ("1".equals(normalized) || containsAny(normalized, "simular", "confirmar", "pago", "paguei", "sucesso")) {
                 sessions.remove(phone);
-                return buildAutomaticReceipt(session);
+                return buildAutomaticReceipt(phone, session);
             }
 
             return ("""
@@ -187,12 +193,12 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 return askProofAfterManualPayment(session);
             }
 
-            return ("""
+            return """
                     Guia demonstrativa emitida para pagamento com comprovativo.
 
                     Para continuar, responda:
                     1. Simular pagamento realizado
-                    """).trim();
+                    """.trim();
         }
 
         if ("WAITING_PROOF".equals(session.step())) {
@@ -272,13 +278,15 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 """).formatted(fine, student, reference).trim();
     }
 
-    private String buildGuideAndAskAutoSimulation(DemoSession session, String method) {
+    private String buildGuideAndAskAutoSimulation(String phone, DemoSession session, String method) {
+        sendDemoGuidePdf(phone, session.studentIdentifier(), session.referenceMonth(), method);
+
         String referenceBlock = "Pagamento por Referência".equals(method)
                 ? "\nEntidade: 00348\nReferência: 205114879\nValor: 45.000,00 Kz\n"
                 : "";
 
         return ("""
-                Guia demonstrativa emitida.
+                Guia demonstrativa emitida e enviada em PDF.
 
                 Cadastro: %s
                 Mês: %s
@@ -288,13 +296,15 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 Para demonstrar o fluxo automático, responda:
                 1. Simular pagamento confirmado
 
-                Após a simulação, o sistema enviará o recibo/comprovativo de pagamento e encerrará o atendimento com agradecimento.
+                Após a simulação, o sistema enviará o recibo/comprovativo de pagamento em PDF e encerrará o atendimento com agradecimento.
                 """).formatted(session.studentIdentifier(), session.referenceMonth(), method, referenceBlock).trim();
     }
 
-    private String buildGuideAndAskManualPayment(DemoSession session) {
+    private String buildGuideAndAskManualPayment(String phone, DemoSession session) {
+        sendDemoGuidePdf(phone, session.studentIdentifier(), session.referenceMonth(), "Depósito/balcão/outro banco");
+
         return ("""
-                Guia demonstrativa emitida.
+                Guia demonstrativa emitida e enviada em PDF.
 
                 Cadastro: %s
                 Mês: %s
@@ -309,13 +319,13 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     }
 
     private String askProofAfterManualPayment(DemoSession session) {
-        return ("""
+        return """
                 Pagamento demonstrativo realizado.
 
                 Agora envie o comprovativo em imagem ou PDF aqui no WhatsApp.
 
-                Na demonstração, após receber o comprovativo, o sistema simulará a aprovação da DCR e enviará o recibo automaticamente.
-                """).trim();
+                Na demonstração, após receber o comprovativo, o sistema simulará a aprovação da DCR e enviará o recibo em PDF automaticamente.
+                """.trim();
     }
 
     private String askProof() {
@@ -324,11 +334,14 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
                 Essa opção é usada para depósito, pagamento em balcão, Multicaixa presencial/TPA ou transferência de outro banco.
 
-                Na demonstração, após receber o comprovativo, o sistema simulará a aprovação da DCR e enviará o recibo automaticamente.
+                Na demonstração, após receber o comprovativo, o sistema simulará a aprovação da DCR e enviará o recibo em PDF automaticamente.
                 """.trim();
     }
 
-    private String buildAutomaticReceipt(DemoSession session) {
+    private String buildAutomaticReceipt(String phone, DemoSession session) {
+        String receipt = receiptCode();
+        sendDemoReceiptPdf(phone, session.studentIdentifier(), session.referenceMonth(), session.paymentMethod(), receipt);
+
         return ("""
                 ✅ Pagamento confirmado.
 
@@ -337,13 +350,16 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 Valor pago: 45.000,00 Kz
                 Recibo: %s
 
-                O recibo/comprovativo de pagamento foi gerado automaticamente nesta demonstração.
+                O recibo/comprovativo de pagamento foi gerado e enviado em PDF nesta demonstração.
 
                 Obrigado por utilizar o atendimento financeiro académico do IMETRO. Estamos à disposição.
-                """).formatted(session.paymentMethod(), session.referenceMonth(), receiptCode()).trim();
+                """).formatted(session.paymentMethod(), session.referenceMonth(), receipt).trim();
     }
 
-    private String buildProofApprovedReceipt(DemoSession session) {
+    private String buildProofApprovedReceipt(String phone, DemoSession session) {
+        String receipt = receiptCode();
+        sendDemoReceiptPdf(phone, session.studentIdentifier(), session.referenceMonth(), session.paymentMethod(), receipt);
+
         return ("""
                 ✅ Comprovativo recebido e aprovado na demonstração.
 
@@ -353,22 +369,24 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 Recibo: %s
 
                 Na operação real, a DCR valida o comprovativo antes da emissão do recibo.
-                Nesta demonstração, a aprovação foi simulada automaticamente.
+                Nesta demonstração, a aprovação foi simulada automaticamente e o recibo foi enviado em PDF.
 
                 Obrigado por utilizar o atendimento financeiro académico do IMETRO. Estamos à disposição.
-                """).formatted(session.paymentMethod(), session.referenceMonth(), receiptCode()).trim();
+                """).formatted(session.paymentMethod(), session.referenceMonth(), receipt).trim();
     }
 
-    private String buildReceiptLookup(String student) {
+    private String buildReceiptLookup(String phone, String student) {
+        String receipt = receiptCode();
+        sendDemoReceiptPdf(phone, student, "consulta", "Reenvio de recibo", receipt);
         return ("""
                 Cadastro informado: %s
 
-                Recibo demonstrativo encontrado:
+                Recibo demonstrativo encontrado e enviado em PDF:
                 Recibo: %s
                 Estado: Pagamento confirmado
 
                 Obrigado por contactar o atendimento financeiro académico do IMETRO.
-                """).formatted(student, receiptCode()).trim();
+                """).formatted(student, receipt).trim();
     }
 
     private String buildSummary(String student) {
@@ -393,6 +411,41 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 """.trim();
     }
 
+    private void sendDemoGuidePdf(String phone, String student, String month, String method) {
+        String code = "GUIDE-DEMO-" + shortId();
+        String url = API_BASE_URL + "/api/v1/public/demo/payment-guides/" + encode(code) + "/pdf"
+                + "?student=" + encode(student)
+                + "&month=" + encode(month)
+                + "&method=" + encode(method);
+        String caption = ("""
+                Guia de pagamento demonstrativa.
+
+                Cadastro: %s
+                Mês: %s
+                Forma de pagamento: %s
+                Valor: 45.000,00 Kz
+                """).formatted(student, month, method).trim();
+
+        whatsAppCloudApiClient.sendDocumentByLink(phone, url, "guia-pagamento-" + code + ".pdf", caption);
+    }
+
+    private void sendDemoReceiptPdf(String phone, String student, String month, String method, String receipt) {
+        String url = API_BASE_URL + "/api/v1/public/demo/receipts/" + encode(receipt) + "/pdf"
+                + "?student=" + encode(student)
+                + "&month=" + encode(month)
+                + "&method=" + encode(method);
+        String caption = ("""
+                Recibo de pagamento demonstrativo.
+
+                Recibo: %s
+                Cadastro: %s
+                Mês: %s
+                Valor: 45.000,00 Kz
+                """).formatted(receipt, student, month).trim();
+
+        whatsAppCloudApiClient.sendDocumentByLink(phone, url, "recibo-" + receipt + ".pdf", caption);
+    }
+
     private String resolveReferenceMonth(String normalized, String raw) {
         if ("1".equals(normalized) || containsAny(normalized, "mes atual", "mês atual", "atual")) return "mês atual";
         if ("2".equals(normalized) || containsAny(normalized, "mes passado", "mês passado", "atraso", "atrasado")) return "mês passado / em atraso";
@@ -409,7 +462,15 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     }
 
     private String receiptCode() {
-        return "RCT-DEMO-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        return "RCT-DEMO-" + shortId();
+    }
+
+    private String shortId() {
+        return UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    private String encode(String value) {
+        return URLEncoder.encode(safe(value), StandardCharsets.UTF_8);
     }
 
     private boolean isMedia(String type) {
