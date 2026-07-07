@@ -11,11 +11,13 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class SecretariaPayWhatsappWebhookService {
@@ -33,6 +35,7 @@ public class SecretariaPayWhatsappWebhookService {
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    private final Map<String, GuidedFinancialContext> guidedFinancialContexts = new ConcurrentHashMap<>();
 
     public SecretariaPayWhatsappWebhookService(
             @Value("${secretariapay.whatsapp.verify-token:secretariapay-dev-token}")
@@ -428,6 +431,20 @@ public class SecretariaPayWhatsappWebhookService {
     }
 
     private String buildFinancialOnlyReply(InboundWhatsappMessage message) {
+        String phone = sanitizePhone(message.from());
+        String body = message.body() == null ? "" : message.body().trim();
+        String normalized = normalize(body);
+
+        if (isMenuIntent(normalized) || isGreetingIntent(normalized)) {
+            guidedFinancialContexts.remove(phone);
+            return buildFinancialScopeReply();
+        }
+
+        GuidedFinancialContext context = guidedFinancialContexts.get(phone);
+        if (context != null) {
+            return handleGuidedFinancialContext(phone, context, body, normalized);
+        }
+
         if (message.mediaId() != null && !message.mediaId().isBlank()) {
             return academicSupportService.buildDatabaseAwareReply(
                             message.from(),
@@ -440,6 +457,116 @@ public class SecretariaPayWhatsappWebhookService {
                     .orElseGet(this::buildFinancialScopeReply);
         }
 
+        if (isGuideRequest(normalized) || "1".equals(normalized) || "2".equals(normalized)) {
+            guidedFinancialContexts.put(phone, new GuidedFinancialContext("WAITING_STUDENT_IDENTIFIER", "", ""));
+            return buildAskStudentForGuideReply();
+        }
+
+        if ("3".equals(normalized) || containsAny(normalized, "atraso", "multa", "vencido", "divida", "dívida")) {
+            guidedFinancialContexts.put(phone, new GuidedFinancialContext("WAITING_STUDENT_IDENTIFIER", "", "OPEN_CHARGES"));
+            return buildAskStudentForOpenChargesReply();
+        }
+
+        if ("4".equals(normalized) || containsAny(normalized, "comprovativo", "comprovante", "talao", "talão")) {
+            return """
+                    Envie o comprovativo em imagem ou PDF por aqui.
+
+                    Essa opção é usada para depósito, pagamento feito em balcão, Multicaixa presencial/TPA ou transferência de outro banco.
+
+                    Após a validação da DCR, o sistema envia o recibo automaticamente no WhatsApp.
+                    """.trim();
+        }
+
+        if ("5".equals(normalized) || containsAny(normalized, "recibo")) {
+            return """
+                    Para consultar ou reenviar recibo, envie o número de matrícula ou BI do estudante.
+
+                    Exemplo:
+                    IMETRO-2026-TESTE-002
+                    """.trim();
+        }
+
+        if ("6".equals(normalized) || containsAny(normalized, "situacao financeira", "situação financeira", "estado financeiro")) {
+            guidedFinancialContexts.put(phone, new GuidedFinancialContext("WAITING_STUDENT_IDENTIFIER", "", "SUMMARY"));
+            return """
+                    Para consultar a situação financeira, envie o número de matrícula, BI ou telefone cadastrado.
+
+                    Exemplo:
+                    IMETRO-2026-TESTE-002
+                    """.trim();
+        }
+
+        return buildFinancialScopeReply();
+    }
+
+    private String handleGuidedFinancialContext(String phone, GuidedFinancialContext context, String body, String normalized) {
+        if ("WAITING_STUDENT_IDENTIFIER".equals(context.step())) {
+            if (body.isBlank()) {
+                return buildAskStudentForGuideReply();
+            }
+
+            if ("OPEN_CHARGES".equals(context.action())) {
+                guidedFinancialContexts.put(phone, new GuidedFinancialContext("WAITING_REFERENCE_MONTH", body, "OPEN_CHARGES"));
+                return buildReferenceMonthOptions(body, true);
+            }
+
+            if ("SUMMARY".equals(context.action())) {
+                guidedFinancialContexts.remove(phone);
+                return """
+                        Obrigado. Vou consultar a situação financeira desse cadastro.
+
+                        Para uma análise completa, solicite a guia ou informe o mês de referência.
+
+                        1. Mês atual
+                        2. Mês passado / em atraso
+                        3. Escolher outro mês
+                        """.trim();
+            }
+
+            guidedFinancialContexts.put(phone, new GuidedFinancialContext("WAITING_REFERENCE_MONTH", body, "GUIDE"));
+            return buildReferenceMonthOptions(body, false);
+        }
+
+        if ("WAITING_REFERENCE_MONTH".equals(context.step())) {
+            String reference = resolveReferenceMonthOption(normalized, body);
+            if (reference.isBlank()) {
+                return buildReferenceMonthOptions(context.studentIdentifier(), "OPEN_CHARGES".equals(context.action()));
+            }
+
+            guidedFinancialContexts.put(phone, new GuidedFinancialContext("WAITING_PAYMENT_METHOD", context.studentIdentifier(), reference));
+            return buildPaymentMethodOptions(context.studentIdentifier(), reference);
+        }
+
+        if ("WAITING_PAYMENT_METHOD".equals(context.step())) {
+            if ("0".equals(normalized) || containsAny(normalized, "voltar", "menu")) {
+                guidedFinancialContexts.remove(phone);
+                return buildFinancialScopeReply();
+            }
+
+            if ("1".equals(normalized) || containsAny(normalized, "multicaixa express")) {
+                guidedFinancialContexts.remove(phone);
+                return buildAutomaticPaymentSelectedReply("Multicaixa Express", context.referenceMonth());
+            }
+
+            if ("2".equals(normalized) || containsAny(normalized, "referencia", "referência")) {
+                guidedFinancialContexts.remove(phone);
+                return buildReferencePaymentSelectedReply(context.referenceMonth());
+            }
+
+            if ("3".equals(normalized) || containsAny(normalized, "transferencia mesmo banco", "transferência mesmo banco", "mesmo banco")) {
+                guidedFinancialContexts.remove(phone);
+                return buildAutomaticPaymentSelectedReply("Transferência mesmo banco", context.referenceMonth());
+            }
+
+            if ("4".equals(normalized) || containsAny(normalized, "deposito", "depósito", "balcao", "balcão", "outro banco", "tpa")) {
+                guidedFinancialContexts.remove(phone);
+                return buildManualPaymentSelectedReply(context.referenceMonth());
+            }
+
+            return buildPaymentMethodOptions(context.studentIdentifier(), context.referenceMonth());
+        }
+
+        guidedFinancialContexts.remove(phone);
         return buildFinancialScopeReply();
     }
 
@@ -503,6 +630,123 @@ public class SecretariaPayWhatsappWebhookService {
         return updated;
     }
 
+    private String buildFinancialScopeReply() {
+        return ("""
+                %s 👋
+                Este canal é exclusivo para atendimento financeiro académico do IMETRO.
+
+                Escolha uma opção respondendo com o número ou escrevendo o nome da opção:
+
+                1. Propinas e mensalidades
+                2. Guia de pagamento
+                3. Pagamentos em atraso e multas
+                4. Enviar comprovativo
+                5. Recibos
+                6. Situação financeira
+
+                Exemplo: responda 2 ou escreva guia.
+
+                Para outros assuntos académicos ou administrativos, contacte a secretaria académica ou o setor responsável do IMETRO.
+                """).formatted(greetingByCurrentHour()).trim();
+    }
+
+    private String buildAskStudentForGuideReply() {
+        return """
+                Perfeito. Vou iniciar a emissão da guia de pagamento.
+
+                Envie o número de matrícula, BI ou telefone cadastrado do estudante.
+
+                Exemplo:
+                IMETRO-2026-TESTE-002
+                """.trim();
+    }
+
+    private String buildAskStudentForOpenChargesReply() {
+        return """
+                Para consultar atraso, multa ou mensalidades em aberto, envie o número de matrícula, BI ou telefone cadastrado.
+
+                Exemplo:
+                IMETRO-2026-TESTE-002
+                """.trim();
+    }
+
+    private String buildReferenceMonthOptions(String studentIdentifier, boolean openCharges) {
+        return ("""
+                Cadastro informado: %s
+
+                Informe o mês de referência:
+
+                1. Mês atual
+                2. Mês passado / em atraso
+                3. Escolher outro mês
+
+                Você pode responder com o número ou escrever, por exemplo: mês atual, mês passado ou 06/2026.
+                """).formatted(studentIdentifier).trim();
+    }
+
+    private String buildPaymentMethodOptions(String studentIdentifier, String referenceMonth) {
+        return ("""
+                Guia preparada.
+
+                Cadastro: %s
+                Mês de referência: %s
+
+                Escolha a forma de pagamento:
+
+                1. Multicaixa Express
+                   Pagamento automático. O recibo é enviado após confirmação.
+
+                2. Pagamento por Referência
+                   Pagamento automático. O sistema envia entidade, referência e valor.
+
+                3. Transferência mesmo banco
+                   Pagamento automático no ambiente de teste.
+
+                4. Depósito, balcão, Multicaixa presencial/TPA ou transferência de outro banco
+                   Envie o comprovativo. A DCR valida antes do recibo.
+
+                Responda com o número ou escreva a forma de pagamento.
+                """).formatted(studentIdentifier, referenceMonth).trim();
+    }
+
+    private String buildAutomaticPaymentSelectedReply(String methodName, String referenceMonth) {
+        return ("""
+                %s selecionado.
+
+                Mês de referência: %s
+
+                Essa forma de pagamento é automática no teste.
+                Assim que o pagamento for confirmado pelo sistema, o recibo será enviado automaticamente no WhatsApp.
+
+                Obrigado por utilizar o atendimento financeiro académico do IMETRO.
+                """).formatted(methodName, referenceMonth).trim();
+    }
+
+    private String buildReferencePaymentSelectedReply(String referenceMonth) {
+        return ("""
+                Pagamento por Referência selecionado.
+
+                Mês de referência: %s
+
+                O sistema deverá enviar entidade, referência e valor da guia.
+                Após a confirmação do pagamento, o recibo será enviado automaticamente no WhatsApp.
+
+                Obrigado por utilizar o atendimento financeiro académico do IMETRO.
+                """).formatted(referenceMonth).trim();
+    }
+
+    private String buildManualPaymentSelectedReply(String referenceMonth) {
+        return ("""
+                Modalidade com comprovativo selecionada.
+
+                Mês de referência: %s
+
+                Após pagar por depósito, balcão, Multicaixa presencial/TPA ou transferência de outro banco, envie o comprovativo em imagem ou PDF.
+
+                A DCR fará a validação e, após aprovação, o sistema enviará o recibo automaticamente no WhatsApp.
+                """).formatted(referenceMonth).trim();
+    }
+
     private String buildPaymentModesBlock() {
         return """
                 Formas de pagamento:
@@ -543,27 +787,6 @@ public class SecretariaPayWhatsappWebhookService {
                 || lower.contains("requerimento academico");
     }
 
-    private String buildFinancialScopeReply() {
-        return ("""
-                %s 👋
-                Este canal é exclusivo para atendimento financeiro académico do IMETRO.
-
-                Posso ajudar com:
-                1. Propinas e mensalidades
-                2. Guias de pagamento
-                3. Pagamentos em atraso e multas
-                4. Comprovativos
-                5. Recibos
-                6. Situação financeira
-
-                Para consultar formas de pagamento, solicite uma guia de pagamento.
-
-                Para outros assuntos académicos ou administrativos, por favor contacte a secretaria académica ou o setor responsável do IMETRO.
-
-                Para voltar ao atendimento financeiro, responda: menu
-                """).formatted(greetingByCurrentHour()).trim();
-    }
-
     private String greetingByCurrentHour() {
         int hour = LocalTime.now().getHour();
         if (hour >= 5 && hour < 12) {
@@ -573,6 +796,34 @@ public class SecretariaPayWhatsappWebhookService {
             return "Boa tarde";
         }
         return "Boa noite";
+    }
+
+    private String resolveReferenceMonthOption(String normalized, String raw) {
+        if ("1".equals(normalized) || containsAny(normalized, "mes atual", "mês atual", "atual")) {
+            return "mês atual";
+        }
+        if ("2".equals(normalized) || containsAny(normalized, "mes passado", "mês passado", "atraso", "atrasado")) {
+            return "mês passado / em atraso";
+        }
+        if ("3".equals(normalized) || containsAny(normalized, "outro", "escolher")) {
+            return "outro mês informado manualmente";
+        }
+        if (raw != null && raw.matches("(?i).*\\b(0?[1-9]|1[0-2])[/.-]20\\d{2}\\b.*")) {
+            return raw.trim();
+        }
+        return "";
+    }
+
+    private boolean isGuideRequest(String normalized) {
+        return containsAny(normalized, "guia", "boleto", "referencia", "referência", "quero pagar", "pagar", "propina", "mensalidade");
+    }
+
+    private boolean isGreetingIntent(String normalized) {
+        return containsAny(normalized, "ola", "olá", "bom dia", "boa tarde", "boa noite", "oi");
+    }
+
+    private boolean isMenuIntent(String normalized) {
+        return containsAny(normalized, "menu", "inicio", "início", "opcoes", "opções", "voltar");
     }
 
     private boolean isCloseMessage(String value) {
@@ -586,6 +837,20 @@ public class SecretariaPayWhatsappWebhookService {
                 || lower.contains("sair")
                 || lower.contains("terminar")
                 || lower.contains("finalizar");
+    }
+
+    private boolean containsAny(String value, String... terms) {
+        if (value == null || value.isBlank()) return false;
+        for (String term : terms) {
+            if (value.contains(normalize(term))) return true;
+        }
+        return false;
+    }
+
+    private String normalize(String value) {
+        if (value == null) return "";
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD).replaceAll("\\p{M}", "");
+        return normalized.toLowerCase().trim().replaceAll("\\s+", " ");
     }
 
     private String sanitizePhone(String phone) {
@@ -603,6 +868,13 @@ public class SecretariaPayWhatsappWebhookService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private record GuidedFinancialContext(
+            String step,
+            String studentIdentifier,
+            String action
+    ) {
     }
 
     private record InboundWhatsappMessage(
