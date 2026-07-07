@@ -12,6 +12,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -125,19 +126,8 @@ public class SecretariaPayWhatsappWebhookService {
                     message.body()
             );
 
-            replyText = financialReply
-                    .orElseGet(() -> academicSupportService.buildDatabaseAwareReply(
-                                    message.from(),
-                                    message.type(),
-                                    message.body(),
-                                    message.mediaId(),
-                                    message.fileName(),
-                                    message.mimeType()
-                            )
-                            .orElseGet(() -> brainService.buildReply(
-                                    message.type(),
-                                    message.body()
-                            )));
+            replyText = financialReply.orElseGet(() -> buildFinancialOnlyReply(message));
+            replyText = normalizeInstitutionalReply(replyText, message.body());
 
             sendResult = sendTextMessage(
                     message.from(),
@@ -158,6 +148,8 @@ public class SecretariaPayWhatsappWebhookService {
 
         if (financialReply.isPresent()) {
             response.put("flow", "SECRETARIAPAY_FINANCIAL_CONVERSATION_ROUTER");
+        } else {
+            response.put("flow", "SECRETARIAPAY_FINANCIAL_SCOPE_GUARD");
         }
 
         if (message.mediaId() != null && !message.mediaId().isBlank()) {
@@ -433,6 +425,100 @@ public class SecretariaPayWhatsappWebhookService {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private String buildFinancialOnlyReply(InboundWhatsappMessage message) {
+        if (message.mediaId() != null && !message.mediaId().isBlank()) {
+            return academicSupportService.buildDatabaseAwareReply(
+                            message.from(),
+                            message.type(),
+                            message.body(),
+                            message.mediaId(),
+                            message.fileName(),
+                            message.mimeType()
+                    )
+                    .orElseGet(this::buildFinancialScopeReply);
+        }
+
+        return buildFinancialScopeReply();
+    }
+
+    private String normalizeInstitutionalReply(String replyText, String inboundText) {
+        String reply = replyText == null ? "" : replyText.trim();
+
+        if (reply.startsWith("Boa tarde!")) {
+            reply = greetingByCurrentHour() + reply.substring("Boa tarde".length());
+        }
+
+        if (isAcademicScopeReply(reply)) {
+            reply = buildFinancialScopeReply();
+        }
+
+        if (isCloseMessage(inboundText) && !reply.toLowerCase().contains("obrigado")) {
+            reply = reply + "\n\nObrigado por contactar o atendimento financeiro académico do IMETRO. Estamos à disposição.";
+        }
+
+        return reply;
+    }
+
+    private boolean isAcademicScopeReply(String reply) {
+        if (reply == null || reply.isBlank()) {
+            return false;
+        }
+
+        String lower = reply.toLowerCase();
+        return lower.contains("outras solicitações académicas")
+                || lower.contains("outras solicitacoes academicas")
+                || lower.contains("declaração de frequência")
+                || lower.contains("declaracao de frequencia")
+                || lower.contains("certificado")
+                || lower.contains("histórico escolar")
+                || lower.contains("historico escolar")
+                || lower.contains("requerimento académico")
+                || lower.contains("requerimento academico");
+    }
+
+    private String buildFinancialScopeReply() {
+        return ("""
+                %s 👋
+                Este canal é exclusivo para atendimento financeiro académico do IMETRO.
+
+                Posso ajudar com:
+                1. Propinas e mensalidades
+                2. Guias de pagamento
+                3. Pagamentos em atraso e multas
+                4. Comprovativos
+                5. Recibos
+                6. Situação financeira
+
+                Para outros assuntos académicos ou administrativos, por favor contacte a secretaria académica ou o setor responsável do IMETRO.
+
+                Para voltar ao atendimento financeiro, responda: menu
+                """).formatted(greetingByCurrentHour()).trim();
+    }
+
+    private String greetingByCurrentHour() {
+        int hour = LocalTime.now().getHour();
+        if (hour >= 5 && hour < 12) {
+            return "Bom dia";
+        }
+        if (hour >= 12 && hour < 18) {
+            return "Boa tarde";
+        }
+        return "Boa noite";
+    }
+
+    private boolean isCloseMessage(String value) {
+        if (value == null) {
+            return false;
+        }
+
+        String lower = value.toLowerCase().trim();
+        return "0".equals(lower)
+                || lower.contains("encerrar")
+                || lower.contains("sair")
+                || lower.contains("terminar")
+                || lower.contains("finalizar");
     }
 
     private String sanitizePhone(String phone) {
