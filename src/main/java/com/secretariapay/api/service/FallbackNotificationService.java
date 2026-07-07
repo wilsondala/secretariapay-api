@@ -73,7 +73,7 @@ public class FallbackNotificationService {
         }
 
         if (!properties.isEmailEnabled()) {
-            return delivery("EMAIL", "PREPARED", false, "E-mail institucional preparado. Ative SECRETARIAPAY_EMAIL_ENABLED e configure SPRING_MAIL_* no servidor para envio real.", request);
+            return delivery("EMAIL", "PREPARED", false, "E-mail institucional preparado. Ative SECRETARIAPAY_NOTIFICATIONS_EMAIL_ENABLED e configure SPRING_MAIL_* no servidor para envio real.", request);
         }
 
         JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
@@ -81,20 +81,24 @@ public class FallbackNotificationService {
             return delivery("EMAIL", "FAILED", false, "JavaMailSender não está disponível. Configure o SMTP institucional no ambiente.", request);
         }
 
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(properties.getEmailFrom());
-        message.setTo(email);
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(properties.getEmailFrom());
+            message.setTo(email);
 
-        String cc = clean(properties.getEmailCc());
-        if (!cc.isBlank()) {
-            message.setCc(cc);
+            String cc = clean(properties.getEmailCc());
+            if (!cc.isBlank()) {
+                message.setCc(cc);
+            }
+
+            message.setSubject("Guia de pagamento - " + safe(request.getGuideCode(), "SecretáriaPay"));
+            message.setText(buildEmailBody(request));
+            mailSender.send(message);
+
+            return delivery("EMAIL", "SENT", true, "Guia enviada por e-mail institucional.", request);
+        } catch (Exception ex) {
+            return delivery("EMAIL", "FAILED", false, "Falha ao enviar e-mail institucional: " + ex.getMessage(), request);
         }
-
-        message.setSubject("Guia de pagamento - " + safe(request.getGuideCode(), "SecretáriaPay"));
-        message.setText(buildEmailBody(request));
-        mailSender.send(message);
-
-        return delivery("EMAIL", "SENT", true, "Guia enviada por e-mail institucional.", request);
     }
 
     public Map<String, Object> sendGuideBySms(GuideFallbackRequest request) {
@@ -105,7 +109,7 @@ public class FallbackNotificationService {
 
         String smsText = buildSmsText(request);
         if (!properties.isSmsEnabled()) {
-            Map<String, Object> response = delivery("SMS", "PREPARED", false, "SMS preparado. Ative SECRETARIAPAY_SMS_ENABLED e configure o provedor no servidor para envio real.", request);
+            Map<String, Object> response = delivery("SMS", "PREPARED", false, "SMS preparado. Ative SECRETARIAPAY_NOTIFICATIONS_SMS_ENABLED e configure o provedor no servidor para envio real.", request);
             response.put("smsText", smsText);
             return response;
         }
@@ -123,16 +127,27 @@ public class FallbackNotificationService {
         payload.put("message", smsText);
         payload.put("provider", properties.getSmsProvider());
 
-        restClient.post()
-                .uri(apiUrl)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(payload)
-                .retrieve()
-                .toBodilessEntity();
+        String apiKey = clean(properties.getSmsApiKey());
+        if (!apiKey.isBlank()) {
+            payload.put("apiKey", apiKey);
+        }
 
-        Map<String, Object> response = delivery("SMS", "SENT", true, "SMS com link da guia enviado.", request);
-        response.put("smsText", smsText);
-        return response;
+        try {
+            restClient.post()
+                    .uri(apiUrl)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(payload)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            Map<String, Object> response = delivery("SMS", "SENT", true, "SMS com link da guia enviado.", request);
+            response.put("smsText", smsText);
+            return response;
+        } catch (Exception ex) {
+            Map<String, Object> response = delivery("SMS", "FAILED", false, "Falha ao enviar SMS: " + ex.getMessage(), request);
+            response.put("smsText", smsText);
+            return response;
+        }
     }
 
     private Map<String, Object> channel(String code, String name, String status, String mode, String description) {
