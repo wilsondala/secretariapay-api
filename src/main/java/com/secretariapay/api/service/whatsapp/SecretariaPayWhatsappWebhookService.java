@@ -26,7 +26,7 @@ public class SecretariaPayWhatsappWebhookService {
     private final String graphApiVersion;
     private final String graphApiBaseUrl;
     private final SecretariaPayWhatsappAcademicSupportService academicSupportService;
-    private final SecretariaPayWhatsappFinancialConversationService financialConversationService;
+    private final SecretariaPayWhatsappFinancialDemoConversationService financialConversationService;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
@@ -39,7 +39,7 @@ public class SecretariaPayWhatsappWebhookService {
             @Value("${secretariapay.whatsapp.graph-api-base-url:https://graph.facebook.com}") String graphApiBaseUrl,
             SecretariaPayWhatsappBrainService brainService,
             SecretariaPayWhatsappAcademicSupportService academicSupportService,
-            SecretariaPayWhatsappFinancialConversationService financialConversationService
+            SecretariaPayWhatsappFinancialDemoConversationService financialConversationService
     ) {
         this.verifyToken = verifyToken;
         this.whatsappEnabled = whatsappEnabled;
@@ -94,7 +94,7 @@ public class SecretariaPayWhatsappWebhookService {
 
         response.put("processed", true);
         response.put("status", sendResult.success() ? "AUTO_REPLY_SENT" : "AUTO_REPLY_FAILED");
-        response.put("flow", "SECRETARIAPAY_FINANCIAL_CONVERSATION_ROUTER");
+        response.put("flow", "SECRETARIAPAY_FINANCIAL_DEMO_CONVERSATION_ROUTER");
         response.put("from", message.from());
         response.put("messageType", message.type());
         response.put("messageText", message.body());
