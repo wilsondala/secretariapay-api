@@ -454,11 +454,76 @@ public class SecretariaPayWhatsappWebhookService {
             reply = buildFinancialScopeReply();
         }
 
+        reply = applyPaymentModesWording(reply);
+
         if (isCloseMessage(inboundText) && !reply.toLowerCase().contains("obrigado")) {
             reply = reply + "\n\nObrigado por contactar o atendimento financeiro académico do IMETRO. Estamos à disposição.";
         }
 
         return reply;
+    }
+
+    private String applyPaymentModesWording(String reply) {
+        if (reply == null || reply.isBlank()) {
+            return reply;
+        }
+
+        String updated = reply;
+
+        if (updated.contains("Formas de pagamento disponíveis:")) {
+            int start = updated.indexOf("Formas de pagamento disponíveis:");
+            int end = updated.indexOf("Quando receber", start);
+            if (end < 0) {
+                end = updated.indexOf("Precisa de mais", start);
+            }
+
+            if (end > start) {
+                updated = updated.substring(0, start).trim()
+                        + "\n\n"
+                        + buildAutomaticPaymentModesBlock()
+                        + "\n\n"
+                        + updated.substring(end).trim();
+            } else {
+                updated = updated.substring(0, start).trim()
+                        + "\n\n"
+                        + buildAutomaticPaymentModesBlock();
+            }
+        }
+
+        updated = updated.replace(
+                "Após o pagamento, envie o comprovativo para validação da DCR.",
+                "Multicaixa Express e Pagamento por Referência têm confirmação automática via AppyPay. Transferência mesmo banco é automática no ambiente de teste. Depósito bancário exige comprovativo e validação da DCR."
+        );
+
+        updated = updated.replace(
+                "O recibo institucional será emitido somente após validação manual da DCR.",
+                "O recibo institucional será emitido automaticamente quando o pagamento for confirmado pelo método escolhido."
+        );
+
+        return updated;
+    }
+
+    private String buildAutomaticPaymentModesBlock() {
+        return """
+                Formas de pagamento disponíveis:
+
+                1. Multicaixa Express
+                   Confirmação automática via AppyPay.
+                   Após confirmação, o recibo é enviado automaticamente.
+
+                2. Pagamento por Referência
+                   Confirmação automática via AppyPay.
+                   O sistema gera entidade, referência e valor.
+                   Após confirmação da AppyPay, o recibo é enviado automaticamente.
+
+                3. Transferência mesmo banco
+                   No ambiente de teste, será confirmada automaticamente.
+                   O sistema identifica o aluno pelo WhatsApp cadastrado e emite o recibo.
+
+                4. Depósito bancário
+                   Exige envio do comprovativo em imagem/PDF.
+                   A DCR valida antes da emissão do recibo.
+                """.trim();
     }
 
     private boolean isAcademicScopeReply(String reply) {
@@ -490,6 +555,12 @@ public class SecretariaPayWhatsappWebhookService {
                 4. Comprovativos
                 5. Recibos
                 6. Situação financeira
+
+                Modalidades de pagamento configuradas:
+                1. Multicaixa Express — automático via AppyPay
+                2. Pagamento por Referência — automático via AppyPay
+                3. Transferência mesmo banco — automática no ambiente de teste
+                4. Depósito bancário — comprovativo e validação DCR
 
                 Para outros assuntos académicos ou administrativos, por favor contacte a secretaria académica ou o setor responsável do IMETRO.
 
