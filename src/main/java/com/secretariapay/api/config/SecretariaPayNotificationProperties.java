@@ -15,6 +15,7 @@ public class SecretariaPayNotificationProperties {
     private boolean smsEnabled = false;
     private String smsProvider = "MOCK";
     private String smsApiUrl = "";
+    private String smsApiKey = "";
     private String smsSenderId = "SecretariaPay";
 
     public String getPublicGuideBaseUrl() {
@@ -79,6 +80,14 @@ public class SecretariaPayNotificationProperties {
 
     public void setSmsApiUrl(String smsApiUrl) {
         this.smsApiUrl = smsApiUrl;
+    }
+
+    public String getSmsApiKey() {
+        return smsApiKey;
+    }
+
+    public void setSmsApiKey(String smsApiKey) {
+        this.smsApiKey = smsApiKey;
     }
 
     public String getSmsSenderId() {
