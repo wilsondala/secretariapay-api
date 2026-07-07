@@ -480,19 +480,19 @@ public class SecretariaPayWhatsappWebhookService {
             if (end > start) {
                 updated = updated.substring(0, start).trim()
                         + "\n\n"
-                        + buildAutomaticPaymentModesBlock()
+                        + buildPaymentModesBlock()
                         + "\n\n"
                         + updated.substring(end).trim();
             } else {
                 updated = updated.substring(0, start).trim()
                         + "\n\n"
-                        + buildAutomaticPaymentModesBlock();
+                        + buildPaymentModesBlock();
             }
         }
 
         updated = updated.replace(
                 "Após o pagamento, envie o comprovativo para validação da DCR.",
-                "Multicaixa Express e Pagamento por Referência têm confirmação automática via AppyPay. Transferência mesmo banco é automática no ambiente de teste. Depósito bancário exige comprovativo e validação da DCR."
+                "Multicaixa Express, Pagamento por Referência e Transferência mesmo banco têm recibo automático quando o pagamento é confirmado pelo sistema. Depósito, pagamento em balcão, Multicaixa presencial/TPA e transferência de outro banco exigem comprovativo e validação da DCR."
         );
 
         updated = updated.replace(
@@ -503,26 +503,26 @@ public class SecretariaPayWhatsappWebhookService {
         return updated;
     }
 
-    private String buildAutomaticPaymentModesBlock() {
+    private String buildPaymentModesBlock() {
         return """
-                Formas de pagamento disponíveis:
+                Formas de pagamento:
 
                 1. Multicaixa Express
-                   Confirmação automática via AppyPay.
-                   Após confirmação, o recibo é enviado automaticamente.
+                   Pagamento automático.
+                   Após a confirmação, o sistema envia o recibo no WhatsApp.
 
                 2. Pagamento por Referência
-                   Confirmação automática via AppyPay.
+                   Pagamento automático.
                    O sistema gera entidade, referência e valor.
-                   Após confirmação da AppyPay, o recibo é enviado automaticamente.
+                   Após a confirmação, o sistema envia o recibo no WhatsApp.
 
                 3. Transferência mesmo banco
-                   No ambiente de teste, será confirmada automaticamente.
-                   O sistema identifica o aluno pelo WhatsApp cadastrado e emite o recibo.
+                   Pagamento automático no ambiente de teste.
+                   O aluno é identificado pelo WhatsApp cadastrado e o recibo é enviado automaticamente.
 
-                4. Depósito bancário
-                   Exige envio do comprovativo em imagem/PDF.
-                   A DCR valida antes da emissão do recibo.
+                4. Depósito, balcão, Multicaixa presencial ou transferência de outro banco
+                   Envie o comprovativo em imagem/PDF.
+                   A DCR valida e, após aprovação, o sistema envia o recibo no WhatsApp.
                 """.trim();
     }
 
@@ -556,11 +556,7 @@ public class SecretariaPayWhatsappWebhookService {
                 5. Recibos
                 6. Situação financeira
 
-                Modalidades de pagamento configuradas:
-                1. Multicaixa Express — automático via AppyPay
-                2. Pagamento por Referência — automático via AppyPay
-                3. Transferência mesmo banco — automática no ambiente de teste
-                4. Depósito bancário — comprovativo e validação DCR
+                Para consultar formas de pagamento, solicite uma guia de pagamento.
 
                 Para outros assuntos académicos ou administrativos, por favor contacte a secretaria académica ou o setor responsável do IMETRO.
 
