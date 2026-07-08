@@ -63,7 +63,7 @@ public class AppyPayPaymentGatewayService {
             Map<String, Object> paymentInfo,
             String methodLabel
     ) {
-        String safeMerchantTransactionId = normalizeMerchantTransactionId(merchantTransactionId);
+        String safeMerchantTransactionId = generateUniqueMerchantTransactionId();
 
         if (!properties.isEnabled()) {
             return prepared(methodLabel, safeMerchantTransactionId, amount, "AppyPay está preparado, mas ainda está desativado por configuração.");
@@ -237,15 +237,10 @@ public class AppyPayPaymentGatewayService {
         return text.substring(start, end);
     }
 
-    private String normalizeMerchantTransactionId(String merchantTransactionId) {
-        String normalized = clean(merchantTransactionId).replaceAll("[^A-Za-z0-9]", "");
-        if (normalized.isBlank()) {
-            normalized = "SPAY" + UUID.randomUUID().toString().replaceAll("[^A-Za-z0-9]", "");
-        }
-        if (normalized.length() > MAX_MERCHANT_TRANSACTION_ID_LENGTH) {
-            normalized = normalized.substring(0, MAX_MERCHANT_TRANSACTION_ID_LENGTH);
-        }
-        return normalized;
+    private String generateUniqueMerchantTransactionId() {
+        String uuid = UUID.randomUUID().toString().replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+        String id = "SP" + uuid;
+        return id.substring(0, Math.min(MAX_MERCHANT_TRANSACTION_ID_LENGTH, id.length()));
     }
 
     private String extractProviderChargeId(String raw) {
