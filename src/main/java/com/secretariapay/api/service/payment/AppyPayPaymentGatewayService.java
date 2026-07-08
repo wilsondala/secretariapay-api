@@ -18,6 +18,8 @@ import java.util.UUID;
 @Service
 public class AppyPayPaymentGatewayService {
 
+    private static final int MAX_MERCHANT_TRANSACTION_ID_LENGTH = 15;
+
     private final AppyPayProperties properties;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
@@ -169,8 +171,8 @@ public class AppyPayPaymentGatewayService {
         if (normalized.isBlank()) {
             normalized = "SPAY" + UUID.randomUUID().toString().replaceAll("[^A-Za-z0-9]", "");
         }
-        if (normalized.length() > 40) {
-            normalized = normalized.substring(0, 40);
+        if (normalized.length() > MAX_MERCHANT_TRANSACTION_ID_LENGTH) {
+            normalized = normalized.substring(0, MAX_MERCHANT_TRANSACTION_ID_LENGTH);
         }
         return normalized;
     }
