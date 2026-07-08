@@ -19,8 +19,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
-import java.time.format.DateTimeFormatter;
-import java.time.format.TextStyle;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -38,8 +36,8 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     private static final BigDecimal MATRICULA_AMOUNT = new BigDecimal("30000.00");
     private static final BigDecimal RECURSO_AMOUNT = new BigDecimal("15000.00");
     private static final BigDecimal DECLARACAO_AMOUNT = new BigDecimal("5000.00");
+    private static final BigDecimal TOTAL_EM_ABERTO = new BigDecimal("145000.00");
     private static final BigDecimal DEMO_FINE = new BigDecimal("5000.00");
-    private static final DateTimeFormatter DUE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final Map<String, DemoSession> sessions = new ConcurrentHashMap<>();
     private final WhatsAppCloudApiClient whatsAppCloudApiClient;
@@ -102,27 +100,27 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
         if ("2".equals(normalized) || isFinancialSummaryIntent(normalized)) {
             sessions.put(phone, DemoSession.waitingStudent("SUMMARY"));
-            return Optional.of(askStudent("📊 Vou consultar a sua situação financeira académica."));
+            return Optional.of(askStudent("📊 Vou consultar a sua situação financeira académica.\n\nOpção - 2"));
         }
 
         if ("3".equals(normalized) || isBordereauIntent(normalized)) {
             sessions.put(phone, DemoSession.waitingStudent("BORDEREAU"));
-            return Optional.of(askStudent("📄 Para localizar o bordereau/comprovativo já pago, preciso identificar o estudante."));
+            return Optional.of(askStudent("📄 Para localizar o bordereau/comprovativo já pago, preciso identificar o estudante.\n\nOpção - 3"));
         }
 
         if ("4".equals(normalized) || isMatriculaIntent(normalized)) {
             sessions.put(phone, DemoSession.waitingStudent("MATRICULA"));
-            return Optional.of(askStudent("🧾 Vou preparar o pagamento de matrícula."));
+            return Optional.of(askStudent("🧾 Vou preparar o pagamento de matrícula.\n\nOpção - 4"));
         }
 
         if ("5".equals(normalized) || isRecursoIntent(normalized)) {
             sessions.put(phone, DemoSession.waitingStudent("RECURSO"));
-            return Optional.of(askStudent("📝 Vou preparar o pagamento de recurso."));
+            return Optional.of(askStudent("📝 Vou preparar o pagamento de recurso.\n\nOpção - 5"));
         }
 
         if ("6".equals(normalized) || isDeclaracaoIntent(normalized)) {
             sessions.put(phone, DemoSession.waitingStudent("DECLARACAO"));
-            return Optional.of(askStudent("📄 Vou preparar o pagamento de declaração."));
+            return Optional.of(askStudent("📄 Vou preparar o pagamento de declaração.\n\nOpção - 6"));
         }
 
         if ("7".equals(normalized) || isHumanIntent(normalized)) {
@@ -145,7 +143,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
             DemoSession withStudent = session.withStudent(student);
 
             if ("SUMMARY".equals(session.action())) {
-                sessions.remove(phone);
+                sessions.put(phone, DemoSession.waitingSummaryAction(student));
                 return buildFinancialSummary(student);
             }
 
@@ -176,6 +174,30 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
             sessions.put(phone, DemoSession.waitingMonth(session.action(), student));
             return buildStudentFoundAndAskMonth(withStudent.studentIdentifier());
+        }
+
+        if ("WAITING_SUMMARY_ACTION".equals(session.step())) {
+            if ("1".equals(normalized) || containsAny(normalized, "pagar pendencias", "pagar pendências", "pendencias", "pendências")) {
+                sessions.put(phone, DemoSession.waitingPayment("SUMMARY_PENDING", session.studentIdentifier(), currentMonthLabel(), "Propinas pendentes", TOTAL_EM_ABERTO));
+                return buildGuidePrepared(session.studentIdentifier(), currentMonthLabel(), TOTAL_EM_ABERTO, true);
+            }
+
+            if ("2".equals(normalized) || containsAny(normalized, "guia do mes", "guia do mês", "mes atual", "mês atual")) {
+                sessions.put(phone, DemoSession.waitingPayment("SUMMARY_CURRENT", session.studentIdentifier(), currentMonthLabel(), "Propina mensal", PROPINA_AMOUNT));
+                return buildGuidePrepared(session.studentIdentifier(), currentMonthLabel(), PROPINA_AMOUNT, false);
+            }
+
+            if ("3".equals(normalized) || isBordereauIntent(normalized)) {
+                sessions.put(phone, DemoSession.waitingReceiptChoice(session.studentIdentifier()));
+                return buildBordereauList(session.studentIdentifier());
+            }
+
+            if ("4".equals(normalized) || containsAny(normalized, "voltar", "menu")) {
+                sessions.remove(phone);
+                return buildMainMenu();
+            }
+
+            return buildFinancialSummary(session.studentIdentifier());
         }
 
         if ("WAITING_MONTH".equals(session.step())) {
@@ -279,13 +301,13 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
             }
 
             if ("3".equals(normalized) || containsAny(normalized, "transferencia", "transferência", "mesmo banco")) {
-                sessions.put(phone, session.withPaymentMethod("Transferência bancária").withStep("WAITING_AUTO_SIMULATION"));
-                return buildGuideAndAskAutoSimulation(phone, session.withPaymentMethod("Transferência bancária"));
+                sessions.put(phone, session.withPaymentMethod("Transferência mesmo banco").withStep("WAITING_AUTO_SIMULATION"));
+                return buildGuideAndAskAutoSimulation(phone, session.withPaymentMethod("Transferência mesmo banco"));
             }
 
             if ("4".equals(normalized) || containsAny(normalized, "deposito", "depósito", "outro banco", "bancario", "bancário")) {
-                sessions.put(phone, session.withPaymentMethod("Depósito bancário / outro banco").withStep("WAITING_MANUAL_PAYMENT"));
-                return buildBankPaymentInstructions(phone, session.withPaymentMethod("Depósito bancário / outro banco"));
+                sessions.put(phone, session.withPaymentMethod("Depósito bancário / transferência de outro banco").withStep("WAITING_MANUAL_PAYMENT"));
+                return buildBankPaymentInstructions(phone, session.withPaymentMethod("Depósito bancário / transferência de outro banco"));
             }
 
             return buildPaymentMethods(session.studentIdentifier(), session.referenceMonth(), session.amount(), session.serviceName());
@@ -328,7 +350,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
     private String buildMainMenu() {
         return ("""
-                %s 👋
+                Secretaria Pay (IMETRO): %s 👋
 
                 Este canal é exclusivo para atendimento financeiro académico do IMETRO.
 
@@ -409,6 +431,8 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     private String buildGuidePrepared(String student, String reference, BigDecimal amount, boolean overdue) {
         String warning = overdue ? "\n⚠️ Identificámos pendência, multa ou atraso associado a este mês.\n" : "";
         return ("""
+                📌
+
                 📄 Guia preparada.%s
 
                 Estudante: WILSON DOS SANTOS KAHANGO DALA
@@ -421,8 +445,8 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
                 [1] Multicaixa Express
                 [2] Pagamento por Referência
-                [3] Transferência bancária
-                [4] Depósito bancário
+                [3] Transferência mesmo banco
+                [4] Depósito bancário / transferência de outro banco
                 [5] Voltar
                 """).formatted(warning, student, reference, money(amount)).trim();
     }
@@ -438,8 +462,8 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
                 [1] Multicaixa Express
                 [2] Pagamento por Referência
-                [3] Transferência bancária
-                [4] Depósito bancário
+                [3] Transferência mesmo banco
+                [4] Depósito bancário / transferência de outro banco
                 [5] Voltar
                 """).formatted(service, student, reference, money(amount)).trim();
     }
@@ -484,8 +508,8 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
                 [1] Multicaixa Express
                 [2] Pagamento por Referência
-                [3] Transferência bancária
-                [4] Depósito bancário
+                [3] Transferência mesmo banco
+                [4] Depósito bancário / transferência de outro banco
                 [5] Voltar
                 """).formatted(service, student, reference, money(amount)).trim();
     }
@@ -949,6 +973,10 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     private record DemoSession(String step, String action, String studentIdentifier, String referenceMonth, String paymentMethod, String serviceName, BigDecimal amount, LocalDateTime expiresAt) {
         static DemoSession waitingStudent(String action) {
             return new DemoSession("WAITING_STUDENT", action, "", "", "", "", BigDecimal.ZERO, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+        }
+
+        static DemoSession waitingSummaryAction(String studentIdentifier) {
+            return new DemoSession("WAITING_SUMMARY_ACTION", "SUMMARY", studentIdentifier, "", "", "Situação Financeira", TOTAL_EM_ABERTO, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
         static DemoSession waitingMonth(String action, String studentIdentifier) {
