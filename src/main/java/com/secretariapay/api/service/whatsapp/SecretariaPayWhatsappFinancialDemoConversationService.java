@@ -12,6 +12,8 @@ import com.secretariapay.api.service.financial.FinancialPenaltyCalculatorService
 import com.secretariapay.api.service.financial.SecretariaPayMockAutomaticPaymentService;
 import com.secretariapay.api.service.payment.AppyPayChargeResponse;
 import com.secretariapay.api.service.payment.AppyPayPaymentGatewayService;
+import com.secretariapay.api.service.payment.InfinitePayLinkPaymentResponse;
+import com.secretariapay.api.service.payment.InfinitePayTestPaymentService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -50,6 +52,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     private final WhatsAppCloudApiClient whatsAppCloudApiClient;
     private final FallbackNotificationService fallbackNotificationService;
     private final AppyPayPaymentGatewayService appyPayPaymentGatewayService;
+    private final InfinitePayTestPaymentService infinitePayTestPaymentService;
     private final FinancialPenaltyCalculatorService financialPenaltyCalculatorService;
     private final String demoEmail;
 
@@ -62,6 +65,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
             SecretariaPayMockAutomaticPaymentService mockAutomaticPaymentService,
             FallbackNotificationService fallbackNotificationService,
             AppyPayPaymentGatewayService appyPayPaymentGatewayService,
+            InfinitePayTestPaymentService infinitePayTestPaymentService,
             FinancialPenaltyCalculatorService financialPenaltyCalculatorService,
             @Value("${secretariapay.demo.email:dalawilson1244@gmail.com}") String demoEmail
     ) {
@@ -70,6 +74,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         this.whatsAppCloudApiClient = whatsAppCloudApiClient;
         this.fallbackNotificationService = fallbackNotificationService;
         this.appyPayPaymentGatewayService = appyPayPaymentGatewayService;
+        this.infinitePayTestPaymentService = infinitePayTestPaymentService;
         this.financialPenaltyCalculatorService = financialPenaltyCalculatorService;
         this.demoEmail = demoEmail == null || demoEmail.isBlank() ? "dalawilson1244@gmail.com" : demoEmail.trim();
     }
@@ -239,6 +244,9 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
             if ("2".equals(normalized) || containsAny(normalized, "referencia", "referência")) {
                 return createAppyPayChargeAndSendGuide(phone, session.withPaymentMethod("Pagamento por Referência"), false);
             }
+            if ("8".equals(normalized) || containsAny(normalized, "infinitepay", "infinite pay", "infinitypay", "infinity pay", "teste real brasil", "brasil", "pix brasil")) {
+                return createInfinitePayRealTestAndSendGuide(phone, session.withPaymentMethod("InfinitePay Brasil - teste real"));
+            }
             if ("3".equals(normalized) || containsAny(normalized, "transferencia", "transferência", "mesmo banco")) {
                 AppyPaySession next = session.withPaymentMethod("Transferência mesmo banco").withStep("WAITING_BANK_CONFIRMATION");
                 sessions.put(phone, next);
@@ -256,6 +264,10 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
         if ("WAITING_APPYPAY_PAYMENT".equals(session.step())) {
             return "✅ A cobrança já foi enviada para a AppyPay.\n\nEstado: aguardando confirmação real do pagamento.\n\nO bordereau/comprovativo será emitido automaticamente somente quando a AppyPay confirmar o pagamento como Sucesso.\n\nPara iniciar outro atendimento, responda menu.";
+        }
+
+        if ("WAITING_INFINITEPAY_PAYMENT".equals(session.step())) {
+            return "✅ O link InfinitePay já foi gerado.\n\nEstado: aguardando pagamento real no Brasil.\n\nApós o retorno de sucesso da InfinitePay, o SecretáriaPay emitirá o bordereau/comprovativo automaticamente e enviará no WhatsApp/e-mail.\n\nPara iniciar outro atendimento, responda menu.";
         }
 
         if ("WAITING_BANK_CONFIRMATION".equals(session.step())) {
@@ -336,6 +348,82 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 safe(appyPay.getStatus()),
                 safe(appyPay.getMerchantTransactionId()),
                 safe(appyPay.getMessage())
+        ).trim();
+    }
+
+    private String createInfinitePayRealTestAndSendGuide(String phone, AppyPaySession session) {
+        InfinitePayLinkPaymentResponse infinitePay = infinitePayTestPaymentService.createLink(
+                phone,
+                session.studentName(),
+                session.studentNumber(),
+                firstNonBlank(session.email(), demoEmail),
+                session.referenceMonth(),
+                session.serviceName(),
+                session.amount(),
+                session.baseAmount(),
+                session.fineAmount(),
+                session.interestAmount(),
+                session.dueDate()
+        );
+
+        if (!infinitePay.isSuccess()) {
+            sessions.remove(phone);
+            return ("""
+                    ⚠️ Não foi possível gerar o link InfinitePay.
+
+                    Provedor: InfinitePay Brasil - teste real
+                    Valor académico original: %s
+                    Valor teste Brasil: %s
+                    Referência académica: %s
+
+                    Estado: %s
+                    Código teste: %s
+                    Mensagem: %s
+
+                    Nenhum bordereau foi emitido.
+                    A integração AppyPay Angola continua intacta.
+                    """).formatted(
+                    money(session.amount()),
+                    moneyBrl(infinitePay.getAmountBrl()),
+                    session.referenceMonth(),
+                    safe(infinitePay.getStatus()),
+                    safe(infinitePay.getOrderNsu()),
+                    safe(infinitePay.getMessage())
+            ).trim();
+        }
+
+        AppyPaySession waitingPayment = session.withStep("WAITING_INFINITEPAY_PAYMENT");
+        sessions.put(phone, waitingPayment);
+        sendDemoGuidePdf(phone, waitingPayment);
+
+        return ("""
+                ✅ Link de pagamento gerado.
+
+                Provedor: InfinitePay Brasil - teste real
+                Forma de pagamento: Pix/link InfinitePay
+                Valor académico original: %s
+                Valor teste Brasil: %s
+                Referência académica: %s
+                Vencimento académico: %s
+
+                Código teste: %s
+
+                Pague pelo link:
+                %s
+
+                O PDF da guia foi enviado neste WhatsApp.
+                📧 Também enviei uma cópia para o e-mail cadastrado.
+
+                ⏳ Aguardando pagamento real pela InfinitePay.
+
+                Após o retorno de sucesso da InfinitePay, o bordereau/comprovativo será emitido automaticamente e enviado neste WhatsApp/e-mail.
+                """).formatted(
+                money(session.amount()),
+                moneyBrl(infinitePay.getAmountBrl()),
+                session.referenceMonth(),
+                formatDate(session.dueDate()),
+                safe(infinitePay.getOrderNsu()),
+                safe(infinitePay.getCheckoutUrl())
         ).trim();
     }
 
@@ -460,6 +548,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 [2] Pagamento por Referência - AppyPay REF
                 [3] Transferência mesmo banco
                 [4] Depósito bancário / transferência de outro banco
+                [8] Teste real Brasil - InfinitePay
                 [5] Voltar
                 """).formatted(
                 warning,
@@ -531,6 +620,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 [2] Pagamento por Referência - AppyPay REF
                 [3] Transferência mesmo banco
                 [4] Depósito bancário / transferência de outro banco
+                [8] Teste real Brasil - InfinitePay
                 [5] Voltar
                 """).formatted(session.serviceName(), session.studentName(), session.studentNumber(), session.serviceName(), money(session.amount())).trim();
     }
@@ -802,6 +892,11 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     private String money(BigDecimal value) {
         BigDecimal safeValue = value == null ? BigDecimal.ZERO : value;
         return String.format(Locale.forLanguageTag("pt-AO"), "%,.2f", safeValue).replace(',', '#').replace('.', ',').replace('#', '.') + " Kz";
+    }
+
+    private String moneyBrl(BigDecimal value) {
+        BigDecimal safeValue = value == null ? BigDecimal.ZERO : value;
+        return "R$ " + String.format(Locale.forLanguageTag("pt-BR"), "%,.2f", safeValue);
     }
 
     private String formatDate(LocalDate value) {
