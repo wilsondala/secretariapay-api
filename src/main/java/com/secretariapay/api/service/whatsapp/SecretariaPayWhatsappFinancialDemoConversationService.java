@@ -144,50 +144,43 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 return buildStudentNotFound();
             }
 
-            Student student = studentOptional.get();
-            AppyPaySession withStudent = session.withStudent(student);
-
+            AppyPaySession withStudent = session.withStudent(studentOptional.get());
             if ("SUMMARY".equals(session.action())) {
                 sessions.put(phone, withStudent.withStep("WAITING_SUMMARY_ACTION"));
                 return buildFinancialSummary(withStudent);
             }
-
             if ("BORDEREAU".equals(session.action())) {
                 sessions.put(phone, withStudent.withStep("WAITING_RECEIPT_CHOICE"));
                 return buildBordereauList(withStudent);
             }
-
             if ("MATRICULA".equals(session.action())) {
-                AppyPaySession payment = withStudent.withPayment("Matrícula 2026", "Matrícula", MATRICULA_AMOUNT);
-                sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+                AppyPaySession payment = withStudent.withPayment("Matrícula 2026", "Matrícula", MATRICULA_AMOUNT).withStep("WAITING_PAYMENT");
+                sessions.put(phone, payment);
                 return buildServiceGuide(payment);
             }
-
             if ("RECURSO".equals(session.action())) {
-                AppyPaySession payment = withStudent.withPayment("Recurso", "Exame de recurso", RECURSO_AMOUNT);
-                sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+                AppyPaySession payment = withStudent.withPayment("Recurso", "Exame de recurso", RECURSO_AMOUNT).withStep("WAITING_PAYMENT");
+                sessions.put(phone, payment);
                 return buildServiceGuide(payment);
             }
-
             if ("DECLARACAO".equals(session.action())) {
-                AppyPaySession payment = withStudent.withPayment("Declaração", "Declaração", DECLARACAO_AMOUNT);
-                sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+                AppyPaySession payment = withStudent.withPayment("Declaração", "Declaração", DECLARACAO_AMOUNT).withStep("WAITING_PAYMENT");
+                sessions.put(phone, payment);
                 return buildServiceGuide(payment);
             }
-
             sessions.put(phone, withStudent.withStep("WAITING_MONTH"));
             return buildStudentFoundAndAskMonth(withStudent);
         }
 
         if ("WAITING_SUMMARY_ACTION".equals(session.step())) {
             if ("1".equals(normalized) || containsAny(normalized, "pagar pendencias", "pagar pendências", "pendencias", "pendências")) {
-                AppyPaySession payment = session.withPayment("Julho/2026", "Propinas pendentes", TOTAL_EM_ABERTO);
-                sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+                AppyPaySession payment = session.withPayment("Julho/2026", "Propinas pendentes", TOTAL_EM_ABERTO).withStep("WAITING_PAYMENT");
+                sessions.put(phone, payment);
                 return buildGuidePrepared(payment, true);
             }
             if ("2".equals(normalized) || containsAny(normalized, "guia do mes", "guia do mês", "mes atual", "mês atual")) {
-                AppyPaySession payment = session.withPayment("Julho/2026", "Propina mensal", PROPINA_AMOUNT);
-                sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+                AppyPaySession payment = session.withPayment("Julho/2026", "Propina mensal", PROPINA_AMOUNT).withStep("WAITING_PAYMENT");
+                sessions.put(phone, payment);
                 return buildGuidePrepared(payment, false);
             }
             if ("3".equals(normalized) || isBordereauIntent(normalized)) {
@@ -200,8 +193,8 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
         if ("WAITING_MONTH".equals(session.step())) {
             if ("1".equals(normalized) || containsAny(normalized, "mes atual", "mês atual", "propina atual")) {
-                AppyPaySession payment = session.withPayment("Julho/2026", "Propina mensal", PROPINA_AMOUNT);
-                sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+                AppyPaySession payment = session.withPayment("Julho/2026", "Propina mensal", PROPINA_AMOUNT).withStep("WAITING_PAYMENT");
+                sessions.put(phone, payment);
                 return buildGuidePrepared(payment, false);
             }
             if ("3".equals(normalized) || containsAny(normalized, "atraso", "multa")) {
@@ -212,14 +205,14 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 sessions.remove(phone);
                 return buildMainMenu();
             }
-            AppyPaySession payment = session.withPayment("Julho/2026", "Propina mensal", PROPINA_AMOUNT);
-            sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+            AppyPaySession payment = session.withPayment("Julho/2026", "Propina mensal", PROPINA_AMOUNT).withStep("WAITING_PAYMENT");
+            sessions.put(phone, payment);
             return buildGuidePrepared(payment, false);
         }
 
         if ("WAITING_OVERDUE_CHOICE".equals(session.step())) {
-            AppyPaySession payment = session.withPayment("Maio/2026 + Junho/2026", "Propinas em atraso", new BigDecimal("100000.00"));
-            sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+            AppyPaySession payment = session.withPayment("Maio/2026 + Junho/2026", "Propinas em atraso", new BigDecimal("100000.00")).withStep("WAITING_PAYMENT");
+            sessions.put(phone, payment);
             return buildGuidePrepared(payment, true);
         }
 
@@ -282,7 +275,6 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
         sendDemoGuidePdf(phone, session);
 
-        String providerBlock = buildAppyPayBlock(appyPay);
         return ("""
                 ✅ Guia de pagamento criada.
 
@@ -292,7 +284,9 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 Referência: %s
                 Vencimento: 10/07/2026
 
-                %s
+                Estado AppyPay: %s
+                MerchantTransactionId: %s
+                Mensagem: %s
 
                 O PDF da guia foi enviado neste WhatsApp.
                 📧 Também enviei uma cópia para o e-mail cadastrado.
@@ -300,18 +294,13 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 Para concluir o teste, responda:
                 [1] Confirmar retorno AppyPay aprovado
                 [2] Voltar
-                """).formatted(session.paymentMethod(), money(session.amount()), session.referenceMonth(), providerBlock).trim();
-    }
-
-    private String buildAppyPayBlock(AppyPayChargeResponse response) {
-        return ("""
-                Estado AppyPay: %s
-                MerchantTransactionId: %s
-                Mensagem: %s
                 """).formatted(
-                safe(response.getStatus()),
-                safe(response.getMerchantTransactionId()),
-                safe(response.getMessage())
+                session.paymentMethod(),
+                money(session.amount()),
+                session.referenceMonth(),
+                safe(appyPay.getStatus()),
+                safe(appyPay.getMerchantTransactionId()),
+                safe(appyPay.getMessage())
         ).trim();
     }
 
@@ -365,6 +354,16 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 Exemplo:
                 IMETRO-2026-TESTE-002
                 """).formatted(intro).trim();
+    }
+
+    private String buildOutOfScope() {
+        return """
+                Este canal é exclusivo para atendimento financeiro académico do IMETRO.
+
+                Posso ajudar com propinas, situação financeira, bordereaux, matrícula, recurso, declaração, comprovativos e atendimento da DCR.
+
+                Para começar, responda menu ou escolha uma opção de 1 a 7.
+                """.trim();
     }
 
     private String buildStudentNotFound() {
@@ -762,19 +761,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         }
 
         AppyPaySession withStudent(Student student) {
-            return new AppyPaySession(
-                    step,
-                    action,
-                    student.getStudentNumber(),
-                    student.getFullName(),
-                    student.getEmail(),
-                    firstNonBlankStatic(student.getWhatsapp(), student.getPhone(), student.getGuardianPhone()),
-                    referenceMonth,
-                    paymentMethod,
-                    serviceName,
-                    amount,
-                    LocalDateTime.now().plusMinutes(SESSION_MINUTES)
-            );
+            return new AppyPaySession(step, action, student.getStudentNumber(), student.getFullName(), student.getEmail(), firstNonBlankStatic(student.getWhatsapp(), student.getPhone(), student.getGuardianPhone()), referenceMonth, paymentMethod, serviceName, amount, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
         AppyPaySession withStep(String step) {
