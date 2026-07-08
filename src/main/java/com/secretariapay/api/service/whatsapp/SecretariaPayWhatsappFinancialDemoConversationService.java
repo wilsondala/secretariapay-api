@@ -7,6 +7,8 @@ import com.secretariapay.api.repository.academic.StudentRepository;
 import com.secretariapay.api.repository.financial.ChargeRepository;
 import com.secretariapay.api.repository.financial.ReceiptRepository;
 import com.secretariapay.api.service.FallbackNotificationService;
+import com.secretariapay.api.service.financial.FinancialChargeCalculation;
+import com.secretariapay.api.service.financial.FinancialPenaltyCalculatorService;
 import com.secretariapay.api.service.financial.SecretariaPayMockAutomaticPaymentService;
 import com.secretariapay.api.service.payment.AppyPayChargeResponse;
 import com.secretariapay.api.service.payment.AppyPayPaymentGatewayService;
@@ -21,6 +23,8 @@ import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,13 +43,14 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     private static final BigDecimal MATRICULA_AMOUNT = new BigDecimal("30000.00");
     private static final BigDecimal RECURSO_AMOUNT = new BigDecimal("15000.00");
     private static final BigDecimal DECLARACAO_AMOUNT = new BigDecimal("5000.00");
-    private static final BigDecimal TOTAL_EM_ABERTO = new BigDecimal("145000.00");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final Map<String, AppyPaySession> sessions = new ConcurrentHashMap<>();
     private final StudentRepository studentRepository;
     private final WhatsAppCloudApiClient whatsAppCloudApiClient;
     private final FallbackNotificationService fallbackNotificationService;
     private final AppyPayPaymentGatewayService appyPayPaymentGatewayService;
+    private final FinancialPenaltyCalculatorService financialPenaltyCalculatorService;
     private final String demoEmail;
 
     public SecretariaPayWhatsappFinancialDemoConversationService(
@@ -57,6 +62,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
             SecretariaPayMockAutomaticPaymentService mockAutomaticPaymentService,
             FallbackNotificationService fallbackNotificationService,
             AppyPayPaymentGatewayService appyPayPaymentGatewayService,
+            FinancialPenaltyCalculatorService financialPenaltyCalculatorService,
             @Value("${secretariapay.demo.email:dalawilson1244@gmail.com}") String demoEmail
     ) {
         super(studentRepository, chargeRepository, receiptRepository, sessionRepository, whatsAppCloudApiClient, mockAutomaticPaymentService);
@@ -64,6 +70,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         this.whatsAppCloudApiClient = whatsAppCloudApiClient;
         this.fallbackNotificationService = fallbackNotificationService;
         this.appyPayPaymentGatewayService = appyPayPaymentGatewayService;
+        this.financialPenaltyCalculatorService = financialPenaltyCalculatorService;
         this.demoEmail = demoEmail == null || demoEmail.isBlank() ? "dalawilson1244@gmail.com" : demoEmail.trim();
     }
 
@@ -154,17 +161,17 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 return buildBordereauList(withStudent);
             }
             if ("MATRICULA".equals(session.action())) {
-                AppyPaySession payment = withStudent.withPayment("Matrícula 2026", "Matrícula", MATRICULA_AMOUNT).withStep("WAITING_PAYMENT");
+                AppyPaySession payment = withStudent.withSimplePayment("Matrícula 2026", "Matrícula", MATRICULA_AMOUNT).withStep("WAITING_PAYMENT");
                 sessions.put(phone, payment);
                 return buildServiceGuide(payment);
             }
             if ("RECURSO".equals(session.action())) {
-                AppyPaySession payment = withStudent.withPayment("Recurso", "Exame de recurso", RECURSO_AMOUNT).withStep("WAITING_PAYMENT");
+                AppyPaySession payment = withStudent.withSimplePayment("Recurso", "Exame de recurso", RECURSO_AMOUNT).withStep("WAITING_PAYMENT");
                 sessions.put(phone, payment);
                 return buildServiceGuide(payment);
             }
             if ("DECLARACAO".equals(session.action())) {
-                AppyPaySession payment = withStudent.withPayment("Declaração", "Declaração", DECLARACAO_AMOUNT).withStep("WAITING_PAYMENT");
+                AppyPaySession payment = withStudent.withSimplePayment("Declaração", "Declaração", DECLARACAO_AMOUNT).withStep("WAITING_PAYMENT");
                 sessions.put(phone, payment);
                 return buildServiceGuide(payment);
             }
@@ -174,12 +181,12 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
         if ("WAITING_SUMMARY_ACTION".equals(session.step())) {
             if ("1".equals(normalized) || containsAny(normalized, "pagar pendencias", "pagar pendências", "pendencias", "pendências")) {
-                AppyPaySession payment = session.withPayment("Julho/2026", "Propinas pendentes", TOTAL_EM_ABERTO).withStep("WAITING_PAYMENT");
+                AppyPaySession payment = session.withCalculatedPayment("Maio/2026 + Junho/2026 + Julho/2026", "Propinas pendentes", totalOpenCalculation()).withStep("WAITING_PAYMENT");
                 sessions.put(phone, payment);
                 return buildGuidePrepared(payment, true);
             }
             if ("2".equals(normalized) || containsAny(normalized, "guia do mes", "guia do mês", "mes atual", "mês atual")) {
-                AppyPaySession payment = session.withPayment("Julho/2026", "Propina mensal", PROPINA_AMOUNT).withStep("WAITING_PAYMENT");
+                AppyPaySession payment = session.withCalculatedPayment("Julho/2026", "Propina mensal", currentMonthCalculation()).withStep("WAITING_PAYMENT");
                 sessions.put(phone, payment);
                 return buildGuidePrepared(payment, false);
             }
@@ -193,7 +200,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
         if ("WAITING_MONTH".equals(session.step())) {
             if ("1".equals(normalized) || containsAny(normalized, "mes atual", "mês atual", "propina atual")) {
-                AppyPaySession payment = session.withPayment("Julho/2026", "Propina mensal", PROPINA_AMOUNT).withStep("WAITING_PAYMENT");
+                AppyPaySession payment = session.withCalculatedPayment("Julho/2026", "Propina mensal", currentMonthCalculation()).withStep("WAITING_PAYMENT");
                 sessions.put(phone, payment);
                 return buildGuidePrepared(payment, false);
             }
@@ -205,20 +212,20 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 sessions.remove(phone);
                 return buildMainMenu();
             }
-            AppyPaySession payment = session.withPayment("Julho/2026", "Propina mensal", PROPINA_AMOUNT).withStep("WAITING_PAYMENT");
+            AppyPaySession payment = session.withCalculatedPayment("Julho/2026", "Propina mensal", currentMonthCalculation()).withStep("WAITING_PAYMENT");
             sessions.put(phone, payment);
             return buildGuidePrepared(payment, false);
         }
 
         if ("WAITING_OVERDUE_CHOICE".equals(session.step())) {
-            AppyPaySession payment = session.withPayment("Maio/2026 + Junho/2026", "Propinas em atraso", new BigDecimal("100000.00")).withStep("WAITING_PAYMENT");
+            AppyPaySession payment = session.withCalculatedPayment("Maio/2026 + Junho/2026", "Propinas em atraso", overdueCalculation()).withStep("WAITING_PAYMENT");
             sessions.put(phone, payment);
             return buildGuidePrepared(payment, true);
         }
 
         if ("WAITING_RECEIPT_CHOICE".equals(session.step())) {
             sessions.remove(phone);
-            return sendReceiptAndBuildReply(phone, session.withPayment(resolveReceiptReference(normalized), "Reenvio de bordereau", PROPINA_AMOUNT), "Bordereau reenviado com sucesso.");
+            return sendReceiptAndBuildReply(phone, session.withSimplePayment(resolveReceiptReference(normalized), "Reenvio de bordereau", PROPINA_AMOUNT), "Bordereau reenviado com sucesso.");
         }
 
         if ("WAITING_PAYMENT".equals(session.step())) {
@@ -280,9 +287,9 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
                 Integração: AppyPay Sandbox
                 Forma de pagamento: %s
-                Valor: %s
+                Valor a pagar: %s
                 Referência: %s
-                Vencimento: 10/07/2026
+                Vencimento: %s
 
                 Estado AppyPay: %s
                 MerchantTransactionId: %s
@@ -298,6 +305,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 session.paymentMethod(),
                 money(session.amount()),
                 session.referenceMonth(),
+                formatDate(session.dueDate()),
                 safe(appyPay.getStatus()),
                 safe(appyPay.getMerchantTransactionId()),
                 safe(appyPay.getMessage())
@@ -309,16 +317,16 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 ✅ Guia de pagamento criada.
 
                 Forma de pagamento: Transferência mesmo banco
-                Valor: %s
+                Valor a pagar: %s
                 Referência: %s
-                Vencimento: 10/07/2026
+                Vencimento: %s
 
                 O PDF da guia foi enviado neste WhatsApp.
                 📧 Também enviei uma cópia para o e-mail cadastrado.
 
                 Para concluir o teste automático, responda:
                 [1] Confirmar pagamento aprovado
-                """).formatted(money(session.amount()), session.referenceMonth()).trim();
+                """).formatted(money(session.amount()), session.referenceMonth(), formatDate(session.dueDate())).trim();
     }
 
     private String buildMainMenu() {
@@ -402,7 +410,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     }
 
     private String buildGuidePrepared(AppyPaySession session, boolean overdue) {
-        String warning = overdue ? "\n⚠️ Identificámos pendência, multa ou atraso associado a este cadastro.\n" : "";
+        String warning = overdue ? "\n⚠️ Foram aplicadas regras de atraso, multa e juros conforme política DCR configurada.\n" : "";
         return ("""
                 📌
 
@@ -410,9 +418,13 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
                 Estudante: %s
                 Matrícula: %s
-                Mês de referência: %s
-                Valor da propina: %s
-                Vencimento: 10/07/2026
+                Mês/Serviço de referência: %s
+                Valor base: %s
+                Multa: %s
+                Juros: %s
+                Total a pagar: %s
+                Dias em atraso: %d
+                Vencimento: %s
 
                 Escolha a forma de pagamento:
 
@@ -421,10 +433,25 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 [3] Transferência mesmo banco
                 [4] Depósito bancário / transferência de outro banco
                 [5] Voltar
-                """).formatted(warning, session.studentName(), session.studentNumber(), session.referenceMonth(), money(session.amount())).trim();
+                """).formatted(
+                warning,
+                session.studentName(),
+                session.studentNumber(),
+                session.referenceMonth(),
+                money(session.baseAmount()),
+                money(session.fineAmount()),
+                money(session.interestAmount()),
+                money(session.amount()),
+                session.daysLate(),
+                formatDate(session.dueDate())
+        ).trim();
     }
 
     private String buildOverdueList(AppyPaySession session) {
+        FinancialChargeCalculation may = mayCalculation();
+        FinancialChargeCalculation june = juneCalculation();
+        BigDecimal totalOverdue = financialPenaltyCalculatorService.total(may, june);
+
         return ("""
                 📌 Propinas em atraso encontradas.
 
@@ -433,22 +460,32 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
                 Pendências:
 
-                1. Maio/2026 — 45.000,00 Kz
-                   Multa: 5.000,00 Kz
-                   Total: 50.000,00 Kz
+                1. Maio/2026 — Base: %s
+                   Multa: %s
+                   Juros: %s
+                   Dias em atraso: %d
+                   Total: %s
 
-                2. Junho/2026 — 45.000,00 Kz
-                   Multa: 5.000,00 Kz
-                   Total: 50.000,00 Kz
+                2. Junho/2026 — Base: %s
+                   Multa: %s
+                   Juros: %s
+                   Dias em atraso: %d
+                   Total: %s
 
-                Total em atraso: 100.000,00 Kz
+                Total em atraso: %s
 
                 Escolha uma opção:
 
                 [1] Pagar todos os meses em atraso
                 [2] Escolher apenas um mês
                 [3] Voltar ao menu anterior
-                """).formatted(session.studentName(), session.studentNumber()).trim();
+                """).formatted(
+                session.studentName(),
+                session.studentNumber(),
+                money(may.getBaseAmount()), money(may.getFineAmount()), money(may.getInterestAmount()), may.getDaysLate(), money(may.getTotalAmount()),
+                money(june.getBaseAmount()), money(june.getFineAmount()), money(june.getInterestAmount()), june.getDaysLate(), money(june.getTotalAmount()),
+                money(totalOverdue)
+        ).trim();
     }
 
     private String buildServiceGuide(AppyPaySession session) {
@@ -471,6 +508,11 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     }
 
     private String buildFinancialSummary(AppyPaySession session) {
+        FinancialChargeCalculation may = mayCalculation();
+        FinancialChargeCalculation june = juneCalculation();
+        FinancialChargeCalculation current = currentMonthCalculation();
+        BigDecimal totalOpen = financialPenaltyCalculatorService.total(may, june, current);
+
         return ("""
                 📊 Situação Financeira Académica
 
@@ -481,7 +523,12 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 Propinas pagas: Janeiro, Fevereiro, Março, Abril
                 Propinas em atraso: Maio, Junho
                 Propina do mês atual: Julho/2026
-                Total em aberto: 145.000,00 Kz
+
+                Maio/2026: %s
+                Junho/2026: %s
+                Julho/2026: %s
+
+                Total em aberto: %s
                 Estado financeiro: Com pendências
 
                 Escolha uma opção:
@@ -490,7 +537,14 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 [2] Gerar guia do mês atual
                 [3] Solicitar bordereau
                 [4] Voltar
-                """).formatted(session.studentName(), session.studentNumber()).trim();
+                """).formatted(
+                session.studentName(),
+                session.studentNumber(),
+                money(may.getTotalAmount()),
+                money(june.getTotalAmount()),
+                money(current.getTotalAmount()),
+                money(totalOpen)
+        ).trim();
     }
 
     private String buildBordereauList(AppyPaySession session) {
@@ -553,10 +607,23 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 Matrícula: %s
                 Referência: %s
                 Serviço: %s
-                Valor: %s
+                Valor base: %s
+                Multa: %s
+                Juros: %s
+                Total a pagar: %s
 
                 Guia online: %s
-                """).formatted(session.studentName(), session.studentNumber(), session.referenceMonth(), session.serviceName(), money(session.amount()), guideUrl).trim();
+                """).formatted(
+                session.studentName(),
+                session.studentNumber(),
+                session.referenceMonth(),
+                session.serviceName(),
+                money(session.baseAmount()),
+                money(session.fineAmount()),
+                money(session.interestAmount()),
+                money(session.amount()),
+                guideUrl
+        ).trim();
 
         whatsAppCloudApiClient.sendDocumentByLink(phone, pdfUrl, "guia-" + code + ".pdf", caption);
         sendGuideEmail(session, code, guideUrl);
@@ -590,8 +657,9 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         request.setGuideUrl(guideUrl);
         request.setAmount(session.amount());
         request.setCurrency("AOA");
-        request.setDueDate(LocalDate.of(2026, 7, 10));
-        request.setMessage("Guia emitida automaticamente pelo atendimento financeiro académico do IMETRO via SecretáriaPay.");
+        request.setDueDate(session.dueDate());
+        request.setMessage("Guia emitida automaticamente pelo atendimento financeiro académico do IMETRO via SecretáriaPay. Valor base: "
+                + money(session.baseAmount()) + ". Multa: " + money(session.fineAmount()) + ". Juros: " + money(session.interestAmount()) + ". Total: " + money(session.amount()) + ".");
         fallbackNotificationService.sendGuideByEmail(request);
     }
 
@@ -604,9 +672,56 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         request.setGuideUrl(pdfUrl);
         request.setAmount(session.amount());
         request.setCurrency("AOA");
-        request.setDueDate(LocalDate.of(2026, 7, 10));
+        request.setDueDate(session.dueDate());
         request.setMessage("Bordereau/comprovativo emitido automaticamente pelo SecretáriaPay após confirmação do pagamento.");
         fallbackNotificationService.sendGuideByEmail(request);
+    }
+
+    private FinancialChargeCalculation currentMonthCalculation() {
+        return financialPenaltyCalculatorService.calculate("Julho/2026", PROPINA_AMOUNT, YearMonth.of(2026, 7));
+    }
+
+    private FinancialChargeCalculation mayCalculation() {
+        return financialPenaltyCalculatorService.calculate("Maio/2026", PROPINA_AMOUNT, YearMonth.of(2026, 5));
+    }
+
+    private FinancialChargeCalculation juneCalculation() {
+        return financialPenaltyCalculatorService.calculate("Junho/2026", PROPINA_AMOUNT, YearMonth.of(2026, 6));
+    }
+
+    private FinancialChargeCalculation overdueCalculation() {
+        FinancialChargeCalculation may = mayCalculation();
+        FinancialChargeCalculation june = juneCalculation();
+        return combinedCalculation("Maio/2026 + Junho/2026", may, june);
+    }
+
+    private FinancialChargeCalculation totalOpenCalculation() {
+        FinancialChargeCalculation may = mayCalculation();
+        FinancialChargeCalculation june = juneCalculation();
+        FinancialChargeCalculation current = currentMonthCalculation();
+        return combinedCalculation("Maio/2026 + Junho/2026 + Julho/2026", may, june, current);
+    }
+
+    private FinancialChargeCalculation combinedCalculation(String referenceMonth, FinancialChargeCalculation... items) {
+        BigDecimal base = BigDecimal.ZERO;
+        BigDecimal fine = BigDecimal.ZERO;
+        BigDecimal interest = BigDecimal.ZERO;
+        BigDecimal total = BigDecimal.ZERO;
+        long daysLate = 0;
+        LocalDate dueDate = LocalDate.of(2026, 7, 10);
+        if (items != null) {
+            for (FinancialChargeCalculation item : items) {
+                if (item != null) {
+                    base = base.add(item.getBaseAmount());
+                    fine = fine.add(item.getFineAmount());
+                    interest = interest.add(item.getInterestAmount());
+                    total = total.add(item.getTotalAmount());
+                    daysLate += item.getDaysLate();
+                    dueDate = item.getDueDate();
+                }
+            }
+        }
+        return new FinancialChargeCalculation(referenceMonth, dueDate, daysLate, base, BigDecimal.ZERO, fine, BigDecimal.ZERO, interest, BigDecimal.ZERO, total);
     }
 
     private Optional<Student> findRegisteredStudent(String input, String fromPhone) {
@@ -659,6 +774,10 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     private String money(BigDecimal value) {
         BigDecimal safeValue = value == null ? BigDecimal.ZERO : value;
         return String.format(Locale.forLanguageTag("pt-AO"), "%,.2f", safeValue).replace(',', '#').replace('.', ',').replace('#', '.') + " Kz";
+    }
+
+    private String formatDate(LocalDate value) {
+        return value == null ? "-" : value.format(DATE_FORMAT);
     }
 
     private String shortId() {
@@ -753,27 +872,37 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
             String referenceMonth,
             String paymentMethod,
             String serviceName,
+            BigDecimal baseAmount,
+            BigDecimal fineAmount,
+            BigDecimal interestAmount,
             BigDecimal amount,
+            LocalDate dueDate,
+            long daysLate,
             LocalDateTime expiresAt
     ) {
         static AppyPaySession waitingStudent(String action) {
-            return new AppyPaySession("WAITING_STUDENT", action, "", "", "", "", "", "", "", BigDecimal.ZERO, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+            return new AppyPaySession("WAITING_STUDENT", action, "", "", "", "", "", "", "", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, LocalDate.of(2026, 7, 10), 0, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
         AppyPaySession withStudent(Student student) {
-            return new AppyPaySession(step, action, student.getStudentNumber(), student.getFullName(), student.getEmail(), firstNonBlankStatic(student.getWhatsapp(), student.getPhone(), student.getGuardianPhone()), referenceMonth, paymentMethod, serviceName, amount, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+            return new AppyPaySession(step, action, student.getStudentNumber(), student.getFullName(), student.getEmail(), firstNonBlankStatic(student.getWhatsapp(), student.getPhone(), student.getGuardianPhone()), referenceMonth, paymentMethod, serviceName, baseAmount, fineAmount, interestAmount, amount, dueDate, daysLate, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
         AppyPaySession withStep(String step) {
-            return new AppyPaySession(step, action, studentNumber, studentName, email, phone, referenceMonth, paymentMethod, serviceName, amount, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+            return new AppyPaySession(step, action, studentNumber, studentName, email, phone, referenceMonth, paymentMethod, serviceName, baseAmount, fineAmount, interestAmount, amount, dueDate, daysLate, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
-        AppyPaySession withPayment(String referenceMonth, String serviceName, BigDecimal amount) {
-            return new AppyPaySession(step, action, studentNumber, studentName, email, phone, referenceMonth, paymentMethod, serviceName, amount, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+        AppyPaySession withSimplePayment(String referenceMonth, String serviceName, BigDecimal amount) {
+            BigDecimal safeAmount = amount == null ? BigDecimal.ZERO : amount;
+            return new AppyPaySession(step, action, studentNumber, studentName, email, phone, referenceMonth, paymentMethod, serviceName, safeAmount, BigDecimal.ZERO, BigDecimal.ZERO, safeAmount, LocalDate.of(2026, 7, 10), 0, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+        }
+
+        AppyPaySession withCalculatedPayment(String referenceMonth, String serviceName, FinancialChargeCalculation calculation) {
+            return new AppyPaySession(step, action, studentNumber, studentName, email, phone, referenceMonth, paymentMethod, serviceName, calculation.getBaseAmount(), calculation.getFineAmount(), calculation.getInterestAmount(), calculation.getTotalAmount(), calculation.getDueDate(), calculation.getDaysLate(), LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
         AppyPaySession withPaymentMethod(String paymentMethod) {
-            return new AppyPaySession(step, action, studentNumber, studentName, email, phone, referenceMonth, paymentMethod, serviceName, amount, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+            return new AppyPaySession(step, action, studentNumber, studentName, email, phone, referenceMonth, paymentMethod, serviceName, baseAmount, fineAmount, interestAmount, amount, dueDate, daysLate, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
         private static String firstNonBlankStatic(String... values) {
