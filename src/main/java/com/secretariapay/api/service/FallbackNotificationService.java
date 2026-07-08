@@ -40,34 +40,10 @@ public class FallbackNotificationService {
 
     public List<Map<String, Object>> listChannels() {
         return List.of(
-                channel(
-                        "WHATSAPP",
-                        "WhatsApp institucional",
-                        "ACTIVE",
-                        "Produção",
-                        "Envio real de guias e mensagens para contacto oficial cadastrado."
-                ),
-                channel(
-                        "EMAIL",
-                        "E-mail institucional",
-                        "ACTIVE",
-                        properties.isEmailEnabled() ? "Produção" : "Preparado",
-                        "Fallback para envio de guia por e-mail oficial cadastrado com PDF em anexo."
-                ),
-                channel(
-                        "SMS",
-                        "SMS com link da guia",
-                        "ACTIVE",
-                        properties.isSmsEnabled() ? providerLabel() : "Preparado",
-                        "Fallback para aluno sem WhatsApp, usando telefone oficial cadastrado."
-                ),
-                channel(
-                        "PDF",
-                        "Guia pública em PDF",
-                        "ACTIVE",
-                        "Produção",
-                        "Link público seguro por código da cobrança."
-                )
+                channel("WHATSAPP", "WhatsApp institucional", "ACTIVE", "Produção", "Envio real de guias e mensagens para contacto oficial cadastrado."),
+                channel("EMAIL", "E-mail institucional", "ACTIVE", properties.isEmailEnabled() ? "Produção" : "Preparado", "Fallback para envio de guia por e-mail oficial cadastrado com PDF em anexo."),
+                channel("SMS", "SMS com link da guia", "ACTIVE", properties.isSmsEnabled() ? providerLabel() : "Preparado", "Fallback para aluno sem WhatsApp, usando telefone oficial cadastrado."),
+                channel("PDF", "Guia pública em PDF", "ACTIVE", "Produção", "Link público seguro por código da cobrança.")
         );
     }
 
@@ -99,7 +75,7 @@ public class FallbackNotificationService {
 
             String guideCode = safe(request.getGuideCode(), "SecretariaPay");
             helper.setSubject("Guia de pagamento - " + guideCode);
-            helper.setText(buildEmailBody(request), false);
+            helper.setText(buildPlainEmailBody(request), buildHtmlEmailBody(request));
 
             byte[] pdf = guidePdfService.generateGuidePdf(request);
             ByteArrayDataSource pdfSource = new ByteArrayDataSource(pdf, "application/pdf");
@@ -107,7 +83,7 @@ public class FallbackNotificationService {
 
             mailSender.send(message);
 
-            Map<String, Object> response = delivery("EMAIL", "SENT", true, "Guia enviada por e-mail institucional com PDF em anexo.", request);
+            Map<String, Object> response = delivery("EMAIL", "SENT", true, "Guia enviada por e-mail institucional com PDF em anexo e identidade SecretáriaPay.", request);
             response.put("attachment", "guia-" + guideCode + ".pdf");
             return response;
         } catch (Exception ex) {
@@ -190,7 +166,7 @@ public class FallbackNotificationService {
         return response;
     }
 
-    private String buildEmailBody(GuideFallbackRequest request) {
+    private String buildPlainEmailBody(GuideFallbackRequest request) {
         return "Olá, " + safe(request.getStudentName(), "estudante") + ".\n\n"
                 + "Segue a sua guia de pagamento emitida pelo SecretáriaPay Académico.\n\n"
                 + "Código da guia: " + safe(request.getGuideCode(), "-") + "\n"
@@ -201,6 +177,45 @@ public class FallbackNotificationService {
                 + safe(request.getMessage(), "Após o pagamento, envie o comprovativo pelo WhatsApp institucional ou apresente-o à DCR para validação.")
                 + "\n\nAtenciosamente,\n"
                 + properties.getEmailSenderName();
+    }
+
+    private String buildHtmlEmailBody(GuideFallbackRequest request) {
+        String studentName = escapeHtml(safe(request.getStudentName(), "estudante"));
+        String guideCode = escapeHtml(safe(request.getGuideCode(), "-"));
+        String amount = escapeHtml(money(request.getAmount(), request.getCurrency()));
+        String dueDate = escapeHtml(safe(request.getDueDate(), "-"));
+        String guideUrl = escapeHtml(resolveGuideUrl(request));
+        String pdfUrl = escapeHtml(resolvePdfUrl(request));
+        String customMessage = escapeHtml(safe(request.getMessage(), "Após o pagamento, envie o comprovativo pelo WhatsApp institucional ou apresente-o à DCR para validação."));
+        String sender = escapeHtml(properties.getEmailSenderName());
+
+        return "<!doctype html>"
+                + "<html><body style='margin:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;'>"
+                + "<div style='max-width:680px;margin:0 auto;padding:24px;'>"
+                + "<div style='background:#061936;border-radius:24px 24px 0 0;padding:26px;color:#fff;'>"
+                + "<table role='presentation' width='100%' cellspacing='0' cellpadding='0'><tr>"
+                + "<td style='width:58px;vertical-align:middle;'><div style='height:48px;width:48px;border-radius:14px;background:#d4a336;color:#061936;font-weight:900;font-size:18px;line-height:48px;text-align:center;'>SP</div></td>"
+                + "<td style='vertical-align:middle;'><div style='font-size:24px;font-weight:900;letter-spacing:-.5px;'>SecretáriaPay</div><div style='font-size:12px;font-weight:800;color:#d4a336;letter-spacing:2px;'>ACADÉMICO</div></td>"
+                + "</tr></table>"
+                + "<p style='margin:20px 0 0;color:#cbd5e1;font-size:14px;'>Gestão inteligente de pagamentos académicos</p>"
+                + "</div>"
+                + "<div style='background:#ffffff;padding:28px;border:1px solid #e2e8f0;border-top:none;'>"
+                + "<h1 style='margin:0 0 12px;font-size:24px;color:#061936;'>Guia de pagamento emitida</h1>"
+                + "<p style='margin:0 0 22px;font-size:15px;line-height:1.6;color:#475569;'>Olá, <strong>" + studentName + "</strong>. Segue a sua guia de pagamento emitida pelo SecretáriaPay Académico. O PDF institucional está anexado neste e-mail.</p>"
+                + "<div style='border-radius:18px;background:#f8fafc;border:1px solid #e2e8f0;padding:18px;margin:18px 0;'>"
+                + "<p style='margin:0 0 10px;font-size:13px;color:#64748b;'>Código da guia</p><p style='margin:0 0 18px;font-size:22px;font-weight:900;color:#061936;'>" + guideCode + "</p>"
+                + "<table role='presentation' width='100%' cellspacing='0' cellpadding='0' style='font-size:14px;color:#334155;'>"
+                + "<tr><td style='padding:8px 0;color:#64748b;'>Valor</td><td style='padding:8px 0;text-align:right;font-weight:800;color:#061936;'>" + amount + "</td></tr>"
+                + "<tr><td style='padding:8px 0;color:#64748b;'>Vencimento</td><td style='padding:8px 0;text-align:right;font-weight:800;color:#061936;'>" + dueDate + "</td></tr>"
+                + "<tr><td style='padding:8px 0;color:#64748b;'>Estado</td><td style='padding:8px 0;text-align:right;font-weight:800;color:#b45309;'>Pendente DCR</td></tr>"
+                + "</table></div>"
+                + "<p style='margin:18px 0;font-size:14px;line-height:1.7;color:#475569;'>" + customMessage + "</p>"
+                + "<p style='margin:24px 0;'><a href='" + guideUrl + "' style='display:inline-block;background:#061936;color:#ffffff;text-decoration:none;border-radius:14px;padding:14px 18px;font-weight:900;'>Abrir guia online</a> <a href='" + pdfUrl + "' style='display:inline-block;background:#d4a336;color:#061936;text-decoration:none;border-radius:14px;padding:14px 18px;font-weight:900;margin-left:8px;'>Abrir PDF</a></p>"
+                + "<div style='border-left:4px solid #d4a336;background:#fffbeb;padding:14px 16px;border-radius:12px;color:#92400e;font-size:13px;line-height:1.6;'>Este documento não substitui o recibo institucional. O recibo será emitido somente após confirmação e validação pela DCR.</div>"
+                + "<p style='margin:26px 0 0;font-size:14px;color:#475569;'>Atenciosamente,<br><strong>" + sender + "</strong></p>"
+                + "</div>"
+                + "<div style='background:#061936;color:#cbd5e1;border-radius:0 0 24px 24px;padding:18px 26px;font-size:12px;'>SecretáriaPay Académico · TRIA Company · IMETRO</div>"
+                + "</div></body></html>";
     }
 
     private String buildSmsText(GuideFallbackRequest request) {
@@ -261,5 +276,14 @@ public class FallbackNotificationService {
         }
         String text = String.valueOf(value).trim();
         return text.isBlank() ? fallback : text;
+    }
+
+    private String escapeHtml(String value) {
+        return safe(value, "")
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 }
