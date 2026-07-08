@@ -1,12 +1,15 @@
 package com.secretariapay.api.service.whatsapp;
 
 import com.secretariapay.api.dto.notification.GuideFallbackRequest;
+import com.secretariapay.api.entity.academic.Student;
 import com.secretariapay.api.repository.WhatsappSessionRepository;
 import com.secretariapay.api.repository.academic.StudentRepository;
 import com.secretariapay.api.repository.financial.ChargeRepository;
 import com.secretariapay.api.repository.financial.ReceiptRepository;
 import com.secretariapay.api.service.FallbackNotificationService;
 import com.secretariapay.api.service.financial.SecretariaPayMockAutomaticPaymentService;
+import com.secretariapay.api.service.payment.AppyPayChargeResponse;
+import com.secretariapay.api.service.payment.AppyPayPaymentGatewayService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -18,7 +21,7 @@ import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.YearMonth;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -37,11 +40,12 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     private static final BigDecimal RECURSO_AMOUNT = new BigDecimal("15000.00");
     private static final BigDecimal DECLARACAO_AMOUNT = new BigDecimal("5000.00");
     private static final BigDecimal TOTAL_EM_ABERTO = new BigDecimal("145000.00");
-    private static final BigDecimal DEMO_FINE = new BigDecimal("5000.00");
 
-    private final Map<String, DemoSession> sessions = new ConcurrentHashMap<>();
+    private final Map<String, AppyPaySession> sessions = new ConcurrentHashMap<>();
+    private final StudentRepository studentRepository;
     private final WhatsAppCloudApiClient whatsAppCloudApiClient;
     private final FallbackNotificationService fallbackNotificationService;
+    private final AppyPayPaymentGatewayService appyPayPaymentGatewayService;
     private final String demoEmail;
 
     public SecretariaPayWhatsappFinancialDemoConversationService(
@@ -52,11 +56,14 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
             WhatsAppCloudApiClient whatsAppCloudApiClient,
             SecretariaPayMockAutomaticPaymentService mockAutomaticPaymentService,
             FallbackNotificationService fallbackNotificationService,
+            AppyPayPaymentGatewayService appyPayPaymentGatewayService,
             @Value("${secretariapay.demo.email:dalawilson1244@gmail.com}") String demoEmail
     ) {
         super(studentRepository, chargeRepository, receiptRepository, sessionRepository, whatsAppCloudApiClient, mockAutomaticPaymentService);
+        this.studentRepository = studentRepository;
         this.whatsAppCloudApiClient = whatsAppCloudApiClient;
         this.fallbackNotificationService = fallbackNotificationService;
+        this.appyPayPaymentGatewayService = appyPayPaymentGatewayService;
         this.demoEmail = demoEmail == null || demoEmail.isBlank() ? "dalawilson1244@gmail.com" : demoEmail.trim();
     }
 
@@ -70,17 +77,17 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         clearExpired(phone);
 
         if (isClose(normalized)) {
-            DemoSession session = sessions.remove(phone);
-            return Optional.of(buildClosing(session));
+            sessions.remove(phone);
+            return Optional.of("Obrigado. Foi um prazer atender.\n\nDCR / IMETRO");
         }
 
         if (isMedia(type) || normalized.contains("imagem recebida") || normalized.contains("documento recebido")) {
-            DemoSession current = sessions.get(phone);
+            AppyPaySession current = sessions.get(phone);
             if (current != null && "WAITING_PROOF".equals(current.step())) {
                 sessions.remove(phone);
-                return Optional.of(buildProofReceivedAndReceipt(phone, current));
+                return Optional.of(sendReceiptAndBuildReply(phone, current, "Comprovativo recebido e enviado para validação DCR."));
             }
-            return Optional.of(buildProofReceivedWithoutContext());
+            return Optional.of("📎 Comprovativo recebido.\n\nO seu pagamento será analisado pela DCR. Após validação, o bordereau será enviado neste WhatsApp e por e-mail.");
         }
 
         if (isMenu(normalized) || isGreeting(normalized)) {
@@ -88,264 +95,241 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
             return Optional.of(buildMainMenu());
         }
 
-        DemoSession session = sessions.get(phone);
+        AppyPaySession session = sessions.get(phone);
         if (session != null) {
             return Optional.of(handleSession(phone, session, message, normalized));
         }
 
         if ("1".equals(normalized) || isPropinaIntent(normalized)) {
-            sessions.put(phone, DemoSession.waitingStudent("PROPINA"));
+            sessions.put(phone, AppyPaySession.waitingStudent("PROPINA"));
             return Optional.of(askStudent("📌 Atendimento de Propinas"));
         }
 
         if ("2".equals(normalized) || isFinancialSummaryIntent(normalized)) {
-            sessions.put(phone, DemoSession.waitingStudent("SUMMARY"));
+            sessions.put(phone, AppyPaySession.waitingStudent("SUMMARY"));
             return Optional.of(askStudent("📊 Vou consultar a sua situação financeira académica.\n\nOpção - 2"));
         }
 
         if ("3".equals(normalized) || isBordereauIntent(normalized)) {
-            sessions.put(phone, DemoSession.waitingStudent("BORDEREAU"));
-            return Optional.of(askStudent("📄 Para localizar o bordereau/comprovativo já pago, preciso identificar o estudante.\n\nOpção - 3"));
+            sessions.put(phone, AppyPaySession.waitingStudent("BORDEREAU"));
+            return Optional.of(askStudent("📄 Para localizar o bordereau/comprovativo já pago, preciso identificar o estudante."));
         }
 
         if ("4".equals(normalized) || isMatriculaIntent(normalized)) {
-            sessions.put(phone, DemoSession.waitingStudent("MATRICULA"));
-            return Optional.of(askStudent("🧾 Vou preparar o pagamento de matrícula.\n\nOpção - 4"));
+            sessions.put(phone, AppyPaySession.waitingStudent("MATRICULA"));
+            return Optional.of(askStudent("🧾 Vou preparar o pagamento de matrícula."));
         }
 
         if ("5".equals(normalized) || isRecursoIntent(normalized)) {
-            sessions.put(phone, DemoSession.waitingStudent("RECURSO"));
-            return Optional.of(askStudent("📝 Vou preparar o pagamento de recurso.\n\nOpção - 5"));
+            sessions.put(phone, AppyPaySession.waitingStudent("RECURSO"));
+            return Optional.of(askStudent("📝 Vou preparar o pagamento de recurso."));
         }
 
         if ("6".equals(normalized) || isDeclaracaoIntent(normalized)) {
-            sessions.put(phone, DemoSession.waitingStudent("DECLARACAO"));
-            return Optional.of(askStudent("📄 Vou preparar o pagamento de declaração.\n\nOpção - 6"));
+            sessions.put(phone, AppyPaySession.waitingStudent("DECLARACAO"));
+            return Optional.of(askStudent("📄 Vou preparar o pagamento de declaração."));
         }
 
         if ("7".equals(normalized) || isHumanIntent(normalized)) {
-            sessions.put(phone, DemoSession.waitingHumanReason());
-            return Optional.of(buildHumanSupportMenu());
-        }
-
-        if (isOverdueIntent(normalized)) {
-            sessions.put(phone, DemoSession.waitingStudent("OVERDUE"));
-            return Optional.of(askStudent("📌 Vou consultar propinas em atraso, multas e pendências."));
+            return Optional.of("Certo. Vou encaminhar o seu atendimento para a DCR.\n\nInforme o motivo da solicitação.");
         }
 
         return Optional.of(buildOutOfScope());
     }
 
-    private String handleSession(String phone, DemoSession session, String message, String normalized) {
+    private String handleSession(String phone, AppyPaySession session, String message, String normalized) {
         if ("WAITING_STUDENT".equals(session.step())) {
-            if (message.isBlank()) return askStudent("⚠️ Não consegui identificar o cadastro.");
-            String student = normalizeStudentIdentifier(message);
-            DemoSession withStudent = session.withStudent(student);
+            Optional<Student> studentOptional = findRegisteredStudent(message, phone);
+            if (studentOptional.isEmpty()) {
+                return buildStudentNotFound();
+            }
+
+            Student student = studentOptional.get();
+            AppyPaySession withStudent = session.withStudent(student);
 
             if ("SUMMARY".equals(session.action())) {
-                sessions.put(phone, DemoSession.waitingSummaryAction(student));
-                return buildFinancialSummary(student);
+                sessions.put(phone, withStudent.withStep("WAITING_SUMMARY_ACTION"));
+                return buildFinancialSummary(withStudent);
             }
 
             if ("BORDEREAU".equals(session.action())) {
-                sessions.put(phone, DemoSession.waitingReceiptChoice(student));
-                return buildBordereauList(student);
+                sessions.put(phone, withStudent.withStep("WAITING_RECEIPT_CHOICE"));
+                return buildBordereauList(withStudent);
             }
 
             if ("MATRICULA".equals(session.action())) {
-                sessions.put(phone, DemoSession.waitingPayment("MATRICULA", student, "Matrícula 2026", "Matrícula", MATRICULA_AMOUNT));
-                return buildServiceGuide(student, "Matrícula 2026", "Matrícula", MATRICULA_AMOUNT);
+                AppyPaySession payment = withStudent.withPayment("Matrícula 2026", "Matrícula", MATRICULA_AMOUNT);
+                sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+                return buildServiceGuide(payment);
             }
 
             if ("RECURSO".equals(session.action())) {
-                sessions.put(phone, DemoSession.waitingPayment("RECURSO", student, "Recurso", "Exame de recurso", RECURSO_AMOUNT));
-                return buildServiceGuide(student, "Recurso", "Exame de recurso", RECURSO_AMOUNT);
+                AppyPaySession payment = withStudent.withPayment("Recurso", "Exame de recurso", RECURSO_AMOUNT);
+                sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+                return buildServiceGuide(payment);
             }
 
             if ("DECLARACAO".equals(session.action())) {
-                sessions.put(phone, DemoSession.waitingPayment("DECLARACAO", student, "Declaração", "Declaração", DECLARACAO_AMOUNT));
-                return buildServiceGuide(student, "Declaração", "Declaração", DECLARACAO_AMOUNT);
+                AppyPaySession payment = withStudent.withPayment("Declaração", "Declaração", DECLARACAO_AMOUNT);
+                sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+                return buildServiceGuide(payment);
             }
 
-            if ("OVERDUE".equals(session.action())) {
-                sessions.put(phone, DemoSession.waitingOverdueChoice(student));
-                return buildOverdueList(student);
-            }
-
-            sessions.put(phone, DemoSession.waitingMonth(session.action(), student));
-            return buildStudentFoundAndAskMonth(withStudent.studentIdentifier());
+            sessions.put(phone, withStudent.withStep("WAITING_MONTH"));
+            return buildStudentFoundAndAskMonth(withStudent);
         }
 
         if ("WAITING_SUMMARY_ACTION".equals(session.step())) {
             if ("1".equals(normalized) || containsAny(normalized, "pagar pendencias", "pagar pendências", "pendencias", "pendências")) {
-                sessions.put(phone, DemoSession.waitingPayment("SUMMARY_PENDING", session.studentIdentifier(), currentMonthLabel(), "Propinas pendentes", TOTAL_EM_ABERTO));
-                return buildGuidePrepared(session.studentIdentifier(), currentMonthLabel(), TOTAL_EM_ABERTO, true);
+                AppyPaySession payment = session.withPayment("Julho/2026", "Propinas pendentes", TOTAL_EM_ABERTO);
+                sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+                return buildGuidePrepared(payment, true);
             }
-
             if ("2".equals(normalized) || containsAny(normalized, "guia do mes", "guia do mês", "mes atual", "mês atual")) {
-                sessions.put(phone, DemoSession.waitingPayment("SUMMARY_CURRENT", session.studentIdentifier(), currentMonthLabel(), "Propina mensal", PROPINA_AMOUNT));
-                return buildGuidePrepared(session.studentIdentifier(), currentMonthLabel(), PROPINA_AMOUNT, false);
+                AppyPaySession payment = session.withPayment("Julho/2026", "Propina mensal", PROPINA_AMOUNT);
+                sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+                return buildGuidePrepared(payment, false);
             }
-
             if ("3".equals(normalized) || isBordereauIntent(normalized)) {
-                sessions.put(phone, DemoSession.waitingReceiptChoice(session.studentIdentifier()));
-                return buildBordereauList(session.studentIdentifier());
+                sessions.put(phone, session.withStep("WAITING_RECEIPT_CHOICE"));
+                return buildBordereauList(session);
             }
-
-            if ("4".equals(normalized) || containsAny(normalized, "voltar", "menu")) {
-                sessions.remove(phone);
-                return buildMainMenu();
-            }
-
-            return buildFinancialSummary(session.studentIdentifier());
+            sessions.remove(phone);
+            return buildMainMenu();
         }
 
         if ("WAITING_MONTH".equals(session.step())) {
+            if ("1".equals(normalized) || containsAny(normalized, "mes atual", "mês atual", "propina atual")) {
+                AppyPaySession payment = session.withPayment("Julho/2026", "Propina mensal", PROPINA_AMOUNT);
+                sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+                return buildGuidePrepared(payment, false);
+            }
+            if ("3".equals(normalized) || containsAny(normalized, "atraso", "multa")) {
+                sessions.put(phone, session.withStep("WAITING_OVERDUE_CHOICE"));
+                return buildOverdueList(session);
+            }
             if ("4".equals(normalized) || containsAny(normalized, "voltar", "menu")) {
                 sessions.remove(phone);
                 return buildMainMenu();
             }
-
-            if ("1".equals(normalized) || containsAny(normalized, "mes atual", "mês atual", "propina atual", "propina do mes")) {
-                String reference = currentMonthLabel();
-                sessions.put(phone, DemoSession.waitingPayment(session.action(), session.studentIdentifier(), reference, "Propina mensal", PROPINA_AMOUNT));
-                return buildGuidePrepared(session.studentIdentifier(), reference, PROPINA_AMOUNT, false);
-            }
-
-            if ("2".equals(normalized) || containsAny(normalized, "outro mes", "outro mês", "escolher")) {
-                sessions.put(phone, DemoSession.waitingOtherMonth(session.studentIdentifier()));
-                return askSpecificMonth();
-            }
-
-            if ("3".equals(normalized) || isOverdueIntent(normalized)) {
-                sessions.put(phone, DemoSession.waitingOverdueChoice(session.studentIdentifier()));
-                return buildOverdueList(session.studentIdentifier());
-            }
-
-            String explicitMonth = resolveReferenceMonth(normalized, message);
-            if (!explicitMonth.isBlank()) {
-                MonthKind kind = classifyMonth(message);
-                if (kind == MonthKind.FUTURE) {
-                    sessions.put(phone, DemoSession.waitingFutureConfirm(session.studentIdentifier(), explicitMonth));
-                    return buildFutureMonthConfirmation(explicitMonth);
-                }
-                boolean overdue = kind == MonthKind.PAST;
-                sessions.put(phone, DemoSession.waitingPayment("PROPINA", session.studentIdentifier(), explicitMonth, "Propina mensal", overdue ? PROPINA_AMOUNT.add(DEMO_FINE) : PROPINA_AMOUNT));
-                return buildGuidePrepared(session.studentIdentifier(), explicitMonth, overdue ? PROPINA_AMOUNT.add(DEMO_FINE) : PROPINA_AMOUNT, overdue);
-            }
-
-            return buildStudentFoundAndAskMonth(session.studentIdentifier());
-        }
-
-        if ("WAITING_OTHER_MONTH".equals(session.step())) {
-            String reference = resolveReferenceMonth(normalized, message);
-            if (reference.isBlank()) return askSpecificMonth();
-
-            MonthKind kind = classifyMonth(message);
-            if (kind == MonthKind.FUTURE) {
-                sessions.put(phone, DemoSession.waitingFutureConfirm(session.studentIdentifier(), reference));
-                return buildFutureMonthConfirmation(reference);
-            }
-
-            boolean overdue = kind == MonthKind.PAST;
-            BigDecimal amount = overdue ? PROPINA_AMOUNT.add(DEMO_FINE) : PROPINA_AMOUNT;
-            sessions.put(phone, DemoSession.waitingPayment("PROPINA", session.studentIdentifier(), reference, "Propina mensal", amount));
-            return buildGuidePrepared(session.studentIdentifier(), reference, amount, overdue);
-        }
-
-        if ("WAITING_FUTURE_CONFIRM".equals(session.step())) {
-            if ("1".equals(normalized) || containsAny(normalized, "sim", "antecipar", "quero")) {
-                sessions.put(phone, DemoSession.waitingPayment("PROPINA", session.studentIdentifier(), session.referenceMonth(), "Propina mensal antecipada", PROPINA_AMOUNT));
-                return buildGuidePrepared(session.studentIdentifier(), session.referenceMonth(), PROPINA_AMOUNT, false);
-            }
-            sessions.remove(phone);
-            return buildMainMenu();
+            AppyPaySession payment = session.withPayment("Julho/2026", "Propina mensal", PROPINA_AMOUNT);
+            sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+            return buildGuidePrepared(payment, false);
         }
 
         if ("WAITING_OVERDUE_CHOICE".equals(session.step())) {
-            if ("1".equals(normalized) || containsAny(normalized, "todos", "pagar tudo", "pagar todos")) {
-                sessions.put(phone, DemoSession.waitingPayment("OVERDUE_ALL", session.studentIdentifier(), "Maio/2026 + Junho/2026", "Propinas em atraso", new BigDecimal("100000.00")));
-                return buildGuidePrepared(session.studentIdentifier(), "Maio/2026 + Junho/2026", new BigDecimal("100000.00"), true);
-            }
-            if ("2".equals(normalized) || containsAny(normalized, "um mes", "um mês", "apenas")) {
-                sessions.put(phone, DemoSession.waitingPayment("OVERDUE_ONE", session.studentIdentifier(), "Maio/2026", "Propina Maio/2026", new BigDecimal("50000.00")));
-                return buildGuidePrepared(session.studentIdentifier(), "Maio/2026", new BigDecimal("50000.00"), true);
-            }
-            sessions.remove(phone);
-            return buildMainMenu();
+            AppyPaySession payment = session.withPayment("Maio/2026 + Junho/2026", "Propinas em atraso", new BigDecimal("100000.00"));
+            sessions.put(phone, payment.withStep("WAITING_PAYMENT"));
+            return buildGuidePrepared(payment, true);
         }
 
         if ("WAITING_RECEIPT_CHOICE".equals(session.step())) {
-            if ("4".equals(normalized) || containsAny(normalized, "voltar", "menu")) {
-                sessions.remove(phone);
-                return buildMainMenu();
-            }
             sessions.remove(phone);
-            return buildBordereauSent(phone, session, normalized);
+            return sendReceiptAndBuildReply(phone, session.withPayment(resolveReceiptReference(normalized), "Reenvio de bordereau", PROPINA_AMOUNT), "Bordereau reenviado com sucesso.");
         }
 
         if ("WAITING_PAYMENT".equals(session.step())) {
-            if ("5".equals(normalized) || "0".equals(normalized) || containsAny(normalized, "voltar", "menu")) {
+            if ("5".equals(normalized) || containsAny(normalized, "voltar", "menu")) {
                 sessions.remove(phone);
                 return buildMainMenu();
             }
-
-            if ("1".equals(normalized) || containsAny(normalized, "multicaixa express", "express")) {
-                sessions.put(phone, session.withPaymentMethod("Multicaixa Express").withStep("WAITING_AUTO_SIMULATION"));
-                return buildGuideAndAskAutoSimulation(phone, session.withPaymentMethod("Multicaixa Express"));
+            if ("1".equals(normalized) || containsAny(normalized, "multicaixa", "express")) {
+                AppyPaySession next = session.withPaymentMethod("Multicaixa Express").withStep("WAITING_APPYPAY_CONFIRM");
+                sessions.put(phone, next);
+                return createAppyPayChargeAndSendGuide(phone, next, true);
             }
-
             if ("2".equals(normalized) || containsAny(normalized, "referencia", "referência")) {
-                sessions.put(phone, session.withPaymentMethod("Pagamento por Referência").withStep("WAITING_AUTO_SIMULATION"));
-                return buildGuideAndAskAutoSimulation(phone, session.withPaymentMethod("Pagamento por Referência"));
+                AppyPaySession next = session.withPaymentMethod("Pagamento por Referência").withStep("WAITING_APPYPAY_CONFIRM");
+                sessions.put(phone, next);
+                return createAppyPayChargeAndSendGuide(phone, next, false);
             }
-
             if ("3".equals(normalized) || containsAny(normalized, "transferencia", "transferência", "mesmo banco")) {
-                sessions.put(phone, session.withPaymentMethod("Transferência mesmo banco").withStep("WAITING_AUTO_SIMULATION"));
-                return buildGuideAndAskAutoSimulation(phone, session.withPaymentMethod("Transferência mesmo banco"));
+                AppyPaySession next = session.withPaymentMethod("Transferência mesmo banco").withStep("WAITING_APPYPAY_CONFIRM");
+                sessions.put(phone, next);
+                sendDemoGuidePdf(phone, next);
+                return buildTransferSameBankTest(next);
             }
-
-            if ("4".equals(normalized) || containsAny(normalized, "deposito", "depósito", "outro banco", "bancario", "bancário")) {
-                sessions.put(phone, session.withPaymentMethod("Depósito bancário / transferência de outro banco").withStep("WAITING_MANUAL_PAYMENT"));
-                return buildBankPaymentInstructions(phone, session.withPaymentMethod("Depósito bancário / transferência de outro banco"));
+            if ("4".equals(normalized) || containsAny(normalized, "deposito", "depósito", "outro banco")) {
+                AppyPaySession next = session.withPaymentMethod("Depósito bancário / transferência de outro banco").withStep("WAITING_PROOF");
+                sessions.put(phone, next);
+                sendDemoGuidePdf(phone, next);
+                return buildBankPaymentInstructions(next);
             }
-
-            return buildPaymentMethods(session.studentIdentifier(), session.referenceMonth(), session.amount(), session.serviceName());
+            return buildGuidePrepared(session, false);
         }
 
-        if ("WAITING_AUTO_SIMULATION".equals(session.step())) {
-            if ("1".equals(normalized) || containsAny(normalized, "simular", "confirmar", "pago", "paguei", "sucesso")) {
+        if ("WAITING_APPYPAY_CONFIRM".equals(session.step())) {
+            if ("1".equals(normalized) || containsAny(normalized, "confirmar", "pago", "paguei", "aprovado", "callback")) {
                 sessions.remove(phone);
-                return buildAutomaticReceipt(phone, session);
+                return sendReceiptAndBuildReply(phone, session, "Pagamento confirmado com sucesso pelo fluxo de teste AppyPay.");
             }
-            return buildAutoSimulationReminder(session);
+            return "A cobrança AppyPay foi criada.\n\nPara concluir o teste sandbox, responda:\n[1] Confirmar retorno AppyPay aprovado";
         }
 
-        if ("WAITING_MANUAL_PAYMENT".equals(session.step())) {
-            if ("1".equals(normalized) || containsAny(normalized, "simular", "paguei", "deposito", "depósito", "feito")) {
-                sessions.put(phone, session.withStep("WAITING_PROOF"));
-                return askProofAfterManualPayment();
-            }
-            return buildManualPaymentReminder();
-        }
-
-        if ("WAITING_PROOF".equals(session.step())) return askProofAfterManualPayment();
-
-        if ("WAITING_HUMAN_REASON".equals(session.step())) {
-            sessions.remove(phone);
-            return ("""
-                    Obrigado. A sua solicitação foi encaminhada para a DCR.
-
-                    Motivo informado: %s
-                    Protocolo: ATD-%s
-
-                    Horário de atendimento humano:
-                    Segunda a sexta, das 08h às 17h.
-                    """).formatted(message, shortId()).trim();
+        if ("WAITING_PROOF".equals(session.step())) {
+            return "📎 Por favor, envie o comprovativo de pagamento neste canal.\n\nA DCR fará a validação.";
         }
 
         sessions.remove(phone);
         return buildMainMenu();
+    }
+
+    private String createAppyPayChargeAndSendGuide(String phone, AppyPaySession session, boolean gpo) {
+        String merchantTransactionId = "SPAY-" + session.studentNumber() + "-" + shortId();
+        AppyPayChargeResponse appyPay = gpo
+                ? appyPayPaymentGatewayService.createMulticaixaExpressCharge(session.amount(), session.serviceName(), merchantTransactionId, session.phone())
+                : appyPayPaymentGatewayService.createReferenceCharge(session.amount(), session.serviceName(), merchantTransactionId);
+
+        sendDemoGuidePdf(phone, session);
+
+        String providerBlock = buildAppyPayBlock(appyPay);
+        return ("""
+                ✅ Guia de pagamento criada.
+
+                Integração: AppyPay Sandbox
+                Forma de pagamento: %s
+                Valor: %s
+                Referência: %s
+                Vencimento: 10/07/2026
+
+                %s
+
+                O PDF da guia foi enviado neste WhatsApp.
+                📧 Também enviei uma cópia para o e-mail cadastrado.
+
+                Para concluir o teste, responda:
+                [1] Confirmar retorno AppyPay aprovado
+                [2] Voltar
+                """).formatted(session.paymentMethod(), money(session.amount()), session.referenceMonth(), providerBlock).trim();
+    }
+
+    private String buildAppyPayBlock(AppyPayChargeResponse response) {
+        return ("""
+                Estado AppyPay: %s
+                MerchantTransactionId: %s
+                Mensagem: %s
+                """).formatted(
+                safe(response.getStatus()),
+                safe(response.getMerchantTransactionId()),
+                safe(response.getMessage())
+        ).trim();
+    }
+
+    private String buildTransferSameBankTest(AppyPaySession session) {
+        return ("""
+                ✅ Guia de pagamento criada.
+
+                Forma de pagamento: Transferência mesmo banco
+                Valor: %s
+                Referência: %s
+                Vencimento: 10/07/2026
+
+                O PDF da guia foi enviado neste WhatsApp.
+                📧 Também enviei uma cópia para o e-mail cadastrado.
+
+                Para concluir o teste automático, responda:
+                [1] Confirmar pagamento aprovado
+                """).formatted(money(session.amount()), session.referenceMonth()).trim();
     }
 
     private String buildMainMenu() {
@@ -372,7 +356,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         return ("""
                 %s
 
-                Para consultar ou gerar a sua guia de pagamento, informe um dos dados abaixo:
+                Para continuar, informe um dado cadastrado no sistema:
 
                 - Número de matrícula
                 - Número do BI
@@ -383,13 +367,29 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 """).formatted(intro).trim();
     }
 
-    private String buildStudentFoundAndAskMonth(String student) {
+    private String buildStudentNotFound() {
+        return """
+                ⚠️ Não encontrei nenhum cadastro com os dados informados.
+
+                Verifique se digitou corretamente a matrícula, BI ou telefone cadastrado.
+
+                Exemplo:
+                IMETRO-2026-TESTE-002
+
+                Escolha uma opção:
+
+                [1] Tentar novamente
+                [2] Falar com a DCR
+                [3] Voltar ao menu principal
+                """.trim();
+    }
+
+    private String buildStudentFoundAndAskMonth(AppyPaySession session) {
         return ("""
                 ✅ Cadastro encontrado.
 
-                Estudante: WILSON DOS SANTOS KAHANGO DALA
+                Estudante: %s
                 Matrícula: %s
-                Curso: Direito
                 Ano académico: 2026
                 Estado financeiro: Com propina disponível para pagamento
 
@@ -399,43 +399,17 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 [2] Escolher outro mês
                 [3] Propinas em atraso e multas
                 [4] Voltar ao menu principal
-                """).formatted(student).trim();
+                """).formatted(session.studentName(), session.studentNumber()).trim();
     }
 
-    private String askSpecificMonth() {
-        return """
-                Informe o mês desejado.
-
-                Pode responder, por exemplo:
-                Julho/2026
-                07/2026
-                Agosto/2026
-
-                O sistema irá verificar se o mês é anterior, atual ou futuro.
-                """.trim();
-    }
-
-    private String buildFutureMonthConfirmation(String reference) {
-        return ("""
-                📌 O mês escolhido ainda não venceu.
-
-                Mês: %s
-
-                Deseja antecipar o pagamento da propina?
-
-                [1] Sim, quero antecipar
-                [2] Não, voltar
-                """).formatted(reference).trim();
-    }
-
-    private String buildGuidePrepared(String student, String reference, BigDecimal amount, boolean overdue) {
-        String warning = overdue ? "\n⚠️ Identificámos pendência, multa ou atraso associado a este mês.\n" : "";
+    private String buildGuidePrepared(AppyPaySession session, boolean overdue) {
+        String warning = overdue ? "\n⚠️ Identificámos pendência, multa ou atraso associado a este cadastro.\n" : "";
         return ("""
                 📌
 
                 📄 Guia preparada.%s
 
-                Estudante: WILSON DOS SANTOS KAHANGO DALA
+                Estudante: %s
                 Matrícula: %s
                 Mês de referência: %s
                 Valor da propina: %s
@@ -443,36 +417,19 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
                 Escolha a forma de pagamento:
 
-                [1] Multicaixa Express
-                [2] Pagamento por Referência
+                [1] Multicaixa Express - AppyPay GPO
+                [2] Pagamento por Referência - AppyPay REF
                 [3] Transferência mesmo banco
                 [4] Depósito bancário / transferência de outro banco
                 [5] Voltar
-                """).formatted(warning, student, reference, money(amount)).trim();
+                """).formatted(warning, session.studentName(), session.studentNumber(), session.referenceMonth(), money(session.amount())).trim();
     }
 
-    private String buildPaymentMethods(String student, String reference, BigDecimal amount, String service) {
-        return ("""
-                Serviço: %s
-                Cadastro: %s
-                Referência: %s
-                Valor: %s
-
-                Escolha a forma de pagamento:
-
-                [1] Multicaixa Express
-                [2] Pagamento por Referência
-                [3] Transferência mesmo banco
-                [4] Depósito bancário / transferência de outro banco
-                [5] Voltar
-                """).formatted(service, student, reference, money(amount)).trim();
-    }
-
-    private String buildOverdueList(String student) {
+    private String buildOverdueList(AppyPaySession session) {
         return ("""
                 📌 Propinas em atraso encontradas.
 
-                Estudante: WILSON DOS SANTOS KAHANGO DALA
+                Estudante: %s
                 Matrícula: %s
 
                 Pendências:
@@ -492,190 +449,33 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 [1] Pagar todos os meses em atraso
                 [2] Escolher apenas um mês
                 [3] Voltar ao menu anterior
-                """).formatted(student).trim();
+                """).formatted(session.studentName(), session.studentNumber()).trim();
     }
 
-    private String buildServiceGuide(String student, String reference, String service, BigDecimal amount) {
+    private String buildServiceGuide(AppyPaySession session) {
         return ("""
                 📄 Pagamento de %s
 
-                Estudante: WILSON DOS SANTOS KAHANGO DALA
+                Estudante: %s
                 Matrícula: %s
                 Serviço: %s
                 Valor: %s
 
                 Escolha a forma de pagamento:
 
-                [1] Multicaixa Express
-                [2] Pagamento por Referência
+                [1] Multicaixa Express - AppyPay GPO
+                [2] Pagamento por Referência - AppyPay REF
                 [3] Transferência mesmo banco
                 [4] Depósito bancário / transferência de outro banco
                 [5] Voltar
-                """).formatted(service, student, reference, money(amount)).trim();
+                """).formatted(session.serviceName(), session.studentName(), session.studentNumber(), session.serviceName(), money(session.amount())).trim();
     }
 
-    private String buildGuideAndAskAutoSimulation(String phone, DemoSession session) {
-        sendDemoGuidePdf(phone, session);
-
-        String referenceBlock = "Pagamento por Referência".equals(session.paymentMethod())
-                ? "\nEntidade: 00348\nReferência: 205114879\nValor: " + money(session.amount()) + "\n"
-                : "";
-
-        return ("""
-                ✅ Guia de pagamento criada.
-
-                Forma de pagamento: %s
-                Valor: %s
-                Mês/Serviço de referência: %s
-                Vencimento: 10/07/2026
-                %s
-                O PDF da guia foi enviado neste WhatsApp.
-                📧 Também enviei uma cópia para o e-mail cadastrado.
-
-                Para demonstrar o fluxo automático, responda:
-
-                [1] Simular pagamento confirmado
-                [2] Voltar
-                """).formatted(session.paymentMethod(), money(session.amount()), session.referenceMonth(), referenceBlock).trim();
-    }
-
-    private String buildBankPaymentInstructions(String phone, DemoSession session) {
-        sendDemoGuidePdf(phone, session);
-        return ("""
-                🏦 Dados para pagamento bancário
-
-                Banco: Banco de exemplo
-                IBAN: AO06 0000 0000 0000 0000 0000 0
-                Titular: Instituto Superior Politécnico Metropolitano de Angola
-                Valor: %s
-
-                Após o pagamento, envie o comprovativo neste canal para validação pela DCR.
-
-                Para demonstrar o fluxo com comprovativo, responda:
-                [1] Simular pagamento realizado
-                """).formatted(money(session.amount())).trim();
-    }
-
-    private String buildAutomaticReceipt(String phone, DemoSession session) {
-        String receipt = receiptCode();
-        sendDemoReceiptPdf(phone, session, receipt);
-
-        return ("""
-                ✅ Pagamento confirmado com sucesso.
-
-                📄 O bordereau foi emitido em PDF.
-
-                Forma de pagamento: %s
-                Referência: %s
-                Valor pago: %s
-                Bordereau: %s
-
-                Enviei o PDF neste WhatsApp.
-                📧 Também enviei uma cópia para o e-mail cadastrado.
-
-                %s
-                """).formatted(session.paymentMethod(), session.referenceMonth(), money(session.amount()), receipt, buildNeutralClosing()).trim();
-    }
-
-    private String buildProofReceivedAndReceipt(String phone, DemoSession session) {
-        String receipt = receiptCode();
-        sendDemoReceiptPdf(phone, session, receipt);
-
-        return ("""
-                📎 Comprovativo recebido.
-
-                O seu pagamento será analisado pela DCR.
-
-                ✅ Na demonstração, a validação foi simulada como aprovada.
-
-                📄 O bordereau/comprovativo foi emitido em PDF.
-
-                Enviei o PDF neste WhatsApp.
-                📧 Também enviei uma cópia para o e-mail cadastrado.
-
-                Também poderá apresentar o comprovativo presencialmente na DCR, caso seja necessário.
-                """).trim();
-    }
-
-    private String buildProofReceivedWithoutContext() {
-        return """
-                📎 Comprovativo recebido.
-
-                O seu pagamento será analisado pela DCR.
-
-                Após a validação, o sistema enviará automaticamente o bordereau/comprovativo neste mesmo canal.
-
-                Também poderá apresentar o comprovativo presencialmente na DCR, caso seja necessário.
-                """.trim();
-    }
-
-    private String askProofAfterManualPayment() {
-        return """
-                📎 Por favor, envie o comprovativo de pagamento neste canal.
-
-                Formatos aceitos:
-
-                - Imagem
-                - PDF
-                - Foto do talão
-                - Comprovativo bancário
-
-                Após o envio, a DCR fará a validação.
-                """.trim();
-    }
-
-    private String buildManualPaymentReminder() {
-        return """
-                Guia emitida para pagamento bancário.
-
-                Para continuar a demonstração, responda:
-                [1] Simular pagamento realizado
-
-                Depois o sistema irá solicitar o comprovativo para validação pela DCR.
-                """.trim();
-    }
-
-    private String buildAutoSimulationReminder(DemoSession session) {
-        return ("""
-                Guia criada para %s.
-
-                Para concluir a demonstração, responda:
-                [1] Simular pagamento confirmado
-                """).formatted(session.paymentMethod()).trim();
-    }
-
-    private String buildBordereauList(String student) {
-        return ("""
-                📄 Bordereaux encontrados.
-
-                Cadastro: %s
-
-                Escolha qual comprovativo deseja receber:
-
-                [1] Propina Julho/2026 — 45.000,00 Kz
-                [2] Matrícula 2026 — valor cadastrado
-                [3] Recurso — valor cadastrado
-                [4] Voltar
-                """).formatted(student).trim();
-    }
-
-    private String buildBordereauSent(String phone, DemoSession session, String choice) {
-        String receipt = receiptCode();
-        DemoSession receiptSession = session.withPaymentMethod("Reenvio de bordereau").withReferenceMonth(resolveReceiptReference(choice)).withAmount(PROPINA_AMOUNT);
-        sendDemoReceiptPdf(phone, receiptSession, receipt);
-        return """
-                📄 Bordereau enviado com sucesso.
-
-                Enviei o PDF neste WhatsApp.
-                📧 Também enviei uma cópia para o e-mail cadastrado.
-                """.trim();
-    }
-
-    private String buildFinancialSummary(String student) {
+    private String buildFinancialSummary(AppyPaySession session) {
         return ("""
                 📊 Situação Financeira Académica
 
-                Estudante: WILSON DOS SANTOS KAHANGO DALA
+                Estudante: %s
                 Matrícula: %s
                 Ano académico: 2026
 
@@ -691,88 +491,102 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 [2] Gerar guia do mês atual
                 [3] Solicitar bordereau
                 [4] Voltar
-                """).formatted(student).trim();
+                """).formatted(session.studentName(), session.studentNumber()).trim();
     }
 
-    private String buildHumanSupportMenu() {
-        return """
-                Certo. Vou encaminhar o seu atendimento para a DCR.
-
-                Antes disso, informe o motivo:
-
-                [1] Pagamento não confirmado
-                [2] Guia com erro
-                [3] Valor incorreto
-                [4] Solicitação urgente
-                [5] Problema com comprovativo
-                [6] Outro assunto
-                """.trim();
-    }
-
-    private String buildOutOfScope() {
-        return """
-                Este canal é exclusivo para atendimento financeiro académico do IMETRO.
-
-                Posso ajudar com propinas, situação financeira, bordereaux, matrícula, recurso, declaração, comprovativos e atendimento da DCR.
-
-                Para começar, responda menu ou escolha uma opção de 1 a 7.
-                """.trim();
-    }
-
-    private String buildClosing(DemoSession session) {
+    private String buildBordereauList(AppyPaySession session) {
         return ("""
-                %s
+                📄 Bordereaux encontrados.
 
-                O atendimento financeiro académico foi encerrado.
-                Sempre que precisar, envie nova mensagem por aqui.
+                Estudante: %s
+                Matrícula: %s
 
-                DCR / IMETRO
-                """).formatted(buildNeutralClosing()).trim();
+                Escolha qual comprovativo deseja receber:
+
+                [1] Propina Julho/2026 — 45.000,00 Kz
+                [2] Matrícula 2026 — valor cadastrado
+                [3] Recurso — valor cadastrado
+                [4] Voltar
+                """).formatted(session.studentName(), session.studentNumber()).trim();
     }
 
-    private void sendDemoGuidePdf(String phone, DemoSession session) {
+    private String buildBankPaymentInstructions(AppyPaySession session) {
+        return ("""
+                🏦 Dados para pagamento bancário
+
+                Banco: Banco de exemplo
+                IBAN: AO06 0000 0000 0000 0000 0000 0
+                Titular: Instituto Superior Politécnico Metropolitano de Angola
+                Valor: %s
+
+                Após o pagamento, envie o comprovativo neste canal para validação pela DCR.
+                """).formatted(money(session.amount())).trim();
+    }
+
+    private String sendReceiptAndBuildReply(String phone, AppyPaySession session, String intro) {
+        String receipt = "BORD-DEMO-" + shortId();
+        sendDemoReceiptPdf(phone, session, receipt);
+        return ("""
+                ✅ %s
+
+                📄 O bordereau/comprovativo foi emitido em PDF.
+
+                Forma de pagamento: %s
+                Referência: %s
+                Valor pago: %s
+                Bordereau: %s
+
+                Enviei o PDF neste WhatsApp.
+                📧 Também enviei uma cópia para o e-mail cadastrado.
+
+                Obrigado. Foi um prazer atender.
+                """).formatted(intro, firstNonBlank(session.paymentMethod(), "AppyPay"), session.referenceMonth(), money(session.amount()), receipt).trim();
+    }
+
+    private void sendDemoGuidePdf(String phone, AppyPaySession session) {
         String code = "GUIA-WPP-" + shortId();
         String pdfUrl = API_BASE_URL + "/api/v1/public/guides/" + encode(code) + "/pdf";
         String guideUrl = PANEL_BASE_URL + "/guias/" + encode(code);
         String caption = ("""
                 SecretáriaPay Académico: guia de pagamento em PDF.
 
-                Estudante: WILSON DOS SANTOS KAHANGO DALA
-                Matrícula/Cadastro: %s
+                Estudante: %s
+                Matrícula: %s
                 Referência: %s
                 Serviço: %s
                 Valor: %s
 
                 Guia online: %s
-                """).formatted(session.studentIdentifier(), session.referenceMonth(), session.serviceName(), money(session.amount()), guideUrl).trim();
+                """).formatted(session.studentName(), session.studentNumber(), session.referenceMonth(), session.serviceName(), money(session.amount()), guideUrl).trim();
 
         whatsAppCloudApiClient.sendDocumentByLink(phone, pdfUrl, "guia-" + code + ".pdf", caption);
         sendGuideEmail(session, code, guideUrl);
     }
 
-    private void sendDemoReceiptPdf(String phone, DemoSession session, String receipt) {
+    private void sendDemoReceiptPdf(String phone, AppyPaySession session, String receipt) {
         String pdfUrl = API_BASE_URL + "/api/v1/public/demo/receipts/" + encode(receipt) + "/pdf"
-                + "?student=" + encode(session.studentIdentifier())
+                + "?student=" + encode(session.studentName())
                 + "&month=" + encode(session.referenceMonth())
-                + "&method=" + encode(session.paymentMethod());
+                + "&method=" + encode(firstNonBlank(session.paymentMethod(), "AppyPay"));
         String caption = ("""
                 SecretáriaPay Académico: bordereau/comprovativo emitido.
 
                 Bordereau: %s
-                Cadastro: %s
+                Estudante: %s
+                Matrícula: %s
                 Referência: %s
                 Valor: %s
-                """).formatted(receipt, session.studentIdentifier(), session.referenceMonth(), money(session.amount())).trim();
+                """).formatted(receipt, session.studentName(), session.studentNumber(), session.referenceMonth(), money(session.amount())).trim();
 
         whatsAppCloudApiClient.sendDocumentByLink(phone, pdfUrl, "bordereau-" + receipt + ".pdf", caption);
         sendReceiptEmail(session, receipt, pdfUrl);
     }
 
-    private void sendGuideEmail(DemoSession session, String code, String guideUrl) {
+    private void sendGuideEmail(AppyPaySession session, String code, String guideUrl) {
         GuideFallbackRequest request = new GuideFallbackRequest();
-        request.setStudentName("WILSON DOS SANTOS KAHANGO DALA");
-        request.setStudentNumber(session.studentIdentifier());
-        request.setEmail(demoEmail);
+        request.setStudentName(session.studentName());
+        request.setStudentNumber(session.studentNumber());
+        request.setEmail(firstNonBlank(session.email(), demoEmail));
         request.setGuideCode(code);
         request.setGuideUrl(guideUrl);
         request.setAmount(session.amount());
@@ -782,11 +596,11 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         fallbackNotificationService.sendGuideByEmail(request);
     }
 
-    private void sendReceiptEmail(DemoSession session, String receipt, String pdfUrl) {
+    private void sendReceiptEmail(AppyPaySession session, String receipt, String pdfUrl) {
         GuideFallbackRequest request = new GuideFallbackRequest();
-        request.setStudentName("WILSON DOS SANTOS KAHANGO DALA");
-        request.setStudentNumber(session.studentIdentifier());
-        request.setEmail(demoEmail);
+        request.setStudentName(session.studentName());
+        request.setStudentNumber(session.studentNumber());
+        request.setEmail(firstNonBlank(session.email(), demoEmail));
         request.setGuideCode(receipt);
         request.setGuideUrl(pdfUrl);
         request.setAmount(session.amount());
@@ -796,59 +610,40 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         fallbackNotificationService.sendGuideByEmail(request);
     }
 
-    private String resolveReferenceMonth(String normalized, String raw) {
-        if ("1".equals(normalized) || containsAny(normalized, "mes atual", "mês atual", "atual")) return currentMonthLabel();
-        if ("2".equals(normalized) || containsAny(normalized, "mes passado", "mês passado", "atraso", "atrasado")) return "Junho/2026";
-        if (raw != null && raw.matches("(?i).*\\b(0?[1-9]|1[0-2])[/.-]20\\d{2}\\b.*")) return raw.trim();
-        if (containsAny(normalized, "janeiro")) return "Janeiro/2026";
-        if (containsAny(normalized, "fevereiro")) return "Fevereiro/2026";
-        if (containsAny(normalized, "marco", "março")) return "Março/2026";
-        if (containsAny(normalized, "abril")) return "Abril/2026";
-        if (containsAny(normalized, "maio")) return "Maio/2026";
-        if (containsAny(normalized, "junho")) return "Junho/2026";
-        if (containsAny(normalized, "julho")) return "Julho/2026";
-        if (containsAny(normalized, "agosto")) return "Agosto/2026";
-        if (containsAny(normalized, "setembro")) return "Setembro/2026";
-        if (containsAny(normalized, "outubro")) return "Outubro/2026";
-        if (containsAny(normalized, "novembro")) return "Novembro/2026";
-        if (containsAny(normalized, "dezembro")) return "Dezembro/2026";
-        return "";
+    private Optional<Student> findRegisteredStudent(String input, String fromPhone) {
+        String clean = safe(input).trim();
+        if (!clean.isBlank()) {
+            Optional<Student> byNumber = studentRepository.findByStudentNumber(clean);
+            if (byNumber.isPresent()) return byNumber;
+            Optional<Student> byDocument = studentRepository.findByDocumentNumberIgnoreCase(clean);
+            if (byDocument.isPresent()) return byDocument;
+            Optional<Student> byEmail = studentRepository.findByEmailIgnoreCase(clean);
+            if (byEmail.isPresent()) return byEmail;
+            Optional<Student> byPhone = findByPhoneVariants(clean);
+            if (byPhone.isPresent()) return byPhone;
+        }
+        return findByPhoneVariants(fromPhone);
     }
 
-    private MonthKind classifyMonth(String raw) {
-        YearMonth selected = tryParseYearMonth(raw).orElse(null);
-        if (selected == null) return MonthKind.CURRENT;
-        YearMonth current = YearMonth.of(2026, 7);
-        if (selected.isBefore(current)) return MonthKind.PAST;
-        if (selected.isAfter(current)) return MonthKind.FUTURE;
-        return MonthKind.CURRENT;
-    }
-
-    private Optional<YearMonth> tryParseYearMonth(String raw) {
-        String normalized = normalize(raw);
-        int month = 0;
-        if (containsAny(normalized, "janeiro")) month = 1;
-        else if (containsAny(normalized, "fevereiro")) month = 2;
-        else if (containsAny(normalized, "marco", "março")) month = 3;
-        else if (containsAny(normalized, "abril")) month = 4;
-        else if (containsAny(normalized, "maio")) month = 5;
-        else if (containsAny(normalized, "junho")) month = 6;
-        else if (containsAny(normalized, "julho")) month = 7;
-        else if (containsAny(normalized, "agosto")) month = 8;
-        else if (containsAny(normalized, "setembro")) month = 9;
-        else if (containsAny(normalized, "outubro")) month = 10;
-        else if (containsAny(normalized, "novembro")) month = 11;
-        else if (containsAny(normalized, "dezembro")) month = 12;
-
-        if (month > 0) return Optional.of(YearMonth.of(2026, month));
-
-        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\b(0?[1-9]|1[0-2])[/.-](20\\d{2})\\b").matcher(raw == null ? "" : raw);
-        if (matcher.find()) return Optional.of(YearMonth.of(Integer.parseInt(matcher.group(2)), Integer.parseInt(matcher.group(1))));
+    private Optional<Student> findByPhoneVariants(String rawPhone) {
+        String digits = sanitizePhone(rawPhone);
+        if (digits.isBlank()) return Optional.empty();
+        List<String> variants = List.of(digits, "+" + digits, digits.replaceFirst("^244", "0"), digits.replaceFirst("^55", "0"));
+        for (String variant : variants) {
+            Optional<Student> byWhatsapp = studentRepository.findByWhatsapp(variant);
+            if (byWhatsapp.isPresent()) return byWhatsapp;
+            Optional<Student> byPhone = studentRepository.findByPhone(variant);
+            if (byPhone.isPresent()) return byPhone;
+            Optional<Student> byGuardian = studentRepository.findByGuardianPhone(variant);
+            if (byGuardian.isPresent()) return byGuardian;
+        }
         return Optional.empty();
     }
 
-    private String currentMonthLabel() {
-        return "Julho/2026";
+    private String resolveReceiptReference(String choice) {
+        if ("2".equals(choice)) return "Matrícula 2026";
+        if ("3".equals(choice)) return "Recurso";
+        return "Propina Julho/2026";
     }
 
     private String greeting() {
@@ -856,14 +651,6 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         if (hour >= 5 && hour < 12) return "Bom dia";
         if (hour >= 12 && hour < 18) return "Boa tarde";
         return "Boa noite";
-    }
-
-    private String receiptCode() {
-        return "BORD-DEMO-" + shortId();
-    }
-
-    private String shortId() {
-        return UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
     }
 
     private String encode(String value) {
@@ -875,19 +662,8 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         return String.format(Locale.forLanguageTag("pt-AO"), "%,.2f", safeValue).replace(',', '#').replace('.', ',').replace('#', '.') + " Kz";
     }
 
-    private String normalizeStudentIdentifier(String value) {
-        String clean = safe(value).trim();
-        return clean.isBlank() ? "IMETRO-2026-TESTE-002" : clean.toUpperCase(Locale.ROOT);
-    }
-
-    private String resolveReceiptReference(String choice) {
-        if ("2".equals(choice)) return "Matrícula 2026";
-        if ("3".equals(choice)) return "Recurso";
-        return "Propina Julho/2026";
-    }
-
-    private String buildNeutralClosing() {
-        return "Obrigado. Foi um prazer atender.";
+    private String shortId() {
+        return UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
     }
 
     private boolean isMedia(String type) {
@@ -895,19 +671,19 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     }
 
     private boolean isPropinaIntent(String value) {
-        return containsAny(value, "propina", "propinas", "mensalidade", "pagar propina", "pagar mensalidade", "mes atual", "mês atual", "propina atual", "propina do mes", "propina do mês");
+        return containsAny(value, "propina", "propinas", "mensalidade", "pagar propina", "pagar mensalidade", "mes atual", "mês atual", "propina atual");
     }
 
     private boolean isBordereauIntent(String value) {
-        return containsAny(value, "bordereau", "bordero", "borderô", "comprovativo", "recibo", "comprovante", "guia paga", "comprovativo de pagamento");
+        return containsAny(value, "bordereau", "bordero", "borderô", "comprovativo", "recibo", "comprovante", "guia paga");
     }
 
     private boolean isFinancialSummaryIntent(String value) {
-        return containsAny(value, "situacao financeira", "situação financeira", "estado financeiro", "minhas dividas", "minhas dívidas", "pendencias", "pendências", "divida", "dívida", "saldo", "pagamentos em atraso");
+        return containsAny(value, "situacao financeira", "situação financeira", "estado financeiro", "minhas dividas", "minhas dívidas", "pendencias", "pendências", "divida", "dívida", "saldo");
     }
 
     private boolean isMatriculaIntent(String value) {
-        return containsAny(value, "matricula", "matrícula", "pagar matricula", "pagar matrícula", "inscricao", "inscrição", "confirmacao de matricula", "confirmação de matrícula");
+        return containsAny(value, "matricula", "matrícula", "inscricao", "inscrição", "confirmacao de matricula", "confirmação de matrícula");
     }
 
     private boolean isRecursoIntent(String value) {
@@ -915,15 +691,11 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     }
 
     private boolean isDeclaracaoIntent(String value) {
-        return containsAny(value, "declaracao", "declaração", "declaracao escolar", "declaração escolar", "documento", "solicitar declaracao", "solicitar declaração", "pagar declaracao", "pagar declaração");
-    }
-
-    private boolean isOverdueIntent(String value) {
-        return containsAny(value, "atraso", "atrasadas", "multa", "multas", "vencido", "pendencia", "pendência", "divida", "dívida");
+        return containsAny(value, "declaracao", "declaração", "declaracao escolar", "declaração escolar", "documento", "solicitar declaracao", "solicitar declaração");
     }
 
     private boolean isHumanIntent(String value) {
-        return containsAny(value, "dcr", "falar com a dcr", "atendente", "humano", "secretaria", "secretária");
+        return containsAny(value, "dcr", "atendente", "humano", "secretaria", "secretária");
     }
 
     private boolean isMenu(String value) {
@@ -955,76 +727,74 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         return value.replaceAll("[^0-9]", "");
     }
 
+    private String firstNonBlank(String... values) {
+        if (values == null) return "";
+        for (String value : values) {
+            if (value != null && !value.isBlank()) return value.trim();
+        }
+        return "";
+    }
+
     private String safe(String value) {
         return value == null ? "" : value;
     }
 
     private void clearExpired(String phone) {
-        DemoSession session = sessions.get(phone);
+        AppyPaySession session = sessions.get(phone);
         if (session != null && session.expiresAt().isBefore(LocalDateTime.now())) sessions.remove(phone);
     }
 
-    private enum MonthKind {
-        PAST,
-        CURRENT,
-        FUTURE
-    }
-
-    private record DemoSession(String step, String action, String studentIdentifier, String referenceMonth, String paymentMethod, String serviceName, BigDecimal amount, LocalDateTime expiresAt) {
-        static DemoSession waitingStudent(String action) {
-            return new DemoSession("WAITING_STUDENT", action, "", "", "", "", BigDecimal.ZERO, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+    private record AppyPaySession(
+            String step,
+            String action,
+            String studentNumber,
+            String studentName,
+            String email,
+            String phone,
+            String referenceMonth,
+            String paymentMethod,
+            String serviceName,
+            BigDecimal amount,
+            LocalDateTime expiresAt
+    ) {
+        static AppyPaySession waitingStudent(String action) {
+            return new AppyPaySession("WAITING_STUDENT", action, "", "", "", "", "", "", "", BigDecimal.ZERO, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
-        static DemoSession waitingSummaryAction(String studentIdentifier) {
-            return new DemoSession("WAITING_SUMMARY_ACTION", "SUMMARY", studentIdentifier, "", "", "Situação Financeira", TOTAL_EM_ABERTO, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+        AppyPaySession withStudent(Student student) {
+            return new AppyPaySession(
+                    step,
+                    action,
+                    student.getStudentNumber(),
+                    student.getFullName(),
+                    student.getEmail(),
+                    firstNonBlankStatic(student.getWhatsapp(), student.getPhone(), student.getGuardianPhone()),
+                    referenceMonth,
+                    paymentMethod,
+                    serviceName,
+                    amount,
+                    LocalDateTime.now().plusMinutes(SESSION_MINUTES)
+            );
         }
 
-        static DemoSession waitingMonth(String action, String studentIdentifier) {
-            return new DemoSession("WAITING_MONTH", action, studentIdentifier, "", "", "Propina mensal", PROPINA_AMOUNT, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+        AppyPaySession withStep(String step) {
+            return new AppyPaySession(step, action, studentNumber, studentName, email, phone, referenceMonth, paymentMethod, serviceName, amount, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
-        static DemoSession waitingOtherMonth(String studentIdentifier) {
-            return new DemoSession("WAITING_OTHER_MONTH", "PROPINA", studentIdentifier, "", "", "Propina mensal", PROPINA_AMOUNT, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+        AppyPaySession withPayment(String referenceMonth, String serviceName, BigDecimal amount) {
+            return new AppyPaySession(step, action, studentNumber, studentName, email, phone, referenceMonth, paymentMethod, serviceName, amount, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
-        static DemoSession waitingFutureConfirm(String studentIdentifier, String referenceMonth) {
-            return new DemoSession("WAITING_FUTURE_CONFIRM", "PROPINA", studentIdentifier, referenceMonth, "", "Propina mensal antecipada", PROPINA_AMOUNT, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+        AppyPaySession withPaymentMethod(String paymentMethod) {
+            return new AppyPaySession(step, action, studentNumber, studentName, email, phone, referenceMonth, paymentMethod, serviceName, amount, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
-        static DemoSession waitingOverdueChoice(String studentIdentifier) {
-            return new DemoSession("WAITING_OVERDUE_CHOICE", "OVERDUE", studentIdentifier, "", "", "Propinas em atraso", new BigDecimal("100000.00"), LocalDateTime.now().plusMinutes(SESSION_MINUTES));
-        }
-
-        static DemoSession waitingReceiptChoice(String studentIdentifier) {
-            return new DemoSession("WAITING_RECEIPT_CHOICE", "BORDEREAU", studentIdentifier, "", "", "Bordereau", BigDecimal.ZERO, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
-        }
-
-        static DemoSession waitingPayment(String action, String studentIdentifier, String referenceMonth, String serviceName, BigDecimal amount) {
-            return new DemoSession("WAITING_PAYMENT", action, studentIdentifier, referenceMonth, "", serviceName, amount, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
-        }
-
-        static DemoSession waitingHumanReason() {
-            return new DemoSession("WAITING_HUMAN_REASON", "HUMAN", "", "", "", "Atendimento DCR", BigDecimal.ZERO, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
-        }
-
-        DemoSession withStudent(String studentIdentifier) {
-            return new DemoSession(step, action, studentIdentifier, referenceMonth, paymentMethod, serviceName, amount, expiresAt);
-        }
-
-        DemoSession withStep(String step) {
-            return new DemoSession(step, action, studentIdentifier, referenceMonth, paymentMethod, serviceName, amount, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
-        }
-
-        DemoSession withPaymentMethod(String paymentMethod) {
-            return new DemoSession(step, action, studentIdentifier, referenceMonth, paymentMethod, serviceName, amount, expiresAt);
-        }
-
-        DemoSession withReferenceMonth(String referenceMonth) {
-            return new DemoSession(step, action, studentIdentifier, referenceMonth, paymentMethod, serviceName, amount, expiresAt);
-        }
-
-        DemoSession withAmount(BigDecimal amount) {
-            return new DemoSession(step, action, studentIdentifier, referenceMonth, paymentMethod, serviceName, amount, expiresAt);
+        private static String firstNonBlankStatic(String... values) {
+            if (values == null) return "";
+            for (String value : values) {
+                if (value != null && !value.isBlank()) return value.trim();
+            }
+            return "";
         }
     }
 }
