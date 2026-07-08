@@ -2,10 +2,12 @@ package com.secretariapay.api.service;
 
 import com.secretariapay.api.config.SecretariaPayNotificationProperties;
 import com.secretariapay.api.dto.notification.GuideFallbackRequest;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.util.ByteArrayDataSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.MediaType;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -22,14 +24,17 @@ public class FallbackNotificationService {
 
     private final SecretariaPayNotificationProperties properties;
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    private final GuidePdfService guidePdfService;
     private final RestClient restClient;
 
     public FallbackNotificationService(
             SecretariaPayNotificationProperties properties,
-            ObjectProvider<JavaMailSender> mailSenderProvider
+            ObjectProvider<JavaMailSender> mailSenderProvider,
+            GuidePdfService guidePdfService
     ) {
         this.properties = properties;
         this.mailSenderProvider = mailSenderProvider;
+        this.guidePdfService = guidePdfService;
         this.restClient = RestClient.builder().build();
     }
 
@@ -47,7 +52,7 @@ public class FallbackNotificationService {
                         "E-mail institucional",
                         "ACTIVE",
                         properties.isEmailEnabled() ? "Produção" : "Preparado",
-                        "Fallback para envio de guia por e-mail oficial cadastrado."
+                        "Fallback para envio de guia por e-mail oficial cadastrado com PDF em anexo."
                 ),
                 channel(
                         "SMS",
@@ -82,20 +87,29 @@ public class FallbackNotificationService {
         }
 
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(properties.getEmailFrom());
-            message.setTo(email);
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(properties.getEmailFrom());
+            helper.setTo(email);
 
             String cc = clean(properties.getEmailCc());
             if (!cc.isBlank()) {
-                message.setCc(cc);
+                helper.setCc(cc);
             }
 
-            message.setSubject("Guia de pagamento - " + safe(request.getGuideCode(), "SecretáriaPay"));
-            message.setText(buildEmailBody(request));
+            String guideCode = safe(request.getGuideCode(), "SecretariaPay");
+            helper.setSubject("Guia de pagamento - " + guideCode);
+            helper.setText(buildEmailBody(request), false);
+
+            byte[] pdf = guidePdfService.generateGuidePdf(request);
+            ByteArrayDataSource pdfSource = new ByteArrayDataSource(pdf, "application/pdf");
+            helper.addAttachment("guia-" + guideCode + ".pdf", pdfSource);
+
             mailSender.send(message);
 
-            return delivery("EMAIL", "SENT", true, "Guia enviada por e-mail institucional.", request);
+            Map<String, Object> response = delivery("EMAIL", "SENT", true, "Guia enviada por e-mail institucional com PDF em anexo.", request);
+            response.put("attachment", "guia-" + guideCode + ".pdf");
+            return response;
         } catch (Exception ex) {
             return delivery("EMAIL", "FAILED", false, "Falha ao enviar e-mail institucional: " + ex.getMessage(), request);
         }
@@ -169,6 +183,7 @@ public class FallbackNotificationService {
         response.put("message", message);
         response.put("guideCode", request.getGuideCode());
         response.put("guideUrl", resolveGuideUrl(request));
+        response.put("pdfUrl", resolvePdfUrl(request));
         response.put("studentName", request.getStudentName());
         response.put("studentNumber", request.getStudentNumber());
         response.put("generatedAt", LocalDateTime.now().toString());
@@ -181,7 +196,8 @@ public class FallbackNotificationService {
                 + "Código da guia: " + safe(request.getGuideCode(), "-") + "\n"
                 + "Valor: " + money(request.getAmount(), request.getCurrency()) + "\n"
                 + "Vencimento: " + safe(request.getDueDate(), "-") + "\n"
-                + "Link da guia: " + resolveGuideUrl(request) + "\n\n"
+                + "Link da guia: " + resolveGuideUrl(request) + "\n"
+                + "PDF da guia: " + resolvePdfUrl(request) + "\n\n"
                 + safe(request.getMessage(), "Após o pagamento, envie o comprovativo pelo WhatsApp institucional ou apresente-o à DCR para validação.")
                 + "\n\nAtenciosamente,\n"
                 + properties.getEmailSenderName();
@@ -207,6 +223,14 @@ public class FallbackNotificationService {
         }
 
         return baseUrl.replaceAll("/+$", "") + "/" + guideCode;
+    }
+
+    private String resolvePdfUrl(GuideFallbackRequest request) {
+        String guideCode = clean(request.getGuideCode());
+        if (guideCode.isBlank()) {
+            return "";
+        }
+        return "https://secretariapay-api.paixaoangola.com/api/v1/public/guides/" + guideCode + "/pdf";
     }
 
     private String providerLabel() {
