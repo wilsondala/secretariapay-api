@@ -5,6 +5,7 @@ import com.secretariapay.api.entity.enums.financial.ChargeStatus;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -70,7 +71,28 @@ public class Charge {
     @PrePersist
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();
+        normalizeDefaults();
+        recalculateTotalAmount();
+        createdAt = now;
+        updatedAt = now;
+    }
 
+    @PreUpdate
+    public void preUpdate() {
+        normalizeDefaults();
+        recalculateTotalAmount();
+        updatedAt = LocalDateTime.now();
+    }
+
+    public void recalculateTotalAmount() {
+        BigDecimal safeAmount = money(amount);
+        BigDecimal safeFine = money(fineAmount);
+        BigDecimal safeInterest = money(interestAmount);
+        BigDecimal safeDiscount = money(discountAmount);
+        totalAmount = money(safeAmount.add(safeFine).add(safeInterest).subtract(safeDiscount));
+    }
+
+    private void normalizeDefaults() {
         if (status == null) {
             status = ChargeStatus.PENDING;
         }
@@ -79,33 +101,14 @@ public class Charge {
             currency = "AOA";
         }
 
-        if (fineAmount == null) {
-            fineAmount = BigDecimal.ZERO;
-        }
-
-        if (interestAmount == null) {
-            interestAmount = BigDecimal.ZERO;
-        }
-
-        if (discountAmount == null) {
-            discountAmount = BigDecimal.ZERO;
-        }
-
-        if (totalAmount == null && amount != null) {
-            totalAmount = amount.add(fineAmount).add(interestAmount).subtract(discountAmount);
-        }
-
-        createdAt = now;
-        updatedAt = now;
+        amount = money(amount);
+        fineAmount = money(fineAmount);
+        interestAmount = money(interestAmount);
+        discountAmount = money(discountAmount);
     }
 
-    @PreUpdate
-    public void preUpdate() {
-        updatedAt = LocalDateTime.now();
-
-        if (currency == null || currency.isBlank()) {
-            currency = "AOA";
-        }
+    private BigDecimal money(BigDecimal value) {
+        return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
     }
 
     public UUID getId() {
@@ -163,6 +166,7 @@ public class Charge {
 
     public Charge setAmount(BigDecimal amount) {
         this.amount = amount;
+        recalculateTotalAmount();
         return this;
     }
 
@@ -172,6 +176,7 @@ public class Charge {
 
     public Charge setFineAmount(BigDecimal fineAmount) {
         this.fineAmount = fineAmount;
+        recalculateTotalAmount();
         return this;
     }
 
@@ -181,6 +186,7 @@ public class Charge {
 
     public Charge setInterestAmount(BigDecimal interestAmount) {
         this.interestAmount = interestAmount;
+        recalculateTotalAmount();
         return this;
     }
 
@@ -190,6 +196,7 @@ public class Charge {
 
     public Charge setDiscountAmount(BigDecimal discountAmount) {
         this.discountAmount = discountAmount;
+        recalculateTotalAmount();
         return this;
     }
 
@@ -198,7 +205,7 @@ public class Charge {
     }
 
     public Charge setTotalAmount(BigDecimal totalAmount) {
-        this.totalAmount = totalAmount;
+        this.totalAmount = money(totalAmount);
         return this;
     }
 
