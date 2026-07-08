@@ -11,6 +11,7 @@ import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -99,12 +100,13 @@ public class AppyPayPaymentGatewayService {
                     .body(String.class);
 
             Map<String, Object> providerData = parseJsonMap(raw);
+            String successMessage = buildSuccessMessage(methodLabel, raw);
 
             return new AppyPayChargeResponse()
                     .setSuccess(true)
                     .setAppyPayEnabled(true)
                     .setStatus("CREATED")
-                    .setMessage("Cobrança criada no AppyPay Sandbox.")
+                    .setMessage(successMessage)
                     .setPaymentMethod(methodLabel)
                     .setMerchantTransactionId(safeMerchantTransactionId)
                     .setProviderChargeId(extractProviderChargeId(raw))
@@ -117,7 +119,7 @@ public class AppyPayPaymentGatewayService {
                     .setSuccess(false)
                     .setAppyPayEnabled(properties.isEnabled())
                     .setStatus("FAILED")
-                    .setMessage("Falha ao criar cobrança AppyPay: " + ex.getMessage())
+                    .setMessage(summarizeProviderError(ex.getMessage()))
                     .setPaymentMethod(methodLabel)
                     .setMerchantTransactionId(safeMerchantTransactionId)
                     .setAmount(amount)
@@ -166,6 +168,75 @@ public class AppyPayPaymentGatewayService {
                 .setCurrency("AOA");
     }
 
+    private String buildSuccessMessage(String methodLabel, String raw) {
+        String base = "Cobrança criada no AppyPay Sandbox.";
+        if (raw == null || raw.isBlank()) {
+            return base;
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(raw);
+            String entity = findFirstText(root, "entity", "referenceEntity", "entidade", "entityCode");
+            String reference = findFirstText(root, "reference", "paymentReference", "referencia", "ref", "referenceNumber");
+            String expiresAt = findFirstText(root, "expiresAt", "expireAt", "expiresIn", "expirationDate", "expiryDate", "validUntil", "expireDate");
+            String providerStatus = findFirstText(root, "status", "state");
+
+            StringBuilder message = new StringBuilder(base);
+            if ("REF".equalsIgnoreCase(methodLabel) && (!entity.isBlank() || !reference.isBlank() || !expiresAt.isBlank())) {
+                message.append("\n\n🏦 Dados para pagamento por referência:");
+                if (!entity.isBlank()) {
+                    message.append("\nEntidade: ").append(entity);
+                }
+                if (!reference.isBlank()) {
+                    message.append("\nReferência: ").append(reference);
+                }
+                if (!expiresAt.isBlank()) {
+                    message.append("\nExpira em: ").append(expiresAt);
+                }
+            } else if ("GPO".equalsIgnoreCase(methodLabel) && !providerStatus.isBlank()) {
+                message.append("\n\nEstado do processador: ").append(providerStatus);
+            }
+
+            return message.toString();
+        } catch (Exception ignored) {
+            return base;
+        }
+    }
+
+    private String summarizeProviderError(String errorMessage) {
+        String safeMessage = clean(errorMessage);
+        if (safeMessage.isBlank()) {
+            return "Falha ao criar cobrança AppyPay.";
+        }
+
+        String providerMessage = extractJsonField(safeMessage, "message");
+        String providerCode = extractJsonField(safeMessage, "code");
+        if (!providerMessage.isBlank()) {
+            StringBuilder builder = new StringBuilder("Falha ao criar cobrança AppyPay.");
+            if (!providerCode.isBlank()) {
+                builder.append(" Código: ").append(providerCode).append(".");
+            }
+            builder.append(" Motivo: ").append(providerMessage);
+            return builder.toString();
+        }
+
+        return safeMessage.length() > 420 ? safeMessage.substring(0, 420) + "..." : safeMessage;
+    }
+
+    private String extractJsonField(String text, String field) {
+        String marker = "\"" + field + "\":\"";
+        int start = text.indexOf(marker);
+        if (start < 0) {
+            return "";
+        }
+        start += marker.length();
+        int end = text.indexOf("\"", start);
+        if (end <= start) {
+            return "";
+        }
+        return text.substring(start, end);
+    }
+
     private String normalizeMerchantTransactionId(String merchantTransactionId) {
         String normalized = clean(merchantTransactionId).replaceAll("[^A-Za-z0-9]", "");
         if (normalized.isBlank()) {
@@ -181,15 +252,56 @@ public class AppyPayPaymentGatewayService {
         if (raw == null || raw.isBlank()) return null;
         try {
             JsonNode root = objectMapper.readTree(raw);
-            String id = root.path("id").asText(null);
-            if (id != null && !id.isBlank()) return id;
-            id = root.path("chargeId").asText(null);
-            if (id != null && !id.isBlank()) return id;
-            id = root.path("paymentId").asText(null);
-            return id == null || id.isBlank() ? null : id;
+            String id = findFirstText(root, "id", "chargeId", "paymentId", "transactionId");
+            return id.isBlank() ? null : id;
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private String findFirstText(JsonNode node, String... keys) {
+        if (node == null || node.isNull()) {
+            return "";
+        }
+
+        if (node.isObject()) {
+            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> field = fields.next();
+                for (String key : keys) {
+                    if (normalizeKey(field.getKey()).equals(normalizeKey(key)) && isTextualValue(field.getValue())) {
+                        return field.getValue().asText("").trim();
+                    }
+                }
+            }
+
+            fields = node.fields();
+            while (fields.hasNext()) {
+                String found = findFirstText(fields.next().getValue(), keys);
+                if (!found.isBlank()) {
+                    return found;
+                }
+            }
+        }
+
+        if (node.isArray()) {
+            for (JsonNode item : node) {
+                String found = findFirstText(item, keys);
+                if (!found.isBlank()) {
+                    return found;
+                }
+            }
+        }
+
+        return "";
+    }
+
+    private boolean isTextualValue(JsonNode value) {
+        return value != null && !value.isNull() && (value.isTextual() || value.isNumber() || value.isBoolean());
+    }
+
+    private String normalizeKey(String value) {
+        return clean(value).replaceAll("[^A-Za-z0-9]", "").toLowerCase();
     }
 
     private Map<String, Object> parseJsonMap(String raw) {
