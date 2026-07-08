@@ -26,16 +26,10 @@ public class GuidePdfService {
 
             try (PDPageContentStream content = new PDPageContentStream(document, page)) {
                 float width = page.getMediaBox().getWidth();
-                float y = 790;
+                float y;
                 float left = 54;
 
-                content.setNonStrokingColor(6, 25, 54);
-                content.addRect(0, 745, width, 97);
-                content.fill();
-
-                content.setNonStrokingColor(255, 255, 255);
-                write(content, PDType1Font.HELVETICA_BOLD, 22, left, 805, "SecretáriaPay Académico");
-                write(content, PDType1Font.HELVETICA, 11, left, 785, "Guia de pagamento institucional - Ambiente de teste controlado");
+                drawHeader(content, width, left);
 
                 content.setNonStrokingColor(212, 163, 54);
                 write(content, PDType1Font.HELVETICA_BOLD, 15, left, 755, safe(request.getGuideCode(), "GUIA-TESTE"));
@@ -74,9 +68,7 @@ public class GuidePdfService {
                 write(content, PDType1Font.HELVETICA, 10, left + 18, 156, "Este documento não substitui o recibo institucional.");
                 write(content, PDType1Font.HELVETICA, 10, left + 18, 140, "O recibo será emitido somente após confirmação e validação pela DCR.");
 
-                content.setNonStrokingColor(100, 116, 139);
-                write(content, PDType1Font.HELVETICA, 9, left, 68,
-                        "Gerado em " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " pelo SecretáriaPay Académico.");
+                drawFooter(content, left);
             }
 
             document.save(output);
@@ -97,6 +89,39 @@ public class GuidePdfService {
         request.setDueDate(LocalDate.of(2026, 7, 31));
         request.setMessage("Teste real de guia pública com PDF pelo SecretáriaPay Académico.");
         return request;
+    }
+
+    private void drawHeader(PDPageContentStream content, float width, float left) throws Exception {
+        content.setNonStrokingColor(6, 25, 54);
+        content.addRect(0, 745, width, 97);
+        content.fill();
+
+        content.setNonStrokingColor(212, 163, 54);
+        content.addRect(left, 785, 42, 42);
+        content.fill();
+
+        content.setNonStrokingColor(6, 25, 54);
+        write(content, PDType1Font.HELVETICA_BOLD, 16, left + 10, 800, "SP");
+
+        content.setNonStrokingColor(255, 255, 255);
+        write(content, PDType1Font.HELVETICA_BOLD, 23, left + 55, 810, "SecretáriaPay");
+        content.setNonStrokingColor(212, 163, 54);
+        write(content, PDType1Font.HELVETICA_BOLD, 12, left + 55, 792, "ACADÉMICO");
+        content.setNonStrokingColor(226, 232, 240);
+        write(content, PDType1Font.HELVETICA, 10, left + 55, 775, "Gestão inteligente de pagamentos académicos");
+
+        content.setNonStrokingColor(255, 255, 255);
+        write(content, PDType1Font.HELVETICA_BOLD, 12, width - 196, 808, "GUIA DE PAGAMENTO");
+        content.setNonStrokingColor(203, 213, 225);
+        write(content, PDType1Font.HELVETICA, 9, width - 196, 790, "Documento institucional com validação DCR");
+    }
+
+    private void drawFooter(PDPageContentStream content, float left) throws Exception {
+        content.setNonStrokingColor(6, 25, 54);
+        write(content, PDType1Font.HELVETICA_BOLD, 9, left, 82, "SecretáriaPay Académico");
+        content.setNonStrokingColor(100, 116, 139);
+        write(content, PDType1Font.HELVETICA, 9, left, 68,
+                "Gerado em " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " - TRIA Company / IMETRO.");
     }
 
     private void writeLine(PDPageContentStream content, float x, float y, String label, String value) throws Exception {
