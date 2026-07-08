@@ -234,20 +234,16 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 return buildMainMenu();
             }
             if ("1".equals(normalized) || containsAny(normalized, "multicaixa", "express")) {
-                AppyPaySession next = session.withPaymentMethod("Multicaixa Express").withStep("WAITING_APPYPAY_CONFIRM");
-                sessions.put(phone, next);
-                return createAppyPayChargeAndSendGuide(phone, next, true);
+                return createAppyPayChargeAndSendGuide(phone, session.withPaymentMethod("Multicaixa Express"), true);
             }
             if ("2".equals(normalized) || containsAny(normalized, "referencia", "referência")) {
-                AppyPaySession next = session.withPaymentMethod("Pagamento por Referência").withStep("WAITING_APPYPAY_CONFIRM");
-                sessions.put(phone, next);
-                return createAppyPayChargeAndSendGuide(phone, next, false);
+                return createAppyPayChargeAndSendGuide(phone, session.withPaymentMethod("Pagamento por Referência"), false);
             }
             if ("3".equals(normalized) || containsAny(normalized, "transferencia", "transferência", "mesmo banco")) {
-                AppyPaySession next = session.withPaymentMethod("Transferência mesmo banco").withStep("WAITING_APPYPAY_CONFIRM");
+                AppyPaySession next = session.withPaymentMethod("Transferência mesmo banco").withStep("WAITING_BANK_CONFIRMATION");
                 sessions.put(phone, next);
                 sendDemoGuidePdf(phone, next);
-                return buildTransferSameBankTest(next);
+                return buildTransferSameBankReal(next);
             }
             if ("4".equals(normalized) || containsAny(normalized, "deposito", "depósito", "outro banco")) {
                 AppyPaySession next = session.withPaymentMethod("Depósito bancário / transferência de outro banco").withStep("WAITING_PROOF");
@@ -258,12 +254,12 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
             return buildGuidePrepared(session, false);
         }
 
-        if ("WAITING_APPYPAY_CONFIRM".equals(session.step())) {
-            if ("1".equals(normalized) || containsAny(normalized, "confirmar", "pago", "paguei", "aprovado", "callback")) {
-                sessions.remove(phone);
-                return sendReceiptAndBuildReply(phone, session, "Pagamento confirmado com sucesso pelo fluxo de teste AppyPay.");
-            }
-            return "A cobrança AppyPay foi criada.\n\nPara concluir o teste sandbox, responda:\n[1] Confirmar retorno AppyPay aprovado";
+        if ("WAITING_APPYPAY_PAYMENT".equals(session.step())) {
+            return "✅ A cobrança já foi enviada para a AppyPay.\n\nEstado: aguardando confirmação real do pagamento.\n\nO bordereau/comprovativo será emitido automaticamente somente quando a AppyPay confirmar o pagamento como Sucesso.\n\nPara iniciar outro atendimento, responda menu.";
+        }
+
+        if ("WAITING_BANK_CONFIRMATION".equals(session.step())) {
+            return "✅ A guia foi emitida para transferência no mesmo banco.\n\nO bordereau/comprovativo será emitido automaticamente somente após confirmação bancária real.\n\nPara iniciar outro atendimento, responda menu.";
         }
 
         if ("WAITING_PROOF".equals(session.step())) {
@@ -280,7 +276,38 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 ? appyPayPaymentGatewayService.createMulticaixaExpressCharge(session.amount(), session.serviceName(), merchantTransactionId, session.phone())
                 : appyPayPaymentGatewayService.createReferenceCharge(session.amount(), session.serviceName(), merchantTransactionId);
 
-        sendDemoGuidePdf(phone, session);
+        if (!appyPay.isSuccess()) {
+            sessions.remove(phone);
+            return ("""
+                    ⚠️ Não foi possível criar a cobrança na AppyPay.
+
+                    Integração: AppyPay Sandbox
+                    Forma de pagamento: %s
+                    Valor: %s
+                    Referência académica: %s
+
+                    Estado AppyPay: %s
+                    MerchantTransactionId: %s
+                    Mensagem: %s
+
+                    Nenhum bordereau foi emitido.
+                    Tente novamente ou fale com a DCR.
+
+                    [1] Voltar ao menu principal
+                    [2] Falar com a DCR
+                    """).formatted(
+                    session.paymentMethod(),
+                    money(session.amount()),
+                    session.referenceMonth(),
+                    safe(appyPay.getStatus()),
+                    safe(appyPay.getMerchantTransactionId()),
+                    safe(appyPay.getMessage())
+            ).trim();
+        }
+
+        AppyPaySession waitingPayment = session.withStep("WAITING_APPYPAY_PAYMENT");
+        sessions.put(phone, waitingPayment);
+        sendDemoGuidePdf(phone, waitingPayment);
 
         return ("""
                 ✅ Guia de pagamento criada.
@@ -288,7 +315,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 Integração: AppyPay Sandbox
                 Forma de pagamento: %s
                 Valor a pagar: %s
-                Referência: %s
+                Referência académica: %s
                 Vencimento: %s
 
                 Estado AppyPay: %s
@@ -298,9 +325,9 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 O PDF da guia foi enviado neste WhatsApp.
                 📧 Também enviei uma cópia para o e-mail cadastrado.
 
-                Para concluir o teste, responda:
-                [1] Confirmar retorno AppyPay aprovado
-                [2] Voltar
+                ⏳ Aguardando confirmação real do pagamento pela AppyPay.
+
+                O bordereau/comprovativo será emitido automaticamente somente quando a AppyPay confirmar o pagamento como Sucesso.
                 """).formatted(
                 session.paymentMethod(),
                 money(session.amount()),
@@ -312,20 +339,21 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         ).trim();
     }
 
-    private String buildTransferSameBankTest(AppyPaySession session) {
+    private String buildTransferSameBankReal(AppyPaySession session) {
         return ("""
                 ✅ Guia de pagamento criada.
 
                 Forma de pagamento: Transferência mesmo banco
                 Valor a pagar: %s
-                Referência: %s
+                Referência académica: %s
                 Vencimento: %s
 
                 O PDF da guia foi enviado neste WhatsApp.
                 📧 Também enviei uma cópia para o e-mail cadastrado.
 
-                Para concluir o teste automático, responda:
-                [1] Confirmar pagamento aprovado
+                ⏳ Aguardando confirmação bancária real.
+
+                O bordereau/comprovativo será emitido automaticamente somente após a confirmação do pagamento.
                 """).formatted(money(session.amount()), session.referenceMonth(), formatDate(session.dueDate())).trim();
     }
 
