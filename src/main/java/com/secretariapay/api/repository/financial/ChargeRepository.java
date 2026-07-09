@@ -17,6 +17,8 @@ public interface ChargeRepository extends JpaRepository<Charge, UUID> {
 
     boolean existsByChargeCode(String chargeCode);
 
+    boolean existsByStudentIdAndReferenceMonthIgnoreCase(UUID studentId, String referenceMonth);
+
     @EntityGraph(attributePaths = "student")
     List<Charge> findByStudentIdOrderByDueDateDesc(UUID studentId);
 
