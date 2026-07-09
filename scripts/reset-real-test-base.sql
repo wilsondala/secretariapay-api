@@ -1,27 +1,20 @@
 -- ==========================================================
 -- SecretáriaPay Académico / IMETRO
--- Base limpa para TESTES REAIS controlados
+-- RESET COMPLETO DA BASE DE TESTES REAIS
 --
--- Objetivo:
--- 1) Zerar saldos financeiros de testes anteriores.
--- 2) Criar 3 estudantes reais/simulados para teste operacional.
--- 3) Criar apenas a primeira mensalidade, vencendo amanhã.
--- 4) Deixar tudo PENDENTE, sem recibos/bordereaux emitidos.
---
--- Atenção: executar somente no ambiente de teste/homologação autorizado.
+-- Executar somente no ambiente de teste/homologação autorizado.
+-- Este script zera estudantes, cobranças, comprovativos e recibos.
+-- Depois cria 3 estudantes oficiais de teste real e uma mensalidade
+-- pendente para cada um, com vencimento amanhã.
 -- ==========================================================
 
 BEGIN;
 
--- 1. Zerar financeiro de testes anteriores
-DELETE FROM payment_proofs;
-DELETE FROM receipts;
-DELETE FROM charges;
+-- 1. Limpeza forte da base de teste.
+-- CASCADE remove dependências como recibos e comprovativos ligados às cobranças.
+TRUNCATE TABLE payment_proofs, receipts, charges, students RESTART IDENTITY CASCADE;
 
--- 2. Zerar estudantes da base de teste
-DELETE FROM students;
-
--- 3. Garantir estrutura académica mínima IMETRO
+-- 2. Estrutura académica mínima IMETRO
 INSERT INTO institutions (
     id, name, legal_name, nif, email, phone, whatsapp, address, active, created_at, updated_at
 ) VALUES (
@@ -83,10 +76,22 @@ ON CONFLICT (id) DO UPDATE SET
     shift = EXCLUDED.shift,
     updated_at = now();
 
--- 4. Criar estudantes oficiais da base de testes reais
+-- 3. Estudantes oficiais da base de testes reais
 INSERT INTO students (
-    id, academic_class_id, student_number, full_name, document_type, document_number,
-    email, phone, whatsapp, status, financially_blocked, blocked_reason, created_at, updated_at
+    id,
+    academic_class_id,
+    student_number,
+    full_name,
+    document_type,
+    document_number,
+    email,
+    phone,
+    whatsapp,
+    status,
+    financially_blocked,
+    blocked_reason,
+    created_at,
+    updated_at
 ) VALUES
 (
     '44444444-4444-4444-4444-444444444401',
@@ -135,26 +140,29 @@ INSERT INTO students (
     null,
     now(),
     now()
-)
-ON CONFLICT (student_number) DO UPDATE SET
-    full_name = EXCLUDED.full_name,
-    document_type = EXCLUDED.document_type,
-    document_number = EXCLUDED.document_number,
-    email = EXCLUDED.email,
-    phone = EXCLUDED.phone,
-    whatsapp = EXCLUDED.whatsapp,
-    status = EXCLUDED.status,
-    financially_blocked = false,
-    blocked_reason = null,
-    updated_at = now();
+);
 
--- 5. Primeira mensalidade do ano letivo iniciado no mês passado.
+-- 4. Primeira mensalidade do ano letivo iniciado no mês passado.
 -- Valor baixo para teste real controlado: 5.000,00 Kz.
--- Vence amanhã em relação ao dia da execução do script.
+-- Vencimento: amanhã.
 INSERT INTO charges (
-    id, student_id, charge_code, description, reference_month, due_date,
-    amount, fine_amount, interest_amount, discount_amount, total_amount,
-    currency, status, paid_at, cancelled_at, created_at, updated_at
+    id,
+    student_id,
+    charge_code,
+    description,
+    reference_month,
+    due_date,
+    amount,
+    fine_amount,
+    interest_amount,
+    discount_amount,
+    total_amount,
+    currency,
+    status,
+    paid_at,
+    cancelled_at,
+    created_at,
+    updated_at
 ) VALUES
 (
     '55555555-5555-5555-5555-555555555401',
@@ -212,20 +220,7 @@ INSERT INTO charges (
     null,
     now(),
     now()
-)
-ON CONFLICT (charge_code) DO UPDATE SET
-    description = EXCLUDED.description,
-    reference_month = EXCLUDED.reference_month,
-    due_date = EXCLUDED.due_date,
-    amount = EXCLUDED.amount,
-    fine_amount = 0.00,
-    interest_amount = 0.00,
-    discount_amount = 0.00,
-    total_amount = EXCLUDED.total_amount,
-    status = 'PENDING',
-    paid_at = null,
-    cancelled_at = null,
-    updated_at = now();
+);
 
 COMMIT;
 
