@@ -223,12 +223,21 @@ public class FinancialNotificationScheduler {
     }
 
     private boolean alreadySent(UUID chargeId, String type, String channel, LocalDate businessDate) {
-        return notificationLogRepository.existsByChargeIdAndNotificationTypeAndChannelAndBusinessDate(chargeId, type, channel, businessDate);
+        return notificationLogRepository.existsByChargeIdAndNotificationTypeAndChannelAndBusinessDateAndStatus(
+                chargeId,
+                type,
+                channel,
+                businessDate,
+                "SENT"
+        );
     }
 
     private void saveLog(Charge charge, String type, String channel, String status, LocalDate businessDate, String message, String providerMessageId, String errorMessage) {
-        NotificationLog log = new NotificationLog()
-                .setCharge(charge)
+        NotificationLog log = notificationLogRepository
+                .findByChargeIdAndNotificationTypeAndChannelAndBusinessDate(charge.getId(), type, channel, businessDate)
+                .orElseGet(NotificationLog::new);
+
+        log.setCharge(charge)
                 .setStudent(charge.getStudent())
                 .setNotificationType(type)
                 .setChannel(channel)
