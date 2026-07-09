@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -130,10 +131,13 @@ public class GuidePdfService {
     }
 
     private void writeParagraph(PDPageContentStream content, float x, float y, float maxWidth, String text) throws Exception {
-        String[] words = safe(text, "-").split(" ");
+        String[] words = cleanForPdf(text).split(" ");
         StringBuilder line = new StringBuilder();
         float currentY = y;
         for (String word : words) {
+            if (word == null || word.isBlank()) {
+                continue;
+            }
             String candidate = line.isEmpty() ? word : line + " " + word;
             float size = PDType1Font.HELVETICA.getStringWidth(candidate) / 1000 * 11;
             if (size > maxWidth && !line.isEmpty()) {
@@ -179,12 +183,20 @@ public class GuidePdfService {
     }
 
     private String cleanForPdf(String value) {
-        return safe(value, "-")
+        String text = safe(value, "-")
+                .replace("\r", " ")
+                .replace("\n", " ")
+                .replace("\t", " ")
                 .replace("•", "-")
                 .replace("—", "-")
                 .replace("–", "-")
                 .replace("“", "\"")
                 .replace("”", "\"")
-                .replace("’", "'");
+                .replace("’", "'")
+                .replace("·", "-")
+                .replace("\u00A0", " ");
+
+        text = Normalizer.normalize(text, Normalizer.Form.NFC);
+        return text.replaceAll("[\\p{Cntrl}&&[^ ]]", " ").replaceAll("\\s+", " ").trim();
     }
 }
