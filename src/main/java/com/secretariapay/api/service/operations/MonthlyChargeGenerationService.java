@@ -68,7 +68,7 @@ public class MonthlyChargeGenerationService {
             for (Integer month : months) {
                 if (NON_PAYABLE_MONTHS.contains(month)) {
                     skippedNonPayable++;
-                    skippedItems.add(item(student, month, year, "SKIPPED_NON_PAYABLE", null));
+                    skippedItems.add(item(student, month, year, dueDay, "SKIPPED_NON_PAYABLE", null));
                     continue;
                 }
 
@@ -79,7 +79,7 @@ public class MonthlyChargeGenerationService {
 
                 if (exists) {
                     skippedExisting++;
-                    skippedItems.add(item(student, month, year, "SKIPPED_EXISTING", chargeCode));
+                    skippedItems.add(item(student, month, year, dueDay, "SKIPPED_EXISTING", chargeCode));
                     continue;
                 }
 
@@ -100,7 +100,7 @@ public class MonthlyChargeGenerationService {
                 }
 
                 created++;
-                createdItems.add(item(student, month, year, dryRun ? "PREPARED" : "CREATED", chargeCode));
+                createdItems.add(item(student, month, year, dueDay, dryRun ? "PREPARED" : "CREATED", chargeCode));
             }
         }
 
@@ -155,13 +155,13 @@ public class MonthlyChargeGenerationService {
         return base.substring(0, 60);
     }
 
-    private Map<String, Object> item(Student student, int month, int year, String status, String chargeCode) {
+    private Map<String, Object> item(Student student, int month, int year, int dueDay, String status, String chargeCode) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("studentId", student.getId());
         item.put("studentNumber", student.getStudentNumber());
         item.put("studentName", student.getFullName());
         item.put("referenceMonth", monthLabel(month) + "/" + year);
-        item.put("dueDate", NON_PAYABLE_MONTHS.contains(month) ? null : LocalDate.of(year, month, defaultDueDay));
+        item.put("dueDate", NON_PAYABLE_MONTHS.contains(month) ? null : LocalDate.of(year, month, dueDay));
         item.put("chargeCode", chargeCode);
         item.put("status", status);
         return item;
