@@ -46,21 +46,19 @@ public class StudentFinancialLedgerController {
 
     @GetMapping
     public ResponseEntity<Map<String, Object>> ledger(@PathVariable UUID studentId) {
-        return studentRepository.findById(studentId)
-                .map(student -> {
-                    List<Charge> charges = chargeRepository.findByStudentIdOrderByDueDateDesc(studentId);
-                    List<Map<String, Object>> months = MONTHS.stream()
-                            .map(month -> monthView(month, charges))
-                            .toList();
-                    Map<String, Object> body = new LinkedHashMap<>();
-                    body.put("studentId", student.getId());
-                    body.put("studentName", student.getFullName());
-                    body.put("studentNumber", student.getStudentNumber());
-                    body.put("months", months);
-                    body.put("generatedAt", LocalDateTime.now().toString());
-                    return ResponseEntity.ok(body);
-                })
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        if (studentRepository.findById(studentId).isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        var student = studentRepository.findById(studentId).get();
+        List<Charge> charges = chargeRepository.findByStudentIdOrderByDueDateDesc(studentId);
+        List<Map<String, Object>> months = MONTHS.stream().map(month -> monthView(month, charges)).toList();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("studentId", student.getId());
+        body.put("studentName", student.getFullName());
+        body.put("studentNumber", student.getStudentNumber());
+        body.put("months", months);
+        body.put("generatedAt", LocalDateTime.now().toString());
+        return ResponseEntity.ok(body);
     }
 
     private Map<String, Object> monthView(MonthItem month, List<Charge> charges) {
