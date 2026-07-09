@@ -8,7 +8,7 @@
 CREATE OR REPLACE FUNCTION spay_record_internal_payment_transaction()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.status = 'PAID' AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM NEW.status) THEN
+    IF NEW.status = 'PAID' AND (TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND OLD.status IS DISTINCT FROM NEW.status)) THEN
         INSERT INTO payment_transactions (
             id,
             charge_id,
