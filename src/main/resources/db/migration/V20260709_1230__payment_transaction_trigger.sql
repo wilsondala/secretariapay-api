@@ -25,7 +25,7 @@ BEGIN
             created_at,
             updated_at
         ) VALUES (
-            gen_random_uuid(),
+            md5(random()::text || clock_timestamp()::text || NEW.id::text)::uuid,
             NEW.id,
             NEW.student_id,
             'SECRETARIAPAY_INTERNAL',
