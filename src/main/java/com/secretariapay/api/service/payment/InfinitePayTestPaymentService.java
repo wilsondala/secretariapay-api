@@ -3,11 +3,19 @@ package com.secretariapay.api.service.payment;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.secretariapay.api.config.InfinitePayProperties;
+import com.secretariapay.api.dto.financial.ReceiptResponse;
 import com.secretariapay.api.dto.notification.GuideFallbackRequest;
+import com.secretariapay.api.entity.academic.Student;
+import com.secretariapay.api.entity.enums.financial.ChargeStatus;
+import com.secretariapay.api.entity.financial.Charge;
+import com.secretariapay.api.repository.academic.StudentRepository;
+import com.secretariapay.api.repository.financial.ChargeRepository;
 import com.secretariapay.api.service.FallbackNotificationService;
+import com.secretariapay.api.service.financial.ReceiptService;
 import com.secretariapay.api.service.whatsapp.WhatsAppCloudApiClient;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
@@ -17,8 +25,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -29,26 +38,34 @@ import java.util.concurrent.ConcurrentHashMap;
 public class InfinitePayTestPaymentService {
 
     private static final String API_BASE_URL = "https://secretariapay-api.paixaoangola.com";
-    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final InfinitePayProperties properties;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final WhatsAppCloudApiClient whatsAppCloudApiClient;
     private final FallbackNotificationService fallbackNotificationService;
+    private final StudentRepository studentRepository;
+    private final ChargeRepository chargeRepository;
+    private final ReceiptService receiptService;
     private final Map<String, PendingInfinitePayPayment> pendingPayments = new ConcurrentHashMap<>();
 
     public InfinitePayTestPaymentService(
             InfinitePayProperties properties,
             RestClient.Builder restClientBuilder,
             WhatsAppCloudApiClient whatsAppCloudApiClient,
-            FallbackNotificationService fallbackNotificationService
+            FallbackNotificationService fallbackNotificationService,
+            StudentRepository studentRepository,
+            ChargeRepository chargeRepository,
+            ReceiptService receiptService
     ) {
         this.properties = properties;
         this.restClient = restClientBuilder.build();
         this.objectMapper = new ObjectMapper();
         this.whatsAppCloudApiClient = whatsAppCloudApiClient;
         this.fallbackNotificationService = fallbackNotificationService;
+        this.studentRepository = studentRepository;
+        this.chargeRepository = chargeRepository;
+        this.receiptService = receiptService;
     }
 
     public boolean isEnabled() {
@@ -70,10 +87,12 @@ public class InfinitePayTestPaymentService {
             BigDecimal baseAmountAoa,
             BigDecimal fineAmountAoa,
             BigDecimal interestAmountAoa,
-            LocalDate dueDate
+            LocalDate dueDate,
+            List<InfinitePayAcademicLine> academicLines
     ) {
         BigDecimal amountBrl = normalizeAmount(properties.getTestAmountBrl());
         String orderNsu = generateOrderNsu();
+        List<InfinitePayAcademicLine> safeLines = normalizeLines(referenceMonth, serviceName, academicAmountAoa, baseAmountAoa, fineAmountAoa, interestAmountAoa, dueDate, academicLines);
 
         if (!properties.isEnabled()) {
             return prepared(orderNsu, amountBrl, "InfinitePay está desativado por configuração.");
@@ -93,7 +112,7 @@ public class InfinitePayTestPaymentService {
             payload.put("handle", properties.getHandle());
             payload.put("redirect_url", buildSuccessUrl(orderNsu));
             payload.put("order_nsu", orderNsu);
-            payload.put("items", java.util.List.of(item));
+            payload.put("items", List.of(item));
 
             String raw = restClient.post()
                     .uri(properties.getLinksUrl())
@@ -131,6 +150,7 @@ public class InfinitePayTestPaymentService {
                     safeAmount(interestAmountAoa),
                     amountBrl,
                     dueDate == null ? LocalDate.now() : dueDate,
+                    safeLines,
                     LocalDateTime.now().plusHours(3)
             );
             pendingPayments.put(orderNsu, pending);
@@ -169,6 +189,7 @@ public class InfinitePayTestPaymentService {
         return Optional.ofNullable(pendingPayments.get(orderNsu.trim()));
     }
 
+    @Transactional
     public InfinitePayConfirmationResult confirmBySuccessReturn(String orderNsu) {
         if (orderNsu == null || orderNsu.isBlank()) {
             return new InfinitePayConfirmationResult(false, "order_nsu não informado.", null, null);
@@ -179,16 +200,135 @@ public class InfinitePayTestPaymentService {
             return new InfinitePayConfirmationResult(false, "Pagamento não encontrado ou já processado.", orderNsu, null);
         }
 
-        String receiptCode = "BORD-IP-" + shortId();
-        String pdfUrl = API_BASE_URL + "/api/v1/public/demo/receipts/" + encode(receiptCode) + "/pdf"
-                + "?student=" + encode(pending.studentName())
-                + "&month=" + encode(pending.referenceMonth())
-                + "&method=" + encode("InfinitePay Brasil - teste real");
+        List<PersistedAcademicPayment> persistedPayments = persistAcademicPayments(pending);
 
+        if (persistedPayments.isEmpty()) {
+            String receiptCode = "BORD-IP-" + shortId();
+            String pdfUrl = API_BASE_URL + "/api/v1/public/demo/receipts/" + encode(receiptCode) + "/pdf"
+                    + "?student=" + encode(pending.studentName())
+                    + "&month=" + encode(pending.referenceMonth())
+                    + "&method=" + encode("InfinitePay Brasil - teste real");
+            sendFallbackDemoReceipt(pending, receiptCode, pdfUrl);
+            return new InfinitePayConfirmationResult(true, "Pagamento InfinitePay confirmado, mas não foi possível vincular ao estudante no banco. Bordereau demo enviado.", pending.orderNsu(), receiptCode);
+        }
+
+        String receipts = joinReceiptCodes(persistedPayments);
+        sendPersistedReceipts(pending, persistedPayments);
+
+        return new InfinitePayConfirmationResult(true, "Pagamento InfinitePay confirmado, mensalidades gravadas no painel e bordereaux enviados.", pending.orderNsu(), receipts);
+    }
+
+    public InfinitePayConfirmationResult cancel(String orderNsu) {
+        if (orderNsu == null || orderNsu.isBlank()) {
+            return new InfinitePayConfirmationResult(false, "order_nsu não informado.", null, null);
+        }
+        pendingPayments.remove(orderNsu.trim());
+        return new InfinitePayConfirmationResult(true, "Pagamento InfinitePay cancelado pelo cliente.", orderNsu, null);
+    }
+
+    private List<PersistedAcademicPayment> persistAcademicPayments(PendingInfinitePayPayment pending) {
+        Optional<Student> studentOptional = studentRepository.findByStudentNumber(pending.studentNumber());
+        if (studentOptional.isEmpty()) {
+            return List.of();
+        }
+
+        Student student = studentOptional.get();
+        List<PersistedAcademicPayment> persisted = new ArrayList<>();
+
+        for (InfinitePayAcademicLine line : pending.academicLines()) {
+            Charge charge = new Charge()
+                    .setStudent(student)
+                    .setChargeCode(generateChargeCode())
+                    .setDescription("Teste real InfinitePay - " + firstNonBlank(line.description(), pending.serviceName()))
+                    .setReferenceMonth(line.referenceMonth())
+                    .setDueDate(line.dueDate() == null ? pending.dueDate() : line.dueDate())
+                    .setAmount(safeAmount(line.baseAmountAoa()))
+                    .setFineAmount(safeAmount(line.fineAmountAoa()))
+                    .setInterestAmount(safeAmount(line.interestAmountAoa()))
+                    .setDiscountAmount(BigDecimal.ZERO)
+                    .setCurrency("AOA")
+                    .setStatus(ChargeStatus.PAID)
+                    .setPaidAt(LocalDateTime.now());
+
+            Charge savedCharge = chargeRepository.save(charge);
+            ReceiptResponse receipt = receiptService.issueOrFindForCharge(savedCharge.getId());
+            persisted.add(new PersistedAcademicPayment(line, savedCharge, receipt));
+        }
+
+        return persisted;
+    }
+
+    private void sendPersistedReceipts(PendingInfinitePayPayment pending, List<PersistedAcademicPayment> persistedPayments) {
+        String summary = buildPaidMonthsSummary(persistedPayments);
+
+        for (PersistedAcademicPayment payment : persistedPayments) {
+            ReceiptResponse receipt = payment.receipt();
+            String pdfUrl = firstNonBlank(receipt.getPdfUrl(), API_BASE_URL + "/api/v1/public/receipts/" + receipt.getReceiptCode() + "/pdf");
+            InfinitePayAcademicLine line = payment.line();
+
+            String caption = ("""
+                    ✅ Pagamento confirmado via InfinitePay Brasil.
+
+                    SecretáriaPay Académico: bordereau/comprovativo emitido.
+
+                    Bordereau: %s
+                    Estudante: %s
+                    Matrícula: %s
+                    Mês/serviço: %s
+                    Base: %s
+                    Multa: %s
+                    Juros: %s
+                    Total académico: %s
+                    Valor teste Brasil: %s
+                    Código teste: %s
+                    """).formatted(
+                    receipt.getReceiptCode(),
+                    pending.studentName(),
+                    pending.studentNumber(),
+                    line.referenceMonth(),
+                    moneyAoa(line.baseAmountAoa()),
+                    moneyAoa(line.fineAmountAoa()),
+                    moneyAoa(line.interestAmountAoa()),
+                    moneyAoa(line.totalAmountAoa()),
+                    moneyBrl(pending.amountBrl()),
+                    pending.orderNsu()
+            ).trim();
+
+            if (!pending.whatsappPhone().isBlank()) {
+                whatsAppCloudApiClient.sendDocumentByLink(pending.whatsappPhone(), pdfUrl, "bordereau-" + receipt.getReceiptCode() + ".pdf", caption);
+            }
+
+            sendReceiptEmail(pending, payment, pdfUrl);
+        }
+
+        if (!pending.whatsappPhone().isBlank()) {
+            whatsAppCloudApiClient.sendText(pending.whatsappPhone(), ("""
+                    ✅ Pagamento confirmado com sucesso pela InfinitePay.
+
+                    📄 O pagamento foi gravado no painel financeiro do SecretáriaPay.
+
+                    Forma de pagamento: InfinitePay Brasil - teste real
+                    Valor teste Brasil recebido: %s
+                    Código teste: %s
+
+                    Meses/serviços baixados no painel:
+                    %s
+
+                    Enviei os bordereaux em PDF neste WhatsApp.
+                    📧 Também enviei cópia para o e-mail cadastrado.
+                    """).formatted(
+                    moneyBrl(pending.amountBrl()),
+                    pending.orderNsu(),
+                    summary
+            ).trim());
+        }
+    }
+
+    private void sendFallbackDemoReceipt(PendingInfinitePayPayment pending, String receiptCode, String pdfUrl) {
         String caption = ("""
                 ✅ Pagamento confirmado via InfinitePay Brasil.
 
-                SecretáriaPay Académico: bordereau/comprovativo emitido.
+                SecretáriaPay Académico: bordereau/comprovativo demo emitido.
 
                 Bordereau: %s
                 Estudante: %s
@@ -213,37 +353,39 @@ public class InfinitePayTestPaymentService {
             whatsAppCloudApiClient.sendText(pending.whatsappPhone(), ("""
                     ✅ Pagamento confirmado com sucesso pela InfinitePay.
 
-                    📄 O bordereau/comprovativo foi emitido automaticamente.
+                    📄 O bordereau/comprovativo demo foi emitido automaticamente.
 
-                    Forma de pagamento: InfinitePay Brasil - teste real
-                    Referência académica: %s
-                    Valor académico: %s
-                    Valor teste Brasil: %s
-                    Bordereau: %s
-
-                    Enviei o PDF neste WhatsApp.
-                    📧 Também enviei uma cópia para o e-mail cadastrado.
-                    """).formatted(
-                    pending.referenceMonth(),
-                    moneyAoa(pending.academicAmountAoa()),
-                    moneyBrl(pending.amountBrl()),
-                    receiptCode
-            ).trim());
+                    Atenção: o estudante não foi encontrado no banco pelo número de matrícula, por isso esta baixa não apareceu no painel financeiro.
+                    Matrícula usada: %s
+                    """).formatted(pending.studentNumber()).trim());
         }
 
-        sendReceiptEmail(pending, receiptCode, pdfUrl);
-        return new InfinitePayConfirmationResult(true, "Pagamento InfinitePay confirmado e bordereau enviado.", pending.orderNsu(), receiptCode);
+        sendFallbackReceiptEmail(pending, receiptCode, pdfUrl);
     }
 
-    public InfinitePayConfirmationResult cancel(String orderNsu) {
-        if (orderNsu == null || orderNsu.isBlank()) {
-            return new InfinitePayConfirmationResult(false, "order_nsu não informado.", null, null);
-        }
-        pendingPayments.remove(orderNsu.trim());
-        return new InfinitePayConfirmationResult(true, "Pagamento InfinitePay cancelado pelo cliente.", orderNsu, null);
+    private void sendReceiptEmail(PendingInfinitePayPayment pending, PersistedAcademicPayment payment, String pdfUrl) {
+        InfinitePayAcademicLine line = payment.line();
+        ReceiptResponse receipt = payment.receipt();
+
+        GuideFallbackRequest request = new GuideFallbackRequest();
+        request.setStudentName(pending.studentName());
+        request.setStudentNumber(pending.studentNumber());
+        request.setEmail(pending.email());
+        request.setGuideCode(receipt.getReceiptCode());
+        request.setGuideUrl(pdfUrl);
+        request.setAmount(line.totalAmountAoa());
+        request.setCurrency("AOA");
+        request.setDueDate(line.dueDate());
+        request.setMessage("Bordereau/comprovativo emitido após teste real InfinitePay Brasil. Mês/serviço: "
+                + line.referenceMonth() + ". Base: " + moneyAoa(line.baseAmountAoa())
+                + ". Multa: " + moneyAoa(line.fineAmountAoa())
+                + ". Juros: " + moneyAoa(line.interestAmountAoa())
+                + ". Total: " + moneyAoa(line.totalAmountAoa())
+                + ". Valor teste Brasil: " + moneyBrl(pending.amountBrl()) + ".");
+        fallbackNotificationService.sendGuideByEmail(request);
     }
 
-    private void sendReceiptEmail(PendingInfinitePayPayment pending, String receiptCode, String pdfUrl) {
+    private void sendFallbackReceiptEmail(PendingInfinitePayPayment pending, String receiptCode, String pdfUrl) {
         GuideFallbackRequest request = new GuideFallbackRequest();
         request.setStudentName(pending.studentName());
         request.setStudentNumber(pending.studentNumber());
@@ -253,7 +395,7 @@ public class InfinitePayTestPaymentService {
         request.setAmount(pending.academicAmountAoa());
         request.setCurrency("AOA");
         request.setDueDate(pending.dueDate());
-        request.setMessage("Bordereau/comprovativo emitido após teste real InfinitePay Brasil. Valor académico: "
+        request.setMessage("Bordereau/comprovativo demo emitido após teste real InfinitePay Brasil. Valor académico: "
                 + moneyAoa(pending.academicAmountAoa()) + ". Valor teste Brasil: " + moneyBrl(pending.amountBrl()) + ".");
         fallbackNotificationService.sendGuideByEmail(request);
     }
@@ -303,6 +445,84 @@ public class InfinitePayTestPaymentService {
         }
     }
 
+    private List<InfinitePayAcademicLine> normalizeLines(
+            String referenceMonth,
+            String serviceName,
+            BigDecimal academicAmountAoa,
+            BigDecimal baseAmountAoa,
+            BigDecimal fineAmountAoa,
+            BigDecimal interestAmountAoa,
+            LocalDate dueDate,
+            List<InfinitePayAcademicLine> academicLines
+    ) {
+        if (academicLines != null && !academicLines.isEmpty()) {
+            return academicLines.stream()
+                    .map(this::normalizeLine)
+                    .toList();
+        }
+
+        BigDecimal base = safeAmount(baseAmountAoa);
+        BigDecimal fine = safeAmount(fineAmountAoa);
+        BigDecimal interest = safeAmount(interestAmountAoa);
+        BigDecimal total = safeAmount(academicAmountAoa);
+        if (total.compareTo(BigDecimal.ZERO) <= 0) {
+            total = base.add(fine).add(interest);
+        }
+
+        return List.of(new InfinitePayAcademicLine(
+                firstNonBlank(referenceMonth, "Pagamento académico"),
+                firstNonBlank(serviceName, "Pagamento académico"),
+                base,
+                fine,
+                interest,
+                total,
+                dueDate == null ? LocalDate.now() : dueDate
+        ));
+    }
+
+    private InfinitePayAcademicLine normalizeLine(InfinitePayAcademicLine line) {
+        BigDecimal base = safeAmount(line.baseAmountAoa());
+        BigDecimal fine = safeAmount(line.fineAmountAoa());
+        BigDecimal interest = safeAmount(line.interestAmountAoa());
+        BigDecimal total = safeAmount(line.totalAmountAoa());
+        if (total.compareTo(BigDecimal.ZERO) <= 0) {
+            total = base.add(fine).add(interest);
+        }
+        return new InfinitePayAcademicLine(
+                firstNonBlank(line.referenceMonth(), "Pagamento académico"),
+                firstNonBlank(line.description(), "Pagamento académico"),
+                base,
+                fine,
+                interest,
+                total,
+                line.dueDate() == null ? LocalDate.now() : line.dueDate()
+        );
+    }
+
+    private String buildPaidMonthsSummary(List<PersistedAcademicPayment> persistedPayments) {
+        StringBuilder builder = new StringBuilder();
+        int index = 1;
+        for (PersistedAcademicPayment payment : persistedPayments) {
+            InfinitePayAcademicLine line = payment.line();
+            builder.append(index++).append(". ")
+                    .append(line.referenceMonth())
+                    .append(" — Base: ").append(moneyAoa(line.baseAmountAoa()))
+                    .append(" | Multa: ").append(moneyAoa(line.fineAmountAoa()))
+                    .append(" | Juros: ").append(moneyAoa(line.interestAmountAoa()))
+                    .append(" | Total: ").append(moneyAoa(line.totalAmountAoa()))
+                    .append(" | Bordereau: ").append(payment.receipt().getReceiptCode())
+                    .append("\n");
+        }
+        return builder.toString().trim();
+    }
+
+    private String joinReceiptCodes(List<PersistedAcademicPayment> persistedPayments) {
+        return persistedPayments.stream()
+                .map(payment -> payment.receipt().getReceiptCode())
+                .reduce((left, right) -> left + ", " + right)
+                .orElse("");
+    }
+
     private BigDecimal normalizeAmount(BigDecimal amount) {
         BigDecimal safe = safeAmount(amount);
         if (safe.compareTo(BigDecimal.ZERO) <= 0) {
@@ -312,7 +532,7 @@ public class InfinitePayTestPaymentService {
     }
 
     private BigDecimal safeAmount(BigDecimal amount) {
-        return amount == null ? BigDecimal.ZERO : amount;
+        return (amount == null ? BigDecimal.ZERO : amount).setScale(2, RoundingMode.HALF_UP);
     }
 
     private String moneyAoa(BigDecimal value) {
@@ -327,6 +547,14 @@ public class InfinitePayTestPaymentService {
 
     private String generateOrderNsu() {
         return "SP" + UUID.randomUUID().toString().replaceAll("[^A-Za-z0-9]", "").substring(0, 14).toUpperCase(Locale.ROOT);
+    }
+
+    private String generateChargeCode() {
+        String code;
+        do {
+            code = "IP" + System.currentTimeMillis() + shortId();
+        } while (chargeRepository.existsByChargeCode(code));
+        return code;
     }
 
     private String shortId() {
@@ -358,6 +586,16 @@ public class InfinitePayTestPaymentService {
         return body.length() > 500 ? body.substring(0, 500) + "..." : body;
     }
 
+    public record InfinitePayAcademicLine(
+            String referenceMonth,
+            String description,
+            BigDecimal baseAmountAoa,
+            BigDecimal fineAmountAoa,
+            BigDecimal interestAmountAoa,
+            BigDecimal totalAmountAoa,
+            LocalDate dueDate
+    ) {}
+
     public record PendingInfinitePayPayment(
             String orderNsu,
             String whatsappPhone,
@@ -372,7 +610,14 @@ public class InfinitePayTestPaymentService {
             BigDecimal interestAmountAoa,
             BigDecimal amountBrl,
             LocalDate dueDate,
+            List<InfinitePayAcademicLine> academicLines,
             LocalDateTime expiresAt
+    ) {}
+
+    private record PersistedAcademicPayment(
+            InfinitePayAcademicLine line,
+            Charge charge,
+            ReceiptResponse receipt
     ) {}
 
     public record InfinitePayConfirmationResult(
