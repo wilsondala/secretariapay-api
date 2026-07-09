@@ -1,8 +1,5 @@
 package com.secretariapay.api.controller.operations;
 
-import com.secretariapay.api.entity.operations.AuditLog;
-import com.secretariapay.api.entity.operations.NotificationLog;
-import com.secretariapay.api.entity.operations.PaymentTransaction;
 import com.secretariapay.api.service.operations.AuditService;
 import com.secretariapay.api.service.operations.FinancialNotificationScheduler;
 import com.secretariapay.api.service.operations.PaymentTransactionService;
@@ -13,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -40,18 +36,52 @@ public class InstitutionalOperationsController {
     }
 
     @GetMapping("/notifications/logs")
-    public ResponseEntity<List<NotificationLog>> notificationLogs() {
-        return ResponseEntity.ok(financialNotificationScheduler.recentLogs());
+    public ResponseEntity<?> notificationLogs() {
+        return ResponseEntity.ok(financialNotificationScheduler.recentLogs().stream().map(log -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", log.getId());
+            item.put("notificationType", log.getNotificationType());
+            item.put("channel", log.getChannel());
+            item.put("status", log.getStatus());
+            item.put("businessDate", log.getBusinessDate());
+            item.put("sentAt", log.getSentAt());
+            item.put("createdAt", log.getCreatedAt());
+            item.put("errorMessage", log.getErrorMessage());
+            return item;
+        }).toList());
     }
 
     @GetMapping("/audit/logs")
-    public ResponseEntity<List<AuditLog>> auditLogs() {
-        return ResponseEntity.ok(auditService.recent());
+    public ResponseEntity<?> auditLogs() {
+        return ResponseEntity.ok(auditService.recent().stream().map(log -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", log.getId());
+            item.put("actor", log.getActor());
+            item.put("action", log.getAction());
+            item.put("entityType", log.getEntityType());
+            item.put("entityId", log.getEntityId());
+            item.put("details", log.getDetails());
+            item.put("createdAt", log.getCreatedAt());
+            return item;
+        }).toList());
     }
 
     @GetMapping("/payments/transactions")
-    public ResponseEntity<List<PaymentTransaction>> paymentTransactions() {
-        return ResponseEntity.ok(paymentTransactionService.recent());
+    public ResponseEntity<?> paymentTransactions() {
+        return ResponseEntity.ok(paymentTransactionService.recent().stream().map(transaction -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", transaction.getId());
+            item.put("provider", transaction.getProvider());
+            item.put("providerTransactionId", transaction.getProviderTransactionId());
+            item.put("merchantTransactionId", transaction.getMerchantTransactionId());
+            item.put("paymentMethod", transaction.getPaymentMethod());
+            item.put("amount", transaction.getAmount());
+            item.put("currency", transaction.getCurrency());
+            item.put("status", transaction.getStatus());
+            item.put("paidAt", transaction.getPaidAt());
+            item.put("createdAt", transaction.getCreatedAt());
+            return item;
+        }).toList());
     }
 
     @GetMapping("/readiness")
@@ -61,7 +91,6 @@ public class InstitutionalOperationsController {
         body.put("automation", "FinancialNotificationScheduler instalado");
         body.put("audit", "AuditLog instalado");
         body.put("reconciliation", "PaymentTransaction instalado");
-        body.put("security", "Configuração endurecida por variáveis de ambiente");
         body.put("nextStep", "Ativar SECRETARIAPAY_NOTIFICATIONS_SCHEDULER_ENABLED=true em produção após teste controlado.");
         return ResponseEntity.ok(body);
     }
