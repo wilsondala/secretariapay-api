@@ -6,6 +6,7 @@ import com.secretariapay.api.dto.imports.AcademicStudentImportValidationResponse
 import com.secretariapay.api.entity.imports.AcademicStudentImportBatch;
 import com.secretariapay.api.entity.imports.AcademicStudentImportRow;
 import com.secretariapay.api.service.imports.AcademicStudentCsvImportService;
+import com.secretariapay.api.service.imports.AcademicStudentImportLifecycleService;
 import com.secretariapay.api.service.imports.AcademicStudentImportMaintenanceService;
 import com.secretariapay.api.service.imports.AcademicStudentImportService;
 import org.springframework.http.ContentDisposition;
@@ -20,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -31,15 +33,18 @@ public class AcademicStudentImportController {
     private final AcademicStudentImportService service;
     private final AcademicStudentCsvImportService csvImportService;
     private final AcademicStudentImportMaintenanceService maintenanceService;
+    private final AcademicStudentImportLifecycleService lifecycleService;
 
     public AcademicStudentImportController(
             AcademicStudentImportService service,
             AcademicStudentCsvImportService csvImportService,
-            AcademicStudentImportMaintenanceService maintenanceService
+            AcademicStudentImportMaintenanceService maintenanceService,
+            AcademicStudentImportLifecycleService lifecycleService
     ) {
         this.service = service;
         this.csvImportService = csvImportService;
         this.maintenanceService = maintenanceService;
+        this.lifecycleService = lifecycleService;
     }
 
     @PostMapping
@@ -80,6 +85,12 @@ public class AcademicStudentImportController {
     @PreAuthorize(IMPORT_AUTHORITIES)
     public AcademicStudentImportBatch findBatch(@PathVariable UUID id) {
         return service.findBatch(id);
+    }
+
+    @GetMapping("/{id}/history")
+    @PreAuthorize(IMPORT_AUTHORITIES)
+    public Map<String, Object> history(@PathVariable UUID id) {
+        return lifecycleService.history(id);
     }
 
     @PostMapping("/{id}/rows")
@@ -133,5 +144,22 @@ public class AcademicStudentImportController {
     @PreAuthorize(IMPORT_AUTHORITIES)
     public AcademicStudentImportSyncResponse syncBatch(@PathVariable UUID id) {
         return service.syncBatch(id);
+    }
+
+    @PostMapping("/{id}/reprocess")
+    @PreAuthorize(IMPORT_AUTHORITIES)
+    public Map<String, Object> reprocess(@PathVariable UUID id, Principal principal) {
+        return lifecycleService.reprocess(id, principal == null ? null : principal.getName());
+    }
+
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize(IMPORT_AUTHORITIES)
+    public AcademicStudentImportBatch cancel(
+            @PathVariable UUID id,
+            @RequestBody(required = false) Map<String, String> payload,
+            Principal principal
+    ) {
+        String reason = payload == null ? null : payload.get("reason");
+        return lifecycleService.cancel(id, reason, principal == null ? null : principal.getName());
     }
 }
