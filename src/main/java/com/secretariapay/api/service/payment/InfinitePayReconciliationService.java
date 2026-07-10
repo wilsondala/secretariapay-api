@@ -6,6 +6,7 @@ import com.secretariapay.api.entity.financial.Charge;
 import com.secretariapay.api.entity.financial.Receipt;
 import com.secretariapay.api.repository.financial.ChargeRepository;
 import com.secretariapay.api.repository.financial.ReceiptRepository;
+import com.secretariapay.api.service.operations.PaymentTransactionService;
 import com.secretariapay.api.service.whatsapp.WhatsAppCloudApiClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,15 +29,18 @@ public class InfinitePayReconciliationService {
     private final ReceiptRepository receiptRepository;
     private final ChargeRepository chargeRepository;
     private final WhatsAppCloudApiClient whatsAppCloudApiClient;
+    private final PaymentTransactionService paymentTransactionService;
 
     public InfinitePayReconciliationService(
             ReceiptRepository receiptRepository,
             ChargeRepository chargeRepository,
-            WhatsAppCloudApiClient whatsAppCloudApiClient
+            WhatsAppCloudApiClient whatsAppCloudApiClient,
+            PaymentTransactionService paymentTransactionService
     ) {
         this.receiptRepository = receiptRepository;
         this.chargeRepository = chargeRepository;
         this.whatsAppCloudApiClient = whatsAppCloudApiClient;
+        this.paymentTransactionService = paymentTransactionService;
     }
 
     @Transactional
@@ -83,6 +87,20 @@ public class InfinitePayReconciliationService {
 
             receipt.setCharge(realCharge);
             receiptRepository.save(receipt);
+
+            paymentTransactionService.recordIfAbsent(
+                    "INFINITEPAY",
+                    firstNonBlank(orderNsu, receipt.getReceiptCode()),
+                    firstNonBlank(orderNsu, receipt.getReceiptCode()),
+                    "INFINITEPAY_LINK",
+                    realCharge.getTotalAmount(),
+                    realCharge.getCurrency(),
+                    "PAID",
+                    realCharge,
+                    realCharge.getStudent(),
+                    "InfinitePay teste real vinculado ao bordereau " + receipt.getReceiptCode(),
+                    paidAt
+            );
 
             generatedCharge
                     .setStatus(ChargeStatus.CANCELLED)
