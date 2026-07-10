@@ -9,5 +9,6 @@ import java.util.UUID;
 
 public interface PaymentTransactionRepository extends JpaRepository<PaymentTransaction, UUID> {
     Optional<PaymentTransaction> findByProviderAndProviderTransactionId(String provider, String providerTransactionId);
+    Optional<PaymentTransaction> findFirstByChargeIdOrderByCreatedAtDesc(UUID chargeId);
     List<PaymentTransaction> findTop100ByOrderByCreatedAtDesc();
 }
