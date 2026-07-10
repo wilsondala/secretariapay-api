@@ -23,6 +23,7 @@ import java.util.UUID;
 public class InfinitePayReconciliationService {
 
     private static final String API_BASE_URL = "https://secretariapay-api.paixaoangola.com";
+    private static final int DESCRIPTION_MAX_LENGTH = 120;
 
     private final ReceiptRepository receiptRepository;
     private final ChargeRepository chargeRepository;
@@ -86,7 +87,7 @@ public class InfinitePayReconciliationService {
             generatedCharge
                     .setStatus(ChargeStatus.CANCELLED)
                     .setCancelledAt(LocalDateTime.now())
-                    .setDescription(firstNonBlank(generatedCharge.getDescription(), "Cobrança InfinitePay") + " | Corrigida para cobrança real " + realCharge.getChargeCode());
+                    .setDescription(limitDescription(firstNonBlank(generatedCharge.getDescription(), "Cobrança InfinitePay") + " | InfinitePay corrigido"));
             chargeRepository.save(generatedCharge);
 
             adjusted.add(receiptCode + " -> " + realCharge.getReferenceMonth() + " (" + money(realCharge.getTotalAmount()) + ")");
@@ -177,6 +178,12 @@ public class InfinitePayReconciliationService {
             if (value != null && !value.trim().isBlank()) return value.trim();
         }
         return "";
+    }
+
+    private String limitDescription(String value) {
+        String text = safe(value);
+        if (text.length() <= DESCRIPTION_MAX_LENGTH) return text;
+        return text.substring(0, DESCRIPTION_MAX_LENGTH);
     }
 
     private String safe(String value) {
