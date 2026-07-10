@@ -1,5 +1,6 @@
 package com.secretariapay.api.controller.publicapi;
 
+import com.secretariapay.api.service.payment.InfinitePayReconciliationService;
 import com.secretariapay.api.service.payment.InfinitePayTestPaymentService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -17,15 +18,27 @@ import java.util.Map;
 public class InfinitePayPublicController {
 
     private final InfinitePayTestPaymentService infinitePayTestPaymentService;
+    private final InfinitePayReconciliationService infinitePayReconciliationService;
 
-    public InfinitePayPublicController(InfinitePayTestPaymentService infinitePayTestPaymentService) {
+    public InfinitePayPublicController(
+            InfinitePayTestPaymentService infinitePayTestPaymentService,
+            InfinitePayReconciliationService infinitePayReconciliationService
+    ) {
         this.infinitePayTestPaymentService = infinitePayTestPaymentService;
+        this.infinitePayReconciliationService = infinitePayReconciliationService;
     }
 
     @GetMapping(value = "/success", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> success(@RequestParam(name = "order_nsu", required = false) String orderNsu) {
         InfinitePayTestPaymentService.InfinitePayConfirmationResult result = infinitePayTestPaymentService.confirmBySuccessReturn(orderNsu);
-        return ResponseEntity.ok(buildHtml(result.success(), result.message(), result.orderNsu(), result.receiptCode()));
+        String message = result.message();
+        if (result.success()) {
+            InfinitePayReconciliationService.ReconciliationResult reconciliation = infinitePayReconciliationService.reconcileAfterInfinitePay(orderNsu, result.receiptCode());
+            if (reconciliation.adjusted()) {
+                message = message + " " + reconciliation.message();
+            }
+        }
+        return ResponseEntity.ok(buildHtml(result.success(), message, result.orderNsu(), result.receiptCode()));
     }
 
     @GetMapping(value = "/cancel", produces = MediaType.TEXT_HTML_VALUE)
@@ -41,10 +54,14 @@ public class InfinitePayPublicController {
 
         if (status.equals("paid") || status.equals("approved") || status.equals("success") || status.equals("completed")) {
             InfinitePayTestPaymentService.InfinitePayConfirmationResult result = infinitePayTestPaymentService.confirmBySuccessReturn(orderNsu);
+            InfinitePayReconciliationService.ReconciliationResult reconciliation = result.success()
+                    ? infinitePayReconciliationService.reconcileAfterInfinitePay(orderNsu, result.receiptCode())
+                    : new InfinitePayReconciliationService.ReconciliationResult(false, "");
             return Map.of(
                     "received", true,
                     "processed", result.success(),
-                    "message", result.message(),
+                    "reconciled", reconciliation.adjusted(),
+                    "message", result.message() + (reconciliation.message().isBlank() ? "" : " " + reconciliation.message()),
                     "order_nsu", result.orderNsu() == null ? "" : result.orderNsu(),
                     "receipt_code", result.receiptCode() == null ? "" : result.receiptCode()
             );
