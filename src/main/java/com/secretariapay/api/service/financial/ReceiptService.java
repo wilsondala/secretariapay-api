@@ -5,12 +5,15 @@ import com.secretariapay.api.entity.enums.financial.ChargeStatus;
 import com.secretariapay.api.entity.enums.financial.ReceiptStatus;
 import com.secretariapay.api.entity.financial.Charge;
 import com.secretariapay.api.entity.financial.Receipt;
+import com.secretariapay.api.entity.operations.PaymentTransaction;
 import com.secretariapay.api.exception.NotFoundException;
 import com.secretariapay.api.repository.financial.ChargeRepository;
 import com.secretariapay.api.repository.financial.ReceiptRepository;
+import com.secretariapay.api.repository.operations.PaymentTransactionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -22,13 +25,16 @@ public class ReceiptService {
 
     private final ReceiptRepository receiptRepository;
     private final ChargeRepository chargeRepository;
+    private final PaymentTransactionRepository paymentTransactionRepository;
 
     public ReceiptService(
             ReceiptRepository receiptRepository,
-            ChargeRepository chargeRepository
+            ChargeRepository chargeRepository,
+            PaymentTransactionRepository paymentTransactionRepository
     ) {
         this.receiptRepository = receiptRepository;
         this.chargeRepository = chargeRepository;
+        this.paymentTransactionRepository = paymentTransactionRepository;
     }
 
     @Transactional
@@ -96,6 +102,9 @@ public class ReceiptService {
 
     public ReceiptResponse toResponse(Receipt receipt) {
         Charge charge = receipt.getCharge();
+        PaymentTransaction transaction = charge != null && charge.getId() != null
+                ? paymentTransactionRepository.findFirstByChargeIdOrderByCreatedAtDesc(charge.getId()).orElse(null)
+                : null;
 
         String pdfUrl = receipt.getPdfUrl();
         if (receipt.getReceiptCode() != null && !receipt.getReceiptCode().isBlank()) {
@@ -112,6 +121,17 @@ public class ReceiptService {
                 .setChargeId(charge != null ? charge.getId() : null)
                 .setChargeCode(charge != null ? charge.getChargeCode() : null)
                 .setStudentName(charge != null && charge.getStudent() != null ? charge.getStudent().getFullName() : null)
+                .setStudentNumber(charge != null && charge.getStudent() != null ? charge.getStudent().getStudentNumber() : null)
+                .setReferenceMonth(charge != null ? charge.getReferenceMonth() : null)
+                .setDueDate(charge != null ? charge.getDueDate() : null)
+                .setAmount(charge != null ? safeMoney(charge.getTotalAmount()) : BigDecimal.ZERO)
+                .setBaseAmount(charge != null ? safeMoney(charge.getAmount()) : BigDecimal.ZERO)
+                .setFineAmount(charge != null ? safeMoney(charge.getFineAmount()) : BigDecimal.ZERO)
+                .setInterestAmount(charge != null ? safeMoney(charge.getInterestAmount()) : BigDecimal.ZERO)
+                .setDiscountAmount(charge != null ? safeMoney(charge.getDiscountAmount()) : BigDecimal.ZERO)
+                .setCurrency(charge != null && charge.getCurrency() != null ? charge.getCurrency() : "AOA")
+                .setPaymentMethod(resolvePaymentMethod(transaction, charge))
+                .setPaidAt(charge != null ? charge.getPaidAt() : null)
                 .setReceiptCode(receipt.getReceiptCode())
                 .setPdfUrl(pdfUrl)
                 .setQrCodeUrl(receipt.getQrCodeUrl())
@@ -149,11 +169,9 @@ public class ReceiptService {
 
     private String generateReceiptCode() {
         String code;
-
         do {
             code = "RCT" + System.currentTimeMillis();
         } while (receiptRepository.existsByReceiptCode(code));
-
         return code;
     }
 
@@ -163,5 +181,25 @@ public class ReceiptService {
 
     private String buildValidationUrl(String receiptCode) {
         return API_BASE_URL + "/api/v1/public/receipts/validate/" + receiptCode;
+    }
+
+    private BigDecimal safeMoney(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private String resolvePaymentMethod(PaymentTransaction transaction, Charge charge) {
+        if (transaction != null && transaction.getPaymentMethod() != null && !transaction.getPaymentMethod().isBlank()) {
+            if ("INFINITEPAY_LINK".equalsIgnoreCase(transaction.getPaymentMethod())) {
+                return "Pix/link InfinitePay";
+            }
+            return transaction.getPaymentMethod();
+        }
+        if (transaction != null && transaction.getProvider() != null && !transaction.getProvider().isBlank()) {
+            return transaction.getProvider();
+        }
+        if (charge != null && charge.getDescription() != null && charge.getDescription().toLowerCase().contains("infinitepay")) {
+            return "Pix/link InfinitePay";
+        }
+        return "Pagamento confirmado";
     }
 }
