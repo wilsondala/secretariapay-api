@@ -1,17 +1,23 @@
 package com.secretariapay.api.controller.imports;
 
+import com.secretariapay.api.dto.imports.AcademicStudentImportRowUpdateRequest;
 import com.secretariapay.api.dto.imports.AcademicStudentImportSyncResponse;
 import com.secretariapay.api.dto.imports.AcademicStudentImportValidationResponse;
 import com.secretariapay.api.entity.imports.AcademicStudentImportBatch;
 import com.secretariapay.api.entity.imports.AcademicStudentImportRow;
 import com.secretariapay.api.service.imports.AcademicStudentCsvImportService;
+import com.secretariapay.api.service.imports.AcademicStudentImportMaintenanceService;
 import com.secretariapay.api.service.imports.AcademicStudentImportService;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
@@ -24,13 +30,16 @@ public class AcademicStudentImportController {
 
     private final AcademicStudentImportService service;
     private final AcademicStudentCsvImportService csvImportService;
+    private final AcademicStudentImportMaintenanceService maintenanceService;
 
     public AcademicStudentImportController(
             AcademicStudentImportService service,
-            AcademicStudentCsvImportService csvImportService
+            AcademicStudentCsvImportService csvImportService,
+            AcademicStudentImportMaintenanceService maintenanceService
     ) {
         this.service = service;
         this.csvImportService = csvImportService;
+        this.maintenanceService = maintenanceService;
     }
 
     @PostMapping
@@ -51,14 +60,8 @@ public class AcademicStudentImportController {
             @RequestParam(required = false) String sourceName,
             Principal principal
     ) {
-        return csvImportService.upload(
-                file,
-                institutionId,
-                academicYear,
-                semester,
-                sourceName,
-                principal == null ? null : principal.getName()
-        );
+        return csvImportService.upload(file, institutionId, academicYear, semester, sourceName,
+                principal == null ? null : principal.getName());
     }
 
     @GetMapping
@@ -90,6 +93,28 @@ public class AcademicStudentImportController {
     @PreAuthorize(IMPORT_AUTHORITIES)
     public List<AcademicStudentImportRow> findRows(@PathVariable UUID id) {
         return service.findRows(id);
+    }
+
+    @PutMapping("/{batchId}/rows/{rowId}")
+    @PreAuthorize(IMPORT_AUTHORITIES)
+    public AcademicStudentImportRow updateRow(
+            @PathVariable UUID batchId,
+            @PathVariable UUID rowId,
+            @RequestBody AcademicStudentImportRowUpdateRequest request
+    ) {
+        return maintenanceService.updateRow(batchId, rowId, request);
+    }
+
+    @GetMapping(value = "/{id}/errors.csv", produces = "text/csv")
+    @PreAuthorize(IMPORT_AUTHORITIES)
+    public ResponseEntity<byte[]> downloadErrors(@PathVariable UUID id) {
+        AcademicStudentImportBatch batch = service.findBatch(id);
+        byte[] content = maintenanceService.buildErrorReport(id);
+        String filename = "erros-" + batch.getImportCode() + ".csv";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(new MediaType("text", "csv", StandardCharsets.UTF_8));
+        headers.setContentDisposition(ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
+        return new ResponseEntity<>(content, headers, HttpStatus.OK);
     }
 
     @PatchMapping("/{id}/validate")
