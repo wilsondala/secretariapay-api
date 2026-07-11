@@ -27,6 +27,29 @@ import java.util.List;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+        private static final String[] ADMIN_AUTHORITIES = {
+                        "ADMIN", "ROLE_ADMIN",
+                        "COMPANY_ADMIN", "ROLE_COMPANY_ADMIN",
+                        "ADMIN_GLOBAL", "ROLE_ADMIN_GLOBAL",
+                        "ADMIN_INSTITUTION", "ROLE_ADMIN_INSTITUTION",
+                        "ADMIN_IMETRO", "ROLE_ADMIN_IMETRO",
+                        "TIC", "ROLE_TIC"
+        };
+
+        private static final String[] REPORT_AUTHORITIES = {
+                        "ADMIN", "ROLE_ADMIN",
+                        "COMPANY_ADMIN", "ROLE_COMPANY_ADMIN",
+                        "ADMIN_GLOBAL", "ROLE_ADMIN_GLOBAL",
+                        "ADMIN_INSTITUTION", "ROLE_ADMIN_INSTITUTION",
+                        "ADMIN_IMETRO", "ROLE_ADMIN_IMETRO",
+                        "DIRECAO", "ROLE_DIRECAO",
+                        "FINANCEIRO", "ROLE_FINANCEIRO",
+                        "TESOURARIA", "ROLE_TESOURARIA",
+                        "DCR_COORDENACAO", "ROLE_DCR_COORDENACAO",
+                        "AUDITORIA", "ROLE_AUDITORIA",
+                        "TIC", "ROLE_TIC"
+        };
+
         private final JwtAuthenticationFilter jwtAuthenticationFilter;
         private final UserDetailsService userDetailsService;
 
@@ -41,9 +64,7 @@ public class SecurityConfig {
         public FilterRegistrationBean<JwtAuthenticationFilter> jwtAuthenticationFilterRegistration(
                         JwtAuthenticationFilter filter) {
                 FilterRegistrationBean<JwtAuthenticationFilter> registration = new FilterRegistrationBean<>(filter);
-
                 registration.setEnabled(false);
-
                 return registration;
         }
 
@@ -55,10 +76,8 @@ public class SecurityConfig {
         @Bean
         public AuthenticationProvider authenticationProvider() {
                 DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-
                 provider.setUserDetailsService(userDetailsService);
                 provider.setPasswordEncoder(passwordEncoder());
-
                 return provider;
         }
 
@@ -90,15 +109,12 @@ public class SecurityConfig {
                                 "Origin",
                                 "X-Requested-With"));
 
-                configuration.setExposedHeaders(List.of(
-                                "Authorization"));
-
+                configuration.setExposedHeaders(List.of("Authorization"));
                 configuration.setAllowCredentials(true);
                 configuration.setMaxAge(3600L);
 
                 UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
                 source.registerCorsConfiguration("/**", configuration);
-
                 return source;
         }
 
@@ -111,8 +127,7 @@ public class SecurityConfig {
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                                .authorizeHttpRequests(auth -> auth
-                                                .anyRequest().permitAll());
+                                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
 
                 return http.build();
         }
@@ -128,13 +143,12 @@ public class SecurityConfig {
                                 .authenticationProvider(authenticationProvider())
                                 .authorizeHttpRequests(auth -> auth
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
                                                 .requestMatchers(HttpMethod.GET, "/").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/health").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                                                .requestMatchers("/actuator/**").hasAnyAuthority(ADMIN_AUTHORITIES)
                                                 .requestMatchers("/error").permitAll()
-                                                .requestMatchers("/actuator/**").permitAll()
                                                 .requestMatchers("/branding/**").permitAll()
-
                                                 .requestMatchers("/api/v1/public/**").permitAll()
                                                 .requestMatchers("/api/v1/multi-country/**").permitAll()
                                                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
@@ -142,40 +156,22 @@ public class SecurityConfig {
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/secretariapay/whatsapp/webhook").permitAll()
                                                 .requestMatchers(HttpMethod.POST, "/api/v1/secretariapay/whatsapp/webhook").permitAll()
                                                 .requestMatchers(HttpMethod.POST, "/api/v1/financial/appypay/webhook").permitAll()
-                                                .requestMatchers("/api/v1/admin/**")
-                                                .hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+                                                .requestMatchers("/api/v1/admin/**").hasAnyAuthority(ADMIN_AUTHORITIES)
 
-                                                // Endpoints herdados do VaiRápido mantidos temporariamente para compatibilidade.
-                                                // Eles serão removidos ou isolados em fase posterior de limpeza.
+                                                // Endpoints herdados mantidos temporariamente para compatibilidade.
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/tickets/*/boarding-preview")
                                                 .hasAnyAuthority(
-                                                                "ADMIN",
-                                                                "ROLE_ADMIN",
-                                                                "COMPANY_ADMIN",
-                                                                "ROLE_COMPANY_ADMIN",
-                                                                "OPERATOR",
-                                                                "ROLE_OPERATOR")
-
+                                                                "ADMIN", "ROLE_ADMIN",
+                                                                "COMPANY_ADMIN", "ROLE_COMPANY_ADMIN",
+                                                                "OPERATOR", "ROLE_OPERATOR")
                                                 .requestMatchers(HttpMethod.PATCH, "/api/v1/tickets/*/board")
                                                 .hasAnyAuthority(
-                                                                "ADMIN",
-                                                                "ROLE_ADMIN",
-                                                                "COMPANY_ADMIN",
-                                                                "ROLE_COMPANY_ADMIN",
-                                                                "OPERATOR",
-                                                                "ROLE_OPERATOR")
-
-                                                .requestMatchers("/api/v1/reports/**")
-                                                .hasAnyAuthority(
-                                                                "ADMIN",
-                                                                "ROLE_ADMIN",
-                                                                "COMPANY_ADMIN",
-                                                                "ROLE_COMPANY_ADMIN")
-
+                                                                "ADMIN", "ROLE_ADMIN",
+                                                                "COMPANY_ADMIN", "ROLE_COMPANY_ADMIN",
+                                                                "OPERATOR", "ROLE_OPERATOR")
+                                                .requestMatchers("/api/v1/reports/**").hasAnyAuthority(REPORT_AUTHORITIES)
                                                 .anyRequest().authenticated())
-                                .addFilterBefore(
-                                                jwtAuthenticationFilter,
-                                                UsernamePasswordAuthenticationFilter.class);
+                                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
                 return http.build();
         }
