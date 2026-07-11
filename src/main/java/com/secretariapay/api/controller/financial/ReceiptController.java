@@ -18,6 +18,43 @@ import java.util.UUID;
 @RequestMapping("/api/v1/receipts")
 public class ReceiptController {
 
+    private static final String READ_AUTHORITIES = "hasAnyAuthority(" +
+            "'ADMIN','ROLE_ADMIN'," +
+            "'COMPANY_ADMIN','ROLE_COMPANY_ADMIN'," +
+            "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL'," +
+            "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION'," +
+            "'ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
+            "'DIRECAO','ROLE_DIRECAO'," +
+            "'FINANCEIRO','ROLE_FINANCEIRO'," +
+            "'TESOURARIA','ROLE_TESOURARIA'," +
+            "'DCR_COORDENACAO','ROLE_DCR_COORDENACAO'," +
+            "'DCR_OPERADOR','ROLE_DCR_OPERADOR'," +
+            "'OPERADOR_ATENDIMENTO','ROLE_OPERADOR_ATENDIMENTO'," +
+            "'AUDITORIA','ROLE_AUDITORIA'," +
+            "'TIC','ROLE_TIC')";
+
+    private static final String WRITE_AUTHORITIES = "hasAnyAuthority(" +
+            "'ADMIN','ROLE_ADMIN'," +
+            "'COMPANY_ADMIN','ROLE_COMPANY_ADMIN'," +
+            "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL'," +
+            "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION'," +
+            "'ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
+            "'DIRECAO','ROLE_DIRECAO'," +
+            "'FINANCEIRO','ROLE_FINANCEIRO'," +
+            "'TESOURARIA','ROLE_TESOURARIA'," +
+            "'DCR_COORDENACAO','ROLE_DCR_COORDENACAO'," +
+            "'DCR_OPERADOR','ROLE_DCR_OPERADOR')";
+
+    private static final String CANCEL_AUTHORITIES = "hasAnyAuthority(" +
+            "'ADMIN','ROLE_ADMIN'," +
+            "'COMPANY_ADMIN','ROLE_COMPANY_ADMIN'," +
+            "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL'," +
+            "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION'," +
+            "'ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
+            "'DIRECAO','ROLE_DIRECAO'," +
+            "'TESOURARIA','ROLE_TESOURARIA'," +
+            "'DCR_COORDENACAO','ROLE_DCR_COORDENACAO')";
+
     private final ReceiptService service;
     private final ReceiptPdfService receiptPdfService;
 
@@ -28,29 +65,28 @@ public class ReceiptController {
 
     @PostMapping("/charge/{chargeId}/issue")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize(WRITE_AUTHORITIES)
     public ReceiptResponse issueForCharge(@PathVariable UUID chargeId) {
         return service.issueForCharge(chargeId);
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'DIRECAO', 'ROLE_DIRECAO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA', 'SECRETARIA', 'ROLE_SECRETARIA')")
+    @PreAuthorize(READ_AUTHORITIES)
     public List<ReceiptResponse> findAll() {
         return service.findAll();
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'DIRECAO', 'ROLE_DIRECAO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA', 'SECRETARIA', 'ROLE_SECRETARIA')")
+    @PreAuthorize(READ_AUTHORITIES)
     public ReceiptResponse findById(@PathVariable UUID id) {
         return service.findById(id);
     }
 
     @GetMapping("/{id}/pdf")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'DIRECAO', 'ROLE_DIRECAO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA', 'SECRETARIA', 'ROLE_SECRETARIA')")
+    @PreAuthorize(READ_AUTHORITIES)
     public ResponseEntity<byte[]> downloadPdf(@PathVariable UUID id) {
         ReceiptResponse receipt = service.findById(id);
         byte[] pdf = receiptPdfService.generateReceiptPdf(id);
-
         String filename = "recibo-" + receipt.getReceiptCode() + ".pdf";
 
         return ResponseEntity.ok()
@@ -60,13 +96,13 @@ public class ReceiptController {
     }
 
     @GetMapping("/code/{receiptCode}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'DIRECAO', 'ROLE_DIRECAO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA', 'SECRETARIA', 'ROLE_SECRETARIA')")
+    @PreAuthorize(READ_AUTHORITIES)
     public ReceiptResponse findByCode(@PathVariable String receiptCode) {
         return service.findByCode(receiptCode);
     }
 
     @PatchMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize(CANCEL_AUTHORITIES)
     public ReceiptResponse cancel(@PathVariable UUID id) {
         return service.cancel(id);
     }
