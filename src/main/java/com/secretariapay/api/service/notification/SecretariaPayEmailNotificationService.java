@@ -12,19 +12,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.Locale;
 
 @Service
 public class SecretariaPayEmailNotificationService {
 
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-
     private final SecretariaPayMessageRepository messageRepository;
+    private final FinancialCommunicationTemplateService templateService;
     private final boolean emailEnabled;
     private final boolean emailMockEnabled;
     private final String emailFrom;
@@ -32,12 +26,14 @@ public class SecretariaPayEmailNotificationService {
 
     public SecretariaPayEmailNotificationService(
             SecretariaPayMessageRepository messageRepository,
+            FinancialCommunicationTemplateService templateService,
             @Value("${secretariapay.email.enabled:false}") boolean emailEnabled,
             @Value("${secretariapay.email.mock-enabled:true}") boolean emailMockEnabled,
             @Value("${secretariapay.email.from:dcr_pay@imetroangola.com}") String emailFrom,
             @Value("${secretariapay.email.cc:df.oi_pay@imetroangola.com}") String emailCc
     ) {
         this.messageRepository = messageRepository;
+        this.templateService = templateService;
         this.emailEnabled = emailEnabled;
         this.emailMockEnabled = emailMockEnabled;
         this.emailFrom = emailFrom;
@@ -47,13 +43,24 @@ public class SecretariaPayEmailNotificationService {
     @Transactional
     public NotificationDispatchResult sendPaymentGuideEmail(Charge charge, String guideUrl) {
         Student student = student(charge);
-        String recipient = firstNotBlank(student.getEmail(), student.getGuardianEmail());
+        String recipient = firstNotBlank(student != null ? student.getEmail() : null,
+                student != null ? student.getGuardianEmail() : null);
+        Institution institution = institution(student);
+        String institutionName = displayInstitutionName(institution);
 
         SecretariaPayMessage message = baseMessage(charge, student, guideUrl)
                 .setType("PAYMENT_GUIDE_EMAIL")
                 .setChannel("EMAIL")
                 .setRecipientPhone(null)
-                .setMessage(buildEmailBody(charge, student, recipient, guideUrl));
+                .setMessage(templateService.buildPaymentGuideEmail(
+                        charge,
+                        student,
+                        institutionName,
+                        recipient,
+                        emailFrom,
+                        emailCc,
+                        guideUrl
+                ));
 
         if (isBlank(recipient)) {
             message.setStatus(SecretariaPayMessageStatus.FAILED)
@@ -66,7 +73,9 @@ public class SecretariaPayEmailNotificationService {
             String providerPrefix = emailEnabled ? "email-provider-pending-" : "mock-email-";
             message.setStatus(SecretariaPayMessageStatus.SENT)
                     .setProviderMessageId(providerPrefix + messageIdSeed(charge, recipient))
-                    .setFailureReason(emailEnabled ? "E-mail real ainda sem adaptador SMTP configurado; envio registrado para integração." : null)
+                    .setFailureReason(emailEnabled
+                            ? "E-mail real ainda sem adaptador SMTP configurado; envio registrado para integração."
+                            : null)
                     .setSentAt(LocalDateTime.now());
         } else {
             message.setStatus(SecretariaPayMessageStatus.FAILED)
@@ -89,43 +98,6 @@ public class SecretariaPayEmailNotificationService {
                 .setChargeCode(charge != null ? charge.getChargeCode() : null)
                 .setLanguage("pt-AO")
                 .setStatus(SecretariaPayMessageStatus.GENERATED);
-    }
-
-    private String buildEmailBody(Charge charge, Student student, String recipient, String guideUrl) {
-        return """
-                Para: %s
-                De: %s
-                Cc: %s
-                Assunto: Guia de pagamento IMETRO - %s
-
-                Olá, %s.
-
-                A sua guia de pagamento está disponível.
-
-                Código: %s
-                Descrição: %s
-                Valor: %s
-                Vencimento: %s
-
-                Link da guia:
-                %s
-
-                Após o pagamento, envie o comprovativo para validação da DCR.
-                O recibo final só será emitido após confirmação manual.
-
-                SecretáriaPay Académico / IMETRO
-                """.formatted(
-                safe(recipient),
-                safe(emailFrom),
-                safe(emailCc),
-                safe(charge.getDescription()),
-                firstName(student != null ? student.getFullName() : null),
-                safe(charge.getChargeCode()),
-                safe(charge.getDescription()),
-                money(charge.getTotalAmount(), charge.getCurrency()),
-                charge.getDueDate() != null ? charge.getDueDate().format(DATE_FORMATTER) : "-",
-                guideUrl
-        ).trim();
     }
 
     private NotificationDispatchResult result(SecretariaPayMessage message, String channel, String recipient) {
@@ -155,21 +127,6 @@ public class SecretariaPayEmailNotificationService {
         return "Instituto Superior Politécnico Metropolitano de Angola (IMETRO)";
     }
 
-    private String firstName(String fullName) {
-        if (isBlank(fullName)) return "estudante";
-        return fullName.trim().split("\\s+")[0];
-    }
-
-    private String money(BigDecimal amount, String currency) {
-        BigDecimal safeAmount = amount == null ? BigDecimal.ZERO : amount;
-        String safeCurrency = isBlank(currency) ? "AOA" : currency;
-        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.forLanguageTag("pt-AO"));
-        symbols.setGroupingSeparator('.');
-        symbols.setDecimalSeparator(',');
-        DecimalFormat formatter = new DecimalFormat("#,##0.00", symbols);
-        return "AOA".equalsIgnoreCase(safeCurrency) ? formatter.format(safeAmount) + " Kz" : formatter.format(safeAmount) + " " + safeCurrency.toUpperCase(Locale.ROOT);
-    }
-
     private String firstNotBlank(String first, String second) {
         return !isBlank(first) ? first.trim() : (!isBlank(second) ? second.trim() : null);
     }
@@ -178,6 +135,11 @@ public class SecretariaPayEmailNotificationService {
         return (charge != null ? charge.getId() : "no-charge") + "-" + Math.abs(safe(recipient).hashCode());
     }
 
-    private String safe(String value) { return value == null ? "" : value; }
-    private boolean isBlank(String value) { return value == null || value.trim().isBlank(); }
+    private String safe(String value) {
+        return value == null ? "" : value;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isBlank();
+    }
 }
