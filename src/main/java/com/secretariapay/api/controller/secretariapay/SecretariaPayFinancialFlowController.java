@@ -20,7 +20,20 @@ public class SecretariaPayFinancialFlowController {
     }
 
     @PostMapping("/charges/{chargeId}/send-guide")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'DIRECAO', 'ROLE_DIRECAO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA', 'SECRETARIA', 'ROLE_SECRETARIA')")
+    @PreAuthorize("hasAnyAuthority(" +
+            "'ADMIN', 'ROLE_ADMIN', " +
+            "'COMPANY_ADMIN', 'ROLE_COMPANY_ADMIN', " +
+            "'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', " +
+            "'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', " +
+            "'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +
+            "'DIRECAO', 'ROLE_DIRECAO', " +
+            "'FINANCEIRO', 'ROLE_FINANCEIRO', " +
+            "'TESOURARIA', 'ROLE_TESOURARIA', " +
+            "'DCR_COORDENACAO', 'ROLE_DCR_COORDENACAO', " +
+            "'DCR_OPERADOR', 'ROLE_DCR_OPERADOR', " +
+            "'SECRETARIA', 'ROLE_SECRETARIA', " +
+            "'OPERADOR_ATENDIMENTO', 'ROLE_OPERADOR_ATENDIMENTO', " +
+            "'TIC', 'ROLE_TIC')")
     public SecretariaPayFinancialFlowResponse sendPaymentGuide(@PathVariable UUID chargeId) {
         return service.sendPaymentGuide(chargeId);
     }
