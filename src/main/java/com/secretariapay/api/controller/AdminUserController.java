@@ -14,9 +14,17 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
-@RestController
-@RequestMapping("/api/v1/admin/users")
-@PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN')")
+/**
+ * Controller legado mantido temporariamente para compatibilidade com os fluxos
+ * administrativos antigos. A API principal de gestão de utilizadores está em
+ * com.secretariapay.api.controller.admin.AdminUserController.
+ *
+ * O nome explícito do bean e a rota /legacy-users evitam conflito com o novo
+ * controller sem remover funcionalidades antigas.
+ */
+@RestController("legacyAdminUserController")
+@RequestMapping("/api/v1/admin/legacy-users")
+@PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL')")
 public class AdminUserController {
 
     private final UserAdminService userAdminService;
