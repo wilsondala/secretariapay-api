@@ -11,14 +11,10 @@ import com.secretariapay.api.entity.whatsapp.SecretariaPayMessage;
 import com.secretariapay.api.exception.NotFoundException;
 import com.secretariapay.api.repository.financial.ChargeRepository;
 import com.secretariapay.api.repository.whatsapp.SecretariaPayMessageRepository;
+import com.secretariapay.api.service.notification.FinancialCommunicationTemplateService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
-import java.time.format.DateTimeFormatter;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,17 +22,19 @@ import java.util.UUID;
 public class SecretariaPayPaymentGuideMessageService {
 
     private static final String PUBLIC_BASE_URL = "https://secretariapay-api.paixaoangola.com";
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final ChargeRepository chargeRepository;
     private final SecretariaPayMessageRepository messageRepository;
+    private final FinancialCommunicationTemplateService templateService;
 
     public SecretariaPayPaymentGuideMessageService(
             ChargeRepository chargeRepository,
-            SecretariaPayMessageRepository messageRepository
+            SecretariaPayMessageRepository messageRepository,
+            FinancialCommunicationTemplateService templateService
     ) {
         this.chargeRepository = chargeRepository;
         this.messageRepository = messageRepository;
+        this.templateService = templateService;
     }
 
     @Transactional
@@ -58,40 +56,18 @@ public class SecretariaPayPaymentGuideMessageService {
 
         Student student = student(charge);
         Institution institution = institution(student);
+        String institutionName = displayInstitutionName(institution);
         String guideUrl = paymentGuideUrl(charge);
-
-        String messageText = """
-                Olá, %s.
-
-                Segue a sua guia de pagamento.
-
-                Cobrança: %s
-                Código: %s
-                Valor: %s
-                Vencimento: %s
-
-                O PDF da guia segue em anexo com os dados bancários e instruções de pagamento.
-
-                Após pagar, envie o comprovativo por aqui no WhatsApp.
-
-                Guia pública:
-                %s
-
-                %s
-                SecretáriaPay Académico
-                """.formatted(
-                firstName(student.getFullName()),
-                charge.getDescription(),
-                charge.getChargeCode(),
-                money(charge.getTotalAmount(), charge.getCurrency()),
-                charge.getDueDate().format(DATE_FORMATTER),
-                guideUrl,
-                displayInstitutionName(institution)
-        ).trim();
+        String messageText = templateService.buildPaymentGuideWhatsapp(
+                charge,
+                student,
+                institutionName,
+                guideUrl
+        );
 
         SecretariaPayMessage message = new SecretariaPayMessage()
                 .setInstitutionId(institution != null ? institution.getId() : null)
-                .setInstitutionName(displayInstitutionName(institution))
+                .setInstitutionName(institutionName)
                 .setStudentId(student.getId())
                 .setStudentNumber(student.getStudentNumber())
                 .setStudentName(student.getFullName())
@@ -139,25 +115,10 @@ public class SecretariaPayPaymentGuideMessageService {
     }
 
     private String displayInstitutionName(Institution institution) {
-        if (institution == null) return "SecretáriaPay Académico";
+        if (institution == null) return "Instituto Superior Politécnico Metropolitano de Angola (IMETRO)";
         if (institution.getLegalName() != null && !institution.getLegalName().isBlank()) return institution.getLegalName();
         if (institution.getName() != null && !institution.getName().isBlank()) return institution.getName();
-        return "SecretáriaPay Académico";
-    }
-
-    private String firstName(String fullName) {
-        if (fullName == null || fullName.isBlank()) return "estudante";
-        return fullName.trim().split("\\s+")[0];
-    }
-
-    private String money(BigDecimal amount, String currency) {
-        BigDecimal safeAmount = amount == null ? BigDecimal.ZERO : amount;
-        String safeCurrency = currency == null || currency.isBlank() ? "AOA" : currency;
-        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.forLanguageTag("pt-AO"));
-        symbols.setGroupingSeparator('.');
-        symbols.setDecimalSeparator(',');
-        DecimalFormat formatter = new DecimalFormat("#,##0.00", symbols);
-        return "AOA".equalsIgnoreCase(safeCurrency) ? formatter.format(safeAmount) + " Kz" : formatter.format(safeAmount) + " " + safeCurrency.toUpperCase(Locale.ROOT);
+        return "Instituto Superior Politécnico Metropolitano de Angola (IMETRO)";
     }
 
     private SecretariaPayMessageResponse toResponse(SecretariaPayMessage message) {
