@@ -2,6 +2,8 @@ package com.secretariapay.api.service.whatsapp;
 
 import com.secretariapay.api.dto.notification.GuideFallbackRequest;
 import com.secretariapay.api.entity.academic.Student;
+import com.secretariapay.api.entity.enums.financial.ChargeStatus;
+import com.secretariapay.api.entity.financial.Charge;
 import com.secretariapay.api.repository.WhatsappSessionRepository;
 import com.secretariapay.api.repository.academic.StudentRepository;
 import com.secretariapay.api.repository.financial.ChargeRepository;
@@ -40,15 +42,16 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
     private static final int SESSION_MINUTES = 60;
     private static final String API_BASE_URL = "https://secretariapay-api.paixaoangola.com";
-    private static final String PANEL_BASE_URL = "https://painel-secretariapay.paixaoangola.com";
     private static final BigDecimal PROPINA_AMOUNT = new BigDecimal("45000.00");
     private static final BigDecimal MATRICULA_AMOUNT = new BigDecimal("30000.00");
     private static final BigDecimal RECURSO_AMOUNT = new BigDecimal("15000.00");
     private static final BigDecimal DECLARACAO_AMOUNT = new BigDecimal("5000.00");
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter CHARGE_CODE_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMM");
 
     private final Map<String, AppyPaySession> sessions = new ConcurrentHashMap<>();
     private final StudentRepository studentRepository;
+    private final ChargeRepository chargeRepository;
     private final WhatsAppCloudApiClient whatsAppCloudApiClient;
     private final FallbackNotificationService fallbackNotificationService;
     private final AppyPayPaymentGatewayService appyPayPaymentGatewayService;
@@ -71,6 +74,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     ) {
         super(studentRepository, chargeRepository, receiptRepository, sessionRepository, whatsAppCloudApiClient, mockAutomaticPaymentService);
         this.studentRepository = studentRepository;
+        this.chargeRepository = chargeRepository;
         this.whatsAppCloudApiClient = whatsAppCloudApiClient;
         this.fallbackNotificationService = fallbackNotificationService;
         this.appyPayPaymentGatewayService = appyPayPaymentGatewayService;
@@ -166,17 +170,26 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 return buildBordereauList(withStudent);
             }
             if ("MATRICULA".equals(session.action())) {
-                AppyPaySession payment = withStudent.withSimplePayment("Matrícula 2026", "Matrícula", MATRICULA_AMOUNT).withStep("WAITING_PAYMENT");
+                AppyPaySession payment = syncWithOfficialCharge(
+                        withStudent.withSimplePayment("Matrícula 2026", "Matrícula", MATRICULA_AMOUNT)
+                                .withStep("WAITING_PAYMENT")
+                );
                 sessions.put(phone, payment);
                 return buildServiceGuide(payment);
             }
             if ("RECURSO".equals(session.action())) {
-                AppyPaySession payment = withStudent.withSimplePayment("Recurso", "Exame de recurso", RECURSO_AMOUNT).withStep("WAITING_PAYMENT");
+                AppyPaySession payment = syncWithOfficialCharge(
+                        withStudent.withSimplePayment("Recurso", "Exame de recurso", RECURSO_AMOUNT)
+                                .withStep("WAITING_PAYMENT")
+                );
                 sessions.put(phone, payment);
                 return buildServiceGuide(payment);
             }
             if ("DECLARACAO".equals(session.action())) {
-                AppyPaySession payment = withStudent.withSimplePayment("Declaração", "Declaração", DECLARACAO_AMOUNT).withStep("WAITING_PAYMENT");
+                AppyPaySession payment = syncWithOfficialCharge(
+                        withStudent.withSimplePayment("Declaração", "Declaração", DECLARACAO_AMOUNT)
+                                .withStep("WAITING_PAYMENT")
+                );
                 sessions.put(phone, payment);
                 return buildServiceGuide(payment);
             }
@@ -186,14 +199,20 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
         if ("WAITING_SUMMARY_ACTION".equals(session.step())) {
             if ("1".equals(normalized) || containsAny(normalized, "pagar pendencias", "pagar pendências", "pendencias", "pendências")) {
-                AppyPaySession payment = session.withCalculatedPayment("Maio/2026 + Junho/2026 + Julho/2026", "Propinas pendentes", totalOpenCalculation()).withStep("WAITING_PAYMENT");
+                AppyPaySession payment = syncWithOfficialCharge(
+                        session.withCalculatedPayment("Maio/2026 + Junho/2026 + Julho/2026", "Propinas pendentes", totalOpenCalculation())
+                                .withStep("WAITING_PAYMENT")
+                );
                 sessions.put(phone, payment);
                 return buildGuidePrepared(payment, true);
             }
             if ("2".equals(normalized) || containsAny(normalized, "guia do mes", "guia do mês", "mes atual", "mês atual")) {
-                AppyPaySession payment = session.withCalculatedPayment("Julho/2026", "Propina mensal", currentMonthCalculation()).withStep("WAITING_PAYMENT");
+                AppyPaySession payment = syncWithOfficialCharge(
+                        session.withCalculatedPayment("Julho/2026", "Propina mensal", currentMonthCalculation())
+                                .withStep("WAITING_PAYMENT")
+                );
                 sessions.put(phone, payment);
-                return buildGuidePrepared(payment, false);
+                return buildGuidePrepared(payment, chargeIsOverdue(payment));
             }
             if ("3".equals(normalized) || isBordereauIntent(normalized)) {
                 sessions.put(phone, session.withStep("WAITING_RECEIPT_CHOICE"));
@@ -205,9 +224,12 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
         if ("WAITING_MONTH".equals(session.step())) {
             if ("1".equals(normalized) || containsAny(normalized, "mes atual", "mês atual", "propina atual")) {
-                AppyPaySession payment = session.withCalculatedPayment("Julho/2026", "Propina mensal", currentMonthCalculation()).withStep("WAITING_PAYMENT");
+                AppyPaySession payment = syncWithOfficialCharge(
+                        session.withCalculatedPayment("Julho/2026", "Propina mensal", currentMonthCalculation())
+                                .withStep("WAITING_PAYMENT")
+                );
                 sessions.put(phone, payment);
-                return buildGuidePrepared(payment, false);
+                return buildGuidePrepared(payment, chargeIsOverdue(payment));
             }
             if ("3".equals(normalized) || containsAny(normalized, "atraso", "multa")) {
                 sessions.put(phone, session.withStep("WAITING_OVERDUE_CHOICE"));
@@ -217,13 +239,19 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 sessions.remove(phone);
                 return buildMainMenu();
             }
-            AppyPaySession payment = session.withCalculatedPayment("Julho/2026", "Propina mensal", currentMonthCalculation()).withStep("WAITING_PAYMENT");
+            AppyPaySession payment = syncWithOfficialCharge(
+                    session.withCalculatedPayment("Julho/2026", "Propina mensal", currentMonthCalculation())
+                            .withStep("WAITING_PAYMENT")
+            );
             sessions.put(phone, payment);
-            return buildGuidePrepared(payment, false);
+            return buildGuidePrepared(payment, chargeIsOverdue(payment));
         }
 
         if ("WAITING_OVERDUE_CHOICE".equals(session.step())) {
-            AppyPaySession payment = session.withCalculatedPayment("Maio/2026 + Junho/2026", "Propinas em atraso", overdueCalculation()).withStep("WAITING_PAYMENT");
+            AppyPaySession payment = syncWithOfficialCharge(
+                    session.withCalculatedPayment("Maio/2026 + Junho/2026", "Propinas em atraso", overdueCalculation())
+                            .withStep("WAITING_PAYMENT")
+            );
             sessions.put(phone, payment);
             return buildGuidePrepared(payment, true);
         }
@@ -248,18 +276,18 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 return createInfinitePayRealTestAndSendGuide(phone, session.withPaymentMethod("InfinitePay Brasil - teste real"));
             }
             if ("3".equals(normalized) || containsAny(normalized, "transferencia", "transferência", "mesmo banco")) {
-                AppyPaySession next = session.withPaymentMethod("Transferência mesmo banco").withStep("WAITING_BANK_CONFIRMATION");
+                AppyPaySession next = syncWithOfficialCharge(session.withPaymentMethod("Transferência mesmo banco")).withStep("WAITING_BANK_CONFIRMATION");
                 sessions.put(phone, next);
-                sendDemoGuidePdf(phone, next);
+                sendOfficialGuidePdf(phone, next);
                 return buildTransferSameBankReal(next);
             }
             if ("4".equals(normalized) || containsAny(normalized, "deposito", "depósito", "outro banco")) {
-                AppyPaySession next = session.withPaymentMethod("Depósito bancário / transferência de outro banco").withStep("WAITING_PROOF");
+                AppyPaySession next = syncWithOfficialCharge(session.withPaymentMethod("Depósito bancário / transferência de outro banco")).withStep("WAITING_PROOF");
                 sessions.put(phone, next);
-                sendDemoGuidePdf(phone, next);
+                sendOfficialGuidePdf(phone, next);
                 return buildBankPaymentInstructions(next);
             }
-            return buildGuidePrepared(session, false);
+            return buildGuidePrepared(session, chargeIsOverdue(session));
         }
 
         if ("WAITING_APPYPAY_PAYMENT".equals(session.step())) {
@@ -283,10 +311,20 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     }
 
     private String createAppyPayChargeAndSendGuide(String phone, AppyPaySession session, boolean gpo) {
-        String merchantTransactionId = "SPAY-" + session.studentNumber() + "-" + shortId();
+        AppyPaySession officialSession = syncWithOfficialCharge(session);
+        String merchantTransactionId = "SPAY-" + officialSession.studentNumber() + "-" + shortId();
         AppyPayChargeResponse appyPay = gpo
-                ? appyPayPaymentGatewayService.createMulticaixaExpressCharge(session.amount(), session.serviceName(), merchantTransactionId, session.phone())
-                : appyPayPaymentGatewayService.createReferenceCharge(session.amount(), session.serviceName(), merchantTransactionId);
+                ? appyPayPaymentGatewayService.createMulticaixaExpressCharge(
+                        officialSession.amount(),
+                        officialSession.serviceName(),
+                        merchantTransactionId,
+                        officialSession.phone()
+                )
+                : appyPayPaymentGatewayService.createReferenceCharge(
+                        officialSession.amount(),
+                        officialSession.serviceName(),
+                        merchantTransactionId
+                );
 
         if (!appyPay.isSuccess()) {
             sessions.remove(phone);
@@ -308,18 +346,18 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                     [1] Voltar ao menu principal
                     [2] Falar com a DCR
                     """).formatted(
-                    session.paymentMethod(),
-                    money(session.amount()),
-                    session.referenceMonth(),
+                    officialSession.paymentMethod(),
+                    money(officialSession.amount()),
+                    officialSession.referenceMonth(),
                     safe(appyPay.getStatus()),
                     safe(appyPay.getMerchantTransactionId()),
                     safe(appyPay.getMessage())
             ).trim();
         }
 
-        AppyPaySession waitingPayment = session.withStep("WAITING_APPYPAY_PAYMENT");
+        AppyPaySession waitingPayment = officialSession.withStep("WAITING_APPYPAY_PAYMENT");
         sessions.put(phone, waitingPayment);
-        sendDemoGuidePdf(phone, waitingPayment);
+        sendOfficialGuidePdf(phone, waitingPayment);
 
         return ("""
                 ✅ Guia de pagamento criada.
@@ -334,17 +372,17 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 MerchantTransactionId: %s
                 Mensagem: %s
 
-                O PDF da guia foi enviado neste WhatsApp.
+                O PDF da guia oficial foi enviado neste WhatsApp.
                 📧 Também enviei uma cópia para o e-mail cadastrado.
 
                 ⏳ Aguardando confirmação real do pagamento pela AppyPay.
 
                 O bordereau/comprovativo será emitido automaticamente somente quando a AppyPay confirmar o pagamento como Sucesso.
                 """).formatted(
-                session.paymentMethod(),
-                money(session.amount()),
-                session.referenceMonth(),
-                formatDate(session.dueDate()),
+                officialSession.paymentMethod(),
+                money(officialSession.amount()),
+                officialSession.referenceMonth(),
+                formatDate(officialSession.dueDate()),
                 safe(appyPay.getStatus()),
                 safe(appyPay.getMerchantTransactionId()),
                 safe(appyPay.getMessage())
@@ -352,18 +390,19 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     }
 
     private String createInfinitePayRealTestAndSendGuide(String phone, AppyPaySession session) {
+        AppyPaySession officialSession = syncWithOfficialCharge(session);
         InfinitePayLinkPaymentResponse infinitePay = infinitePayTestPaymentService.createLink(
                 phone,
-                session.studentName(),
-                session.studentNumber(),
-                firstNonBlank(session.email(), demoEmail),
-                session.referenceMonth(),
-                session.serviceName(),
-                session.amount(),
-                session.baseAmount(),
-                session.fineAmount(),
-                session.interestAmount(),
-                session.dueDate()
+                officialSession.studentName(),
+                officialSession.studentNumber(),
+                firstNonBlank(officialSession.email(), demoEmail),
+                officialSession.referenceMonth(),
+                officialSession.serviceName(),
+                officialSession.amount(),
+                officialSession.baseAmount(),
+                officialSession.fineAmount(),
+                officialSession.interestAmount(),
+                officialSession.dueDate()
         );
 
         if (!infinitePay.isSuccess()) {
@@ -383,18 +422,18 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                     Nenhum bordereau foi emitido.
                     A integração AppyPay Angola continua intacta.
                     """).formatted(
-                    money(session.amount()),
+                    money(officialSession.amount()),
                     moneyBrl(infinitePay.getAmountBrl()),
-                    session.referenceMonth(),
+                    officialSession.referenceMonth(),
                     safe(infinitePay.getStatus()),
                     safe(infinitePay.getOrderNsu()),
                     safe(infinitePay.getMessage())
             ).trim();
         }
 
-        AppyPaySession waitingPayment = session.withStep("WAITING_INFINITEPAY_PAYMENT");
+        AppyPaySession waitingPayment = officialSession.withStep("WAITING_INFINITEPAY_PAYMENT");
         sessions.put(phone, waitingPayment);
-        sendDemoGuidePdf(phone, waitingPayment);
+        sendOfficialGuidePdf(phone, waitingPayment);
 
         return ("""
                 ✅ Link de pagamento gerado.
@@ -411,17 +450,17 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 Pague pelo link:
                 %s
 
-                O PDF da guia foi enviado neste WhatsApp.
+                O PDF da guia oficial foi enviado neste WhatsApp.
                 📧 Também enviei uma cópia para o e-mail cadastrado.
 
                 ⏳ Aguardando pagamento real pela InfinitePay.
 
                 Após o retorno de sucesso da InfinitePay, o bordereau/comprovativo será emitido automaticamente e enviado neste WhatsApp/e-mail.
                 """).formatted(
-                money(session.amount()),
+                money(officialSession.amount()),
                 moneyBrl(infinitePay.getAmountBrl()),
-                session.referenceMonth(),
-                formatDate(session.dueDate()),
+                officialSession.referenceMonth(),
+                formatDate(officialSession.dueDate()),
                 safe(infinitePay.getOrderNsu()),
                 safe(infinitePay.getCheckoutUrl())
         ).trim();
@@ -436,7 +475,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 Referência académica: %s
                 Vencimento: %s
 
-                O PDF da guia foi enviado neste WhatsApp.
+                O PDF da guia oficial foi enviado neste WhatsApp.
                 📧 Também enviei uma cópia para o e-mail cadastrado.
 
                 ⏳ Aguardando confirmação bancária real.
@@ -714,12 +753,13 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 """).formatted(intro, firstNonBlank(session.paymentMethod(), "AppyPay"), session.referenceMonth(), money(session.amount()), receipt).trim();
     }
 
-    private void sendDemoGuidePdf(String phone, AppyPaySession session) {
-        String code = "GUIA-WPP-" + shortId();
-        String pdfUrl = API_BASE_URL + "/api/v1/public/guides/" + encode(code) + "/pdf";
-        String guideUrl = PANEL_BASE_URL + "/guias/" + encode(code);
+    private void sendOfficialGuidePdf(String phone, AppyPaySession session) {
+        Charge charge = ensureOfficialCharge(session);
+        String pdfUrl = API_BASE_URL + "/api/v1/public/payment-guides/" + encode(charge.getChargeCode()) + "/pdf?v=" + System.currentTimeMillis();
+        String publicPdfUrl = API_BASE_URL + "/api/v1/public/payment-guides/" + encode(charge.getChargeCode()) + "/pdf";
+        String fileName = "Guia_Pagamento_Academico_" + sanitizeFilePart(session.studentNumber()) + "_" + sanitizeFilePart(charge.getChargeCode()) + ".pdf";
         String caption = ("""
-                SecretáriaPay Académico: guia de pagamento em PDF.
+                SecretáriaPay Académico: guia de pagamento oficial em PDF.
 
                 Estudante: %s
                 Matrícula: %s
@@ -730,21 +770,21 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 Juros: %s
                 Total a pagar: %s
 
-                Guia online: %s
+                Guia oficial: %s
                 """).formatted(
                 session.studentName(),
                 session.studentNumber(),
-                session.referenceMonth(),
-                session.serviceName(),
-                money(session.baseAmount()),
-                money(session.fineAmount()),
-                money(session.interestAmount()),
-                money(session.amount()),
-                guideUrl
+                safe(charge.getReferenceMonth()),
+                safe(charge.getDescription()),
+                money(charge.getAmount()),
+                money(charge.getFineAmount()),
+                money(charge.getInterestAmount()),
+                money(charge.getTotalAmount()),
+                publicPdfUrl
         ).trim();
 
-        whatsAppCloudApiClient.sendDocumentByLink(phone, pdfUrl, "guia-" + code + ".pdf", caption);
-        sendGuideEmail(session, code, guideUrl);
+        whatsAppCloudApiClient.sendDocumentByLink(phone, pdfUrl, fileName, caption);
+        sendGuideEmail(session.withCharge(charge), charge, publicPdfUrl);
     }
 
     private void sendDemoReceiptPdf(String phone, AppyPaySession session, String receipt) {
@@ -766,18 +806,18 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         sendReceiptEmail(session, receipt, pdfUrl);
     }
 
-    private void sendGuideEmail(AppyPaySession session, String code, String guideUrl) {
+    private void sendGuideEmail(AppyPaySession session, Charge charge, String guideUrl) {
         GuideFallbackRequest request = new GuideFallbackRequest();
         request.setStudentName(session.studentName());
         request.setStudentNumber(session.studentNumber());
         request.setEmail(firstNonBlank(session.email(), demoEmail));
-        request.setGuideCode(code);
+        request.setGuideCode(charge.getChargeCode());
         request.setGuideUrl(guideUrl);
-        request.setAmount(session.amount());
+        request.setAmount(charge.getTotalAmount());
         request.setCurrency("AOA");
-        request.setDueDate(session.dueDate());
-        request.setMessage("Guia emitida automaticamente pelo atendimento financeiro académico do IMETRO via SecretáriaPay. Valor base: "
-                + money(session.baseAmount()) + ". Multa: " + money(session.fineAmount()) + ". Juros: " + money(session.interestAmount()) + ". Total: " + money(session.amount()) + ".");
+        request.setDueDate(charge.getDueDate());
+        request.setMessage("Guia oficial emitida automaticamente pelo atendimento financeiro académico do IMETRO via SecretáriaPay. Valor base: "
+                + money(charge.getAmount()) + ". Multa: " + money(charge.getFineAmount()) + ". Juros: " + money(charge.getInterestAmount()) + ". Total: " + money(charge.getTotalAmount()) + ".");
         fallbackNotificationService.sendGuideByEmail(request);
     }
 
@@ -793,6 +833,85 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         request.setDueDate(session.dueDate());
         request.setMessage("Bordereau/comprovativo emitido automaticamente pelo SecretáriaPay após confirmação do pagamento.");
         fallbackNotificationService.sendGuideByEmail(request);
+    }
+
+    private AppyPaySession syncWithOfficialCharge(AppyPaySession session) {
+        try {
+            Charge charge = ensureOfficialCharge(session);
+            return session.withCharge(charge);
+        } catch (Exception ignored) {
+            return session;
+        }
+    }
+
+    private Charge ensureOfficialCharge(AppyPaySession session) {
+        Student student = studentRepository.findByStudentNumber(session.studentNumber())
+                .orElseThrow(() -> new IllegalStateException("Estudante não encontrado para emissão da guia oficial."));
+
+        Optional<Charge> existing = chargeRepository.findByStudentIdOrderByDueDateDesc(student.getId())
+                .stream()
+                .filter(charge -> normalize(charge.getReferenceMonth()).equals(normalize(session.referenceMonth())))
+                .filter(charge -> charge.getStatus() != ChargeStatus.CANCELLED && charge.getStatus() != ChargeStatus.PAID)
+                .findFirst();
+
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        Charge charge = new Charge()
+                .setStudent(student)
+                .setChargeCode(buildChargeCode(session))
+                .setDescription(resolveChargeDescription(session))
+                .setReferenceMonth(session.referenceMonth())
+                .setDueDate(session.dueDate())
+                .setAmount(session.baseAmount())
+                .setFineAmount(session.fineAmount())
+                .setInterestAmount(session.interestAmount())
+                .setDiscountAmount(BigDecimal.ZERO)
+                .setCurrency("AOA")
+                .setStatus(session.dueDate() != null && session.dueDate().isBefore(LocalDate.now()) ? ChargeStatus.OVERDUE : ChargeStatus.PENDING);
+
+        return chargeRepository.save(charge);
+    }
+
+    private String buildChargeCode(AppyPaySession session) {
+        String prefix = resolveChargeCodePrefix(session.serviceName());
+        String studentCode = sanitizeFilePart(session.studentNumber());
+        String datePart = session.dueDate() == null ? LocalDate.now().format(CHARGE_CODE_DATE_FORMAT) : session.dueDate().format(CHARGE_CODE_DATE_FORMAT);
+        String candidate = prefix + "-" + datePart + "-" + studentCode;
+        if (!chargeRepository.existsByChargeCode(candidate)) {
+            return candidate;
+        }
+        return candidate + "-" + shortId().substring(0, 4);
+    }
+
+    private String resolveChargeCodePrefix(String serviceName) {
+        String normalized = normalize(serviceName);
+        if (normalized.contains("propina")) return "IMT-PROPINA";
+        if (normalized.contains("matricula") || normalized.contains("matrícula")) return "IMT-MATRICULA";
+        if (normalized.contains("recurso")) return "IMT-RECURSO";
+        if (normalized.contains("declaracao") || normalized.contains("declaração")) return "IMT-DECLARACAO";
+        return "IMT-SERVICO";
+    }
+
+    private String resolveChargeDescription(AppyPaySession session) {
+        String description = firstNonBlank(session.serviceName(), "Cobrança académica");
+        if (session.referenceMonth() != null && !session.referenceMonth().isBlank()) {
+            return description + " referente a " + session.referenceMonth();
+        }
+        return description;
+    }
+
+    private boolean chargeIsOverdue(AppyPaySession session) {
+        return session.dueDate() != null && session.dueDate().isBefore(LocalDate.now()) && session.amount().compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    private String sanitizeFilePart(String value) {
+        String sanitized = safe(value)
+                .trim()
+                .replaceAll("[^A-Za-z0-9._-]", "-")
+                .replaceAll("-+", "-");
+        return sanitized.isBlank() ? "documento" : sanitized;
     }
 
     private FinancialChargeCalculation currentMonthCalculation() {
@@ -1026,6 +1145,29 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
         AppyPaySession withPaymentMethod(String paymentMethod) {
             return new AppyPaySession(step, action, studentNumber, studentName, email, phone, referenceMonth, paymentMethod, serviceName, baseAmount, fineAmount, interestAmount, amount, dueDate, daysLate, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+        }
+
+        AppyPaySession withCharge(Charge charge) {
+            return new AppyPaySession(
+                    step,
+                    action,
+                    studentNumber,
+                    studentName,
+                    email,
+                    phone,
+                    charge.getReferenceMonth(),
+                    paymentMethod,
+                    charge.getDescription(),
+                    charge.getAmount(),
+                    charge.getFineAmount(),
+                    charge.getInterestAmount(),
+                    charge.getTotalAmount(),
+                    charge.getDueDate(),
+                    charge.getDueDate() != null && charge.getDueDate().isBefore(LocalDate.now())
+                            ? Math.max(0, charge.getDueDate().until(LocalDate.now()).getDays())
+                            : daysLate,
+                    LocalDateTime.now().plusMinutes(SESSION_MINUTES)
+            );
         }
 
         private static String firstNonBlankStatic(String... values) {
