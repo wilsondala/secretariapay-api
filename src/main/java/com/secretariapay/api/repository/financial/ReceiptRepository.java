@@ -17,4 +17,6 @@ public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
     boolean existsByReceiptCode(String receiptCode);
 
     List<Receipt> findByStatusOrderByIssuedAtDesc(ReceiptStatus status);
+
+    List<Receipt> findByChargeStudentIdAndStatusOrderByChargePaidAtAsc(UUID studentId, ReceiptStatus status);
 }
