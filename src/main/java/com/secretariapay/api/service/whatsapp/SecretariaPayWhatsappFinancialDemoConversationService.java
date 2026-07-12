@@ -297,7 +297,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
             List<Receipt> receipts = findAvailableReceipts(session);
             if (receipts.isEmpty()) {
                 sessions.remove(phone);
-                return buildNoReceiptsReply(session);
+                return "⚠️ Não encontrei comprovativos oficiais disponíveis para este estudante.";
             }
 
             Integer option = parseOption(normalized);
@@ -307,12 +307,12 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
             }
 
             Optional<Receipt> selected = resolveReceiptSelection(normalized, receipts);
-            if (selected.isPresent()) {
-                sessions.remove(phone);
-                return sendOfficialReceiptAndBuildReply(phone, session, selected.get(), "Comprovativo reenviado com sucesso.");
+            if (selected.isEmpty()) {
+                return buildBordereauList(session);
             }
 
-            return buildBordereauList(session);
+            sessions.remove(phone);
+            return sendOfficialReceiptAndBuildReply(phone, session, selected.get(), "Comprovativo reenviado com sucesso.");
         }
 
         if ("WAITING_PAYMENT".equals(session.step())) {
@@ -333,7 +333,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 AppyPaySession next = syncWithOfficialCharge(session.withPaymentMethod("Transferência mesmo banco")).withStep("WAITING_BANK_CONFIRMATION");
                 sessions.put(phone, next);
                 sendOfficialGuidePdf(phone, next);
-                return buildBankPaymentInstructions(next);
+                return buildTransferSameBankReal(next);
             }
             if ("4".equals(normalized) || containsAny(normalized, "deposito", "depósito", "outro banco")) {
                 AppyPaySession next = syncWithOfficialCharge(session.withPaymentMethod("Depósito bancário / transferência de outro banco")).withStep("WAITING_PROOF");
@@ -518,6 +518,24 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 safe(infinitePay.getOrderNsu()),
                 safe(infinitePay.getCheckoutUrl())
         ).trim();
+    }
+
+    private String buildTransferSameBankReal(AppyPaySession session) {
+        return ("""
+                ✅ Guia de pagamento criada.
+
+                Forma de pagamento: Transferência mesmo banco
+                Valor a pagar: %s
+                Referência académica: %s
+                Vencimento: %s
+
+                O PDF da guia oficial foi enviado neste WhatsApp.
+                📧 Também enviei uma cópia para o e-mail cadastrado.
+
+                ⏳ Aguardando confirmação bancária real.
+
+                O comprovativo oficial será emitido automaticamente somente após a confirmação do pagamento.
+                """).formatted(money(session.amount()), session.referenceMonth(), formatDate(session.dueDate())).trim();
     }
 
     private String buildMainMenu() {
@@ -762,49 +780,51 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     }
 
     private String buildFinancialSummary(AppyPaySession session) {
-        List<Charge> openCharges = findPayablePropinaCharges(session);
-        List<Charge> paidCharges = findPaidPropinaCharges(session);
+        List<Charge> allCharges = chargeRepository.findByStudentIdOrderByDueDateDesc(loadStudent(session).getId());
+        List<Charge> propinaCharges = allCharges.stream()
+                .filter(this::isPropinaCharge)
+                .sorted(Comparator.comparing(Charge::getDueDate))
+                .toList();
+        List<Charge> paidCharges = propinaCharges.stream().filter(charge -> charge.getStatus() == ChargeStatus.PAID).toList();
+        List<Charge> openCharges = propinaCharges.stream().filter(this::isPayableCharge).toList();
         BigDecimal totalOpen = openCharges.stream().map(Charge::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        StringBuilder builder = new StringBuilder();
-        builder.append("📊 Situação Financeira Académica\n\n")
-                .append("Estudante: ").append(session.studentName()).append("\n")
-                .append("Matrícula: ").append(session.studentNumber()).append("\n")
-                .append("Ano académico: 2026\n\n")
-                .append("Meses pagos: ")
-                .append(paidCharges.isEmpty() ? "nenhum registado" : summarizeChargeReferences(paidCharges, 6))
-                .append("\n")
-                .append("Meses em aberto: ")
-                .append(openCharges.isEmpty() ? "nenhum" : summarizeChargeReferences(openCharges, 6))
-                .append("\n\n");
+        String paidSummary = paidCharges.isEmpty() ? "Nenhuma propina liquidada." : summarizeChargeReferences(paidCharges, 8);
+        String openSummary = openCharges.isEmpty() ? "Nenhuma propina em aberto." : summarizeChargeReferences(openCharges, 8);
 
-        if (!openCharges.isEmpty()) {
-            builder.append("Detalhe em aberto:\n");
-            for (Charge charge : openCharges) {
-                builder.append("- ").append(displayReference(charge)).append(": ").append(money(charge.getTotalAmount()));
-                if (isOverdueCharge(charge)) {
-                    builder.append(" (vencida)");
-                }
-                builder.append("\n");
-            }
-            builder.append("\n");
-        }
+        return ("""
+                📊 Situação Financeira Académica
 
-        builder.append("Total em aberto: ").append(money(totalOpen)).append("\n")
-                .append("Estado financeiro: ").append(openCharges.isEmpty() ? "Regularizado" : "Com pendências")
-                .append("\n\nEscolha uma opção:\n\n")
-                .append("[1] Escolher uma propina em aberto\n")
-                .append("[2] Gerar guia do primeiro mês disponível\n")
-                .append("[3] Solicitar comprovativo\n")
-                .append("[4] Voltar\n");
+                Estudante: %s
+                Matrícula: %s
+                Ano académico: 2026
 
-        return builder.toString().trim();
+                Propinas pagas: %s
+                Propinas em aberto: %s
+
+                Total em aberto: %s
+                Estado financeiro: %s
+
+                Escolha uma opção:
+
+                [1] Escolher uma propina em aberto para pagar
+                [2] Gerar guia do primeiro mês em aberto
+                [3] Solicitar comprovativo já pago
+                [4] Voltar
+                """).formatted(
+                session.studentName(),
+                session.studentNumber(),
+                paidSummary,
+                openSummary,
+                money(totalOpen),
+                openCharges.isEmpty() ? "Regularizado" : "Com pendências"
+        ).trim();
     }
 
     private String buildBordereauList(AppyPaySession session) {
         List<Receipt> receipts = findAvailableReceipts(session);
         if (receipts.isEmpty()) {
-            return buildNoReceiptsReply(session);
+            return "⚠️ Não encontrei comprovativos oficiais emitidos para este estudante.";
         }
 
         StringBuilder builder = new StringBuilder();
@@ -815,62 +835,36 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
         for (int i = 0; i < receipts.size(); i++) {
             Receipt receipt = receipts.get(i);
-            Charge charge = safeCharge(receipt);
+            Charge charge = receipt.getCharge();
             builder.append("[").append(i + 1).append("] ")
-                    .append(charge == null ? receipt.getReceiptCode() : displayReference(charge))
-                    .append(" — ").append(charge == null ? "Comprovativo oficial" : money(charge.getTotalAmount()))
+                    .append(displayReference(charge))
+                    .append(" — ").append(money(charge.getTotalAmount()))
+                    .append(" — ").append(receipt.getReceiptCode())
                     .append("\n");
         }
 
-        builder.append("\n[").append(receipts.size() + 1).append("] Voltar");
+        builder.append("[").append(receipts.size() + 1).append("] Voltar");
         return builder.toString().trim();
-    }
-
-    private String buildNoReceiptsReply(AppyPaySession session) {
-        return ("""
-                ⚠️ Não encontrei comprovativos válidos para este estudante no momento.
-
-                Se o pagamento tiver sido feito recentemente, aguarde a validação da DCR ou responda menu para falar com a equipa.
-                """).trim();
     }
 
     private String buildBankPaymentInstructions(AppyPaySession session) {
         return ("""
                 🏦 Dados para pagamento bancário
 
-                Banco: Banco de exemplo
-                IBAN: AO06 0000 0000 0000 0000 0000 0
-                Titular: Instituto Superior Politécnico Metropolitano de Angola
+                Banco: Banco Angolano de Investimento
+                IBAN: AO06 0040 0000 6014 4677 1017 1
+                Titular: OMNEN INTELENGENDA
                 Valor: %s
 
                 Após o pagamento, envie o comprovativo neste canal para validação pela DCR.
                 """).formatted(money(session.amount())).trim();
     }
 
-    private String sendReceiptAndBuildReply(String phone, AppyPaySession session, String intro) {
-        String receipt = "BORD-DEMO-" + shortId();
-        sendDemoReceiptPdf(phone, session, receipt);
-        return ("""
-                ✅ %s
-
-                📄 O comprovativo foi emitido em PDF.
-
-                Forma de pagamento: %s
-                Referência: %s
-                Valor pago: %s
-                Comprovativo: %s
-
-                Enviei o PDF neste WhatsApp.
-                📧 Também enviei uma cópia para o e-mail cadastrado.
-
-                Obrigado. Foi um prazer atender.
-                """).formatted(intro, firstNonBlank(session.paymentMethod(), "AppyPay"), session.referenceMonth(), money(session.amount()), receipt).trim();
-    }
-
     private String sendOfficialReceiptAndBuildReply(String phone, AppyPaySession session, Receipt receipt, String intro) {
-        Charge charge = safeCharge(receipt);
-        String publicPdfUrl = buildReceiptPdfUrl(receipt, false);
-        String deliveryPdfUrl = buildReceiptPdfUrl(receipt, true);
+        Charge charge = receipt.getCharge();
+        String pdfUrl = API_BASE_URL + "/api/v1/public/receipts/" + encode(receipt.getReceiptCode()) + "/pdf?v=" + System.currentTimeMillis();
+        String publicPdfUrl = API_BASE_URL + "/api/v1/public/receipts/" + encode(receipt.getReceiptCode()) + "/pdf";
+        String fileName = "Comprovativo_Pagamentos_" + sanitizeFilePart(session.studentNumber()) + "_" + sanitizeFilePart(receipt.getReceiptCode()) + ".pdf";
         String caption = ("""
                 SecretáriaPay Académico: comprovativo oficial emitido.
 
@@ -884,32 +878,33 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 receipt.getReceiptCode(),
                 session.studentName(),
                 session.studentNumber(),
-                charge == null ? "Pagamento liquidado" : displayReference(charge),
-                charge == null ? money(session.amount()) : money(charge.getTotalAmount()),
+                displayReference(charge),
+                money(charge.getTotalAmount()),
                 publicPdfUrl
         ).trim();
 
-        whatsAppCloudApiClient.sendDocumentByLink(
-                phone,
-                deliveryPdfUrl,
-                buildOfficialReceiptFileName(session, receipt),
-                caption
-        );
-        sendOfficialReceiptEmail(session, receipt, publicPdfUrl, charge);
+        whatsAppCloudApiClient.sendDocumentByLink(phone, pdfUrl, fileName, caption);
+        sendReceiptEmail(session.withCharge(charge), receipt.getReceiptCode(), publicPdfUrl);
 
         return ("""
                 ✅ %s
 
-                📄 O comprovativo oficial foi reenviado em PDF.
+                📄 O comprovativo oficial foi emitido em PDF.
 
+                Forma de pagamento: %s
                 Referência: %s
+                Valor pago: %s
                 Comprovativo: %s
 
                 Enviei o PDF neste WhatsApp.
                 📧 Também enviei uma cópia para o e-mail cadastrado.
+
+                Obrigado. Foi um prazer atender.
                 """).formatted(
                 intro,
-                charge == null ? "Pagamento liquidado" : displayReference(charge),
+                firstNonBlank(session.paymentMethod(), "Pagamento confirmado"),
+                displayReference(charge),
+                money(charge.getTotalAmount()),
                 receipt.getReceiptCode()
         ).trim();
     }
@@ -948,25 +943,6 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         sendGuideEmail(session.withCharge(charge), charge, publicPdfUrl);
     }
 
-    private void sendDemoReceiptPdf(String phone, AppyPaySession session, String receipt) {
-        String pdfUrl = API_BASE_URL + "/api/v1/public/demo/receipts/" + encode(receipt) + "/pdf"
-                + "?student=" + encode(session.studentName())
-                + "&month=" + encode(session.referenceMonth())
-                + "&method=" + encode(firstNonBlank(session.paymentMethod(), "AppyPay"));
-        String caption = ("""
-                SecretáriaPay Académico: comprovativo emitido.
-
-                Comprovativo: %s
-                Estudante: %s
-                Matrícula: %s
-                Referência: %s
-                Valor: %s
-                """).formatted(receipt, session.studentName(), session.studentNumber(), session.referenceMonth(), money(session.amount())).trim();
-
-        whatsAppCloudApiClient.sendDocumentByLink(phone, pdfUrl, "comprovativo-" + receipt + ".pdf", caption);
-        sendReceiptEmail(session, receipt, pdfUrl);
-    }
-
     private void sendGuideEmail(AppyPaySession session, Charge charge, String guideUrl) {
         GuideFallbackRequest request = new GuideFallbackRequest();
         request.setStudentName(session.studentName());
@@ -982,32 +958,17 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         fallbackNotificationService.sendGuideByEmail(request);
     }
 
-    private void sendReceiptEmail(AppyPaySession session, String receipt, String pdfUrl) {
+    private void sendReceiptEmail(AppyPaySession session, String receiptCode, String pdfUrl) {
         GuideFallbackRequest request = new GuideFallbackRequest();
         request.setStudentName(session.studentName());
         request.setStudentNumber(session.studentNumber());
         request.setEmail(firstNonBlank(session.email(), demoEmail));
-        request.setGuideCode(receipt);
+        request.setGuideCode(receiptCode);
         request.setGuideUrl(pdfUrl);
         request.setAmount(session.amount());
         request.setCurrency("AOA");
         request.setDueDate(session.dueDate());
-        request.setMessage("Comprovativo emitido automaticamente pelo SecretáriaPay após confirmação do pagamento.");
-        fallbackNotificationService.sendGuideByEmail(request);
-    }
-
-    private void sendOfficialReceiptEmail(AppyPaySession session, Receipt receipt, String pdfUrl, Charge charge) {
-        GuideFallbackRequest request = new GuideFallbackRequest();
-        request.setStudentName(session.studentName());
-        request.setStudentNumber(session.studentNumber());
-        request.setEmail(firstNonBlank(session.email(), demoEmail));
-        request.setGuideCode(receipt.getReceiptCode());
-        request.setGuideUrl(pdfUrl);
-        request.setAmount(charge == null ? session.amount() : charge.getTotalAmount());
-        request.setCurrency("AOA");
-        request.setDueDate(charge == null ? session.dueDate() : charge.getDueDate());
-        request.setMessage("Comprovativo oficial reenviado automaticamente pelo SecretáriaPay. Referência: "
-                + (charge == null ? "Pagamento liquidado" : displayReference(charge)) + ".");
+        request.setMessage("Comprovativo oficial emitido automaticamente pelo SecretáriaPay após confirmação do pagamento.");
         fallbackNotificationService.sendGuideByEmail(request);
     }
 
@@ -1021,17 +982,16 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     }
 
     private Charge ensureOfficialCharge(AppyPaySession session) {
-        Student student = studentRepository.findByStudentNumber(session.studentNumber())
-                .orElseThrow(() -> new IllegalStateException("Estudante não encontrado para emissão da guia oficial."));
+        Student student = loadStudent(session);
 
-        Optional<Charge> existing = chargeRepository.findByStudentIdOrderByDueDateDesc(student.getId())
-                .stream()
-                .filter(charge -> normalize(charge.getReferenceMonth()).equals(normalize(session.referenceMonth())))
-                .filter(charge -> charge.getStatus() != ChargeStatus.CANCELLED && charge.getStatus() != ChargeStatus.PAID)
-                .findFirst();
-
-        if (existing.isPresent()) {
-            return existing.get();
+        if (session.referenceMonth() != null && !session.referenceMonth().isBlank()) {
+            List<Charge> existing = chargeRepository.findByStudentIdOrderByDueDateDesc(student.getId()).stream()
+                    .filter(this::isPayableCharge)
+                    .filter(charge -> normalize(charge.getReferenceMonth()).equals(normalize(session.referenceMonth())))
+                    .toList();
+            if (!existing.isEmpty()) {
+                return existing.getFirst();
+            }
         }
 
         Charge charge = new Charge()
@@ -1048,6 +1008,170 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 .setStatus(session.dueDate() != null && session.dueDate().isBefore(LocalDate.now()) ? ChargeStatus.OVERDUE : ChargeStatus.PENDING);
 
         return chargeRepository.save(charge);
+    }
+
+    private AppyPaySession combineCharges(AppyPaySession session, List<Charge> charges, String serviceName) {
+        BigDecimal base = BigDecimal.ZERO;
+        BigDecimal fine = BigDecimal.ZERO;
+        BigDecimal interest = BigDecimal.ZERO;
+        BigDecimal total = BigDecimal.ZERO;
+        long daysLate = 0;
+        LocalDate dueDate = LocalDate.now();
+        List<String> references = new ArrayList<>();
+
+        for (Charge charge : charges) {
+            base = base.add(safeMoney(charge.getAmount()));
+            fine = fine.add(safeMoney(charge.getFineAmount()));
+            interest = interest.add(safeMoney(charge.getInterestAmount()));
+            total = total.add(safeMoney(charge.getTotalAmount()));
+            daysLate += daysLate(charge);
+            references.add(displayReference(charge));
+            if (dueDate == null || (charge.getDueDate() != null && charge.getDueDate().isBefore(dueDate))) {
+                dueDate = charge.getDueDate();
+            }
+        }
+
+        return new AppyPaySession(
+                session.step(),
+                session.action(),
+                session.studentNumber(),
+                session.studentName(),
+                session.email(),
+                session.phone(),
+                String.join(" + ", references),
+                session.paymentMethod(),
+                serviceName,
+                base,
+                fine,
+                interest,
+                total,
+                dueDate,
+                daysLate,
+                LocalDateTime.now().plusMinutes(SESSION_MINUTES)
+        );
+    }
+
+    private List<Charge> findPayablePropinaCharges(AppyPaySession session) {
+        return chargeRepository.findByStudentIdOrderByDueDateDesc(loadStudent(session).getId()).stream()
+                .filter(this::isPropinaCharge)
+                .filter(this::isPayableCharge)
+                .sorted(Comparator.comparing(Charge::getDueDate))
+                .toList();
+    }
+
+    private List<Charge> findPaidPropinaCharges(AppyPaySession session) {
+        return chargeRepository.findByStudentIdOrderByDueDateDesc(loadStudent(session).getId()).stream()
+                .filter(this::isPropinaCharge)
+                .filter(charge -> charge.getStatus() == ChargeStatus.PAID)
+                .sorted(Comparator.comparing(Charge::getDueDate))
+                .toList();
+    }
+
+    private List<Charge> findOverduePropinaCharges(AppyPaySession session) {
+        return findPayablePropinaCharges(session).stream()
+                .filter(this::isOverdueCharge)
+                .toList();
+    }
+
+    private Optional<Charge> findPreferredOpenPropinaCharge(AppyPaySession session) {
+        return findPayablePropinaCharges(session).stream().findFirst();
+    }
+
+    private Optional<Charge> resolveChargeSelection(String rawInput, List<Charge> charges) {
+        if (charges == null || charges.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Integer option = parseOption(rawInput);
+        if (option != null && option >= 1 && option <= charges.size()) {
+            return Optional.of(charges.get(option - 1));
+        }
+
+        String normalizedInput = normalize(rawInput);
+        if (normalizedInput.isBlank()) {
+            return Optional.empty();
+        }
+
+        return charges.stream()
+                .filter(charge -> normalizedInput.equals(normalize(charge.getReferenceMonth()))
+                        || normalizedInput.contains(normalize(charge.getReferenceMonth()))
+                        || normalizedInput.equals(normalize(displayReference(charge))))
+                .findFirst();
+    }
+
+    private List<Receipt> findAvailableReceipts(AppyPaySession session) {
+        return receiptRepository.findByChargeStudentIdAndStatusOrderByChargePaidAtAsc(loadStudent(session).getId(), ReceiptStatus.VALID).stream()
+                .sorted(Comparator.comparing(receipt -> receipt.getCharge().getPaidAt(), Comparator.nullsLast(Comparator.naturalOrder())).reversed())
+                .toList();
+    }
+
+    private Optional<Receipt> resolveReceiptSelection(String rawInput, List<Receipt> receipts) {
+        if (receipts == null || receipts.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Integer option = parseOption(rawInput);
+        if (option != null && option >= 1 && option <= receipts.size()) {
+            return Optional.of(receipts.get(option - 1));
+        }
+
+        String normalizedInput = normalize(rawInput);
+        return receipts.stream()
+                .filter(receipt -> normalizedInput.equals(normalize(receipt.getReceiptCode()))
+                        || normalizedInput.contains(normalize(receipt.getReceiptCode()))
+                        || normalizedInput.equals(normalize(displayReference(receipt.getCharge()))))
+                .findFirst();
+    }
+
+    private Student loadStudent(AppyPaySession session) {
+        return studentRepository.findByStudentNumber(session.studentNumber())
+                .orElseThrow(() -> new IllegalStateException("Estudante não encontrado para este atendimento."));
+    }
+
+    private boolean isPropinaCharge(Charge charge) {
+        return charge != null && (normalize(charge.getDescription()).contains("propina") || normalize(charge.getChargeCode()).contains("imt-propina"));
+    }
+
+    private boolean isPayableCharge(Charge charge) {
+        return charge != null && charge.getStatus() != ChargeStatus.PAID && charge.getStatus() != ChargeStatus.CANCELLED && charge.getStatus() != ChargeStatus.RENEGOTIATED;
+    }
+
+    private boolean isOverdueCharge(Charge charge) {
+        return charge != null && (charge.getStatus() == ChargeStatus.OVERDUE || (charge.getDueDate() != null && charge.getDueDate().isBefore(LocalDate.now()) && isPayableCharge(charge)));
+    }
+
+    private long daysLate(Charge charge) {
+        if (charge == null || charge.getDueDate() == null || !charge.getDueDate().isBefore(LocalDate.now())) {
+            return 0;
+        }
+        return java.time.temporal.ChronoUnit.DAYS.between(charge.getDueDate(), LocalDate.now());
+    }
+
+    private String displayReference(Charge charge) {
+        return firstNonBlank(charge.getReferenceMonth(), charge.getDescription(), charge.getChargeCode());
+    }
+
+    private String summarizeChargeReferences(List<Charge> charges, int maxItems) {
+        if (charges == null || charges.isEmpty()) {
+            return "Nenhum";
+        }
+        return charges.stream()
+                .limit(Math.max(1, maxItems))
+                .map(this::displayReference)
+                .reduce((a, b) -> a + ", " + b)
+                .orElse("Nenhum");
+    }
+
+    private Integer parseOption(String rawInput) {
+        try {
+            return Integer.parseInt(safe(rawInput).trim());
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private BigDecimal safeMoney(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     private String buildChargeCode(AppyPaySession session) {
@@ -1082,264 +1206,12 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         return session.dueDate() != null && session.dueDate().isBefore(LocalDate.now()) && session.amount().compareTo(BigDecimal.ZERO) > 0;
     }
 
-    private List<Charge> findPayablePropinaCharges(AppyPaySession session) {
-        return findChargesForStudent(session).stream()
-                .filter(this::isPropinaCharge)
-                .filter(this::isOpenCharge)
-                .sorted(Comparator.comparing(Charge::getDueDate, Comparator.nullsLast(Comparator.naturalOrder())))
-                .toList();
-    }
-
-    private List<Charge> findPaidPropinaCharges(AppyPaySession session) {
-        return findChargesForStudent(session).stream()
-                .filter(this::isPropinaCharge)
-                .filter(charge -> charge.getStatus() == ChargeStatus.PAID)
-                .sorted(Comparator.comparing(Charge::getPaidAt, Comparator.nullsLast(Comparator.reverseOrder())))
-                .toList();
-    }
-
-    private List<Charge> findOverduePropinaCharges(AppyPaySession session) {
-        return findPayablePropinaCharges(session).stream()
-                .filter(this::isOverdueCharge)
-                .toList();
-    }
-
-    private List<Charge> findChargesForStudent(AppyPaySession session) {
-        Optional<Student> student = studentRepository.findByStudentNumber(session.studentNumber());
-        if (student.isEmpty()) {
-            return List.of();
-        }
-        return new ArrayList<>(chargeRepository.findByStudentIdOrderByDueDateDesc(student.get().getId()));
-    }
-
-    private Optional<Charge> findPreferredOpenPropinaCharge(AppyPaySession session) {
-        List<Charge> open = findPayablePropinaCharges(session);
-        if (open.isEmpty()) {
-            return Optional.empty();
-        }
-        return open.stream()
-                .filter(charge -> !isOverdueCharge(charge))
-                .findFirst()
-                .or(() -> Optional.of(open.get(0)));
-    }
-
-    private Optional<Charge> resolveChargeSelection(String normalizedInput, List<Charge> charges) {
-        if (charges.isEmpty()) {
-            return Optional.empty();
-        }
-
-        Integer option = parseOption(normalizedInput);
-        if (option != null && option >= 1 && option <= charges.size()) {
-            return Optional.of(charges.get(option - 1));
-        }
-
-        String normalized = normalize(normalizedInput);
-        if (containsAny(normalized, "mes atual", "mês atual", "atual")) {
-            return Optional.of(charges.get(0));
-        }
-
-        return charges.stream()
-                .filter(charge -> normalized.equals(normalize(displayReference(charge)))
-                        || normalize(displayReference(charge)).contains(normalized)
-                        || normalized.contains(normalize(displayReference(charge))))
-                .findFirst();
-    }
-
-    private AppyPaySession combineCharges(AppyPaySession session, List<Charge> charges, String serviceName) {
-        BigDecimal base = BigDecimal.ZERO;
-        BigDecimal fine = BigDecimal.ZERO;
-        BigDecimal interest = BigDecimal.ZERO;
-        BigDecimal total = BigDecimal.ZERO;
-        long daysLate = 0;
-        LocalDate dueDate = null;
-        StringBuilder refs = new StringBuilder();
-
-        for (Charge charge : charges) {
-            base = base.add(zero(charge.getAmount()));
-            fine = fine.add(zero(charge.getFineAmount()));
-            interest = interest.add(zero(charge.getInterestAmount()));
-            total = total.add(zero(charge.getTotalAmount()));
-            daysLate += daysLate(charge);
-            if (dueDate == null || (charge.getDueDate() != null && charge.getDueDate().isBefore(dueDate))) {
-                dueDate = charge.getDueDate();
-            }
-            if (refs.length() > 0) {
-                refs.append(" + ");
-            }
-            refs.append(displayReference(charge));
-        }
-
-        return new AppyPaySession(
-                session.step(),
-                session.action(),
-                session.studentNumber(),
-                session.studentName(),
-                session.email(),
-                session.phone(),
-                refs.toString(),
-                session.paymentMethod(),
-                serviceName,
-                base,
-                fine,
-                interest,
-                total,
-                dueDate == null ? LocalDate.now() : dueDate,
-                daysLate,
-                LocalDateTime.now().plusMinutes(SESSION_MINUTES)
-        );
-    }
-
-    private List<Receipt> findAvailableReceipts(AppyPaySession session) {
-        Optional<Student> student = studentRepository.findByStudentNumber(session.studentNumber());
-        if (student.isEmpty()) {
-            return List.of();
-        }
-        return receiptRepository.findByChargeStudentIdAndStatusOrderByChargePaidAtAsc(student.get().getId(), ReceiptStatus.VALID)
-                .stream()
-                .sorted(Comparator.comparing(Receipt::getIssuedAt, Comparator.nullsLast(Comparator.reverseOrder())))
-                .limit(10)
-                .toList();
-    }
-
-    private Optional<Receipt> resolveReceiptSelection(String normalizedInput, List<Receipt> receipts) {
-        Integer option = parseOption(normalizedInput);
-        if (option != null && option >= 1 && option <= receipts.size()) {
-            return Optional.of(receipts.get(option - 1));
-        }
-        String normalized = normalize(normalizedInput);
-        return receipts.stream()
-                .filter(receipt -> normalize(receipt.getReceiptCode()).equals(normalized)
-                        || normalize(receipt.getReceiptCode()).contains(normalized))
-                .findFirst();
-    }
-
-    private String buildReceiptPdfUrl(Receipt receipt, boolean bustCache) {
-        String base = firstNonBlank(receipt.getPdfUrl(), API_BASE_URL + "/api/v1/public/receipts/" + encode(receipt.getReceiptCode()) + "/pdf");
-        if (!bustCache) {
-            return base;
-        }
-        return base + (base.contains("?") ? "&" : "?") + "v=" + System.currentTimeMillis();
-    }
-
-    private String buildOfficialReceiptFileName(AppyPaySession session, Receipt receipt) {
-        return "Comprovativo_Pagamentos_" + sanitizeFilePart(session.studentNumber()) + "_" + sanitizeFilePart(receipt.getReceiptCode()) + ".pdf";
-    }
-
-    private Charge safeCharge(Receipt receipt) {
-        try {
-            return receipt.getCharge();
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    private boolean isPropinaCharge(Charge charge) {
-        String code = normalize(charge.getChargeCode());
-        String description = normalize(charge.getDescription());
-        return code.startsWith("imt-propina") || description.contains("propina");
-    }
-
-    private boolean isOpenCharge(Charge charge) {
-        return charge.getStatus() != ChargeStatus.PAID
-                && charge.getStatus() != ChargeStatus.CANCELLED
-                && charge.getStatus() != ChargeStatus.RENEGOTIATED;
-    }
-
-    private boolean isOverdueCharge(Charge charge) {
-        return charge.getStatus() == ChargeStatus.OVERDUE
-                || (isOpenCharge(charge) && charge.getDueDate() != null && charge.getDueDate().isBefore(LocalDate.now()));
-    }
-
-    private long daysLate(Charge charge) {
-        if (charge.getDueDate() == null || !charge.getDueDate().isBefore(LocalDate.now())) {
-            return 0;
-        }
-        return charge.getDueDate().until(LocalDate.now()).getDays();
-    }
-
-    private String displayReference(Charge charge) {
-        return firstNonBlank(charge.getReferenceMonth(), charge.getDescription(), charge.getChargeCode());
-    }
-
-    private String summarizeChargeReferences(List<Charge> charges, int limit) {
-        if (charges.isEmpty()) {
-            return "nenhum";
-        }
-        StringBuilder builder = new StringBuilder();
-        int count = 0;
-        for (Charge charge : charges) {
-            if (count >= limit) {
-                builder.append(" e mais ").append(charges.size() - limit);
-                break;
-            }
-            if (count > 0) {
-                builder.append(", ");
-            }
-            builder.append(displayReference(charge));
-            count++;
-        }
-        return builder.toString();
-    }
-
-    private Integer parseOption(String value) {
-        try {
-            return Integer.parseInt(safe(value).trim());
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    private BigDecimal zero(BigDecimal value) {
-        return value == null ? BigDecimal.ZERO : value;
-    }
-
     private String sanitizeFilePart(String value) {
         String sanitized = safe(value)
                 .trim()
                 .replaceAll("[^A-Za-z0-9._-]", "-")
                 .replaceAll("-+", "-");
         return sanitized.isBlank() ? "documento" : sanitized;
-    }
-
-    private Optional<Student> findRegisteredStudent(String input, String fromPhone) {
-        String clean = safe(input).trim();
-        if (!clean.isBlank()) {
-            Optional<Student> byNumber = studentRepository.findByStudentNumber(clean);
-            if (byNumber.isPresent()) return byNumber;
-            Optional<Student> byDocument = studentRepository.findByDocumentNumberIgnoreCase(clean);
-            if (byDocument.isPresent()) return byDocument;
-            Optional<Student> byEmail = studentRepository.findByEmailIgnoreCase(clean);
-            if (byEmail.isPresent()) return byEmail;
-            Optional<Student> byPhone = findByPhoneVariants(clean);
-            if (byPhone.isPresent()) return byPhone;
-        }
-        return findByPhoneVariants(fromPhone);
-    }
-
-    private Optional<Student> findByPhoneVariants(String rawPhone) {
-        String digits = sanitizePhone(rawPhone);
-        if (digits.isBlank()) return Optional.empty();
-        List<String> variants = List.of(digits, "+" + digits, digits.replaceFirst("^244", "0"), digits.replaceFirst("^55", "0"));
-        for (String variant : variants) {
-            Optional<Student> byWhatsapp = studentRepository.findByWhatsapp(variant);
-            if (byWhatsapp.isPresent()) return byWhatsapp;
-            Optional<Student> byPhone = studentRepository.findByPhone(variant);
-            if (byPhone.isPresent()) return byPhone;
-            Optional<Student> byGuardian = studentRepository.findByGuardianPhone(variant);
-            if (byGuardian.isPresent()) return byGuardian;
-        }
-        return Optional.empty();
-    }
-
-    private String greeting() {
-        int hour = LocalTime.now().getHour();
-        if (hour >= 5 && hour < 12) return "Bom dia";
-        if (hour >= 12 && hour < 18) return "Boa tarde";
-        return "Boa noite";
-    }
-
-    private String encode(String value) {
-        return URLEncoder.encode(safe(value), StandardCharsets.UTF_8);
     }
 
     private String money(BigDecimal value) {
@@ -1365,7 +1237,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
     }
 
     private boolean isPropinaIntent(String value) {
-        return containsAny(value, "propina", "propinas", "mensalidade", "pagar propina", "pagar mensalidade", "mes atual", "mês atual", "propina atual");
+        return containsAny(value, "propina", "propinas", "mensalidade", "pagar propina", "pagar mensalidade", "mes atual", "mês atual", "propina atual", "outro mes", "outro mês");
     }
 
     private boolean isBordereauIntent(String value) {
@@ -1433,6 +1305,36 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         return value == null ? "" : value;
     }
 
+    private Optional<Student> findRegisteredStudent(String input, String fromPhone) {
+        String clean = safe(input).trim();
+        if (!clean.isBlank()) {
+            Optional<Student> byNumber = studentRepository.findByStudentNumber(clean);
+            if (byNumber.isPresent()) return byNumber;
+            Optional<Student> byDocument = studentRepository.findByDocumentNumberIgnoreCase(clean);
+            if (byDocument.isPresent()) return byDocument;
+            Optional<Student> byEmail = studentRepository.findByEmailIgnoreCase(clean);
+            if (byEmail.isPresent()) return byEmail;
+            Optional<Student> byPhone = findByPhoneVariants(clean);
+            if (byPhone.isPresent()) return byPhone;
+        }
+        return findByPhoneVariants(fromPhone);
+    }
+
+    private Optional<Student> findByPhoneVariants(String rawPhone) {
+        String digits = sanitizePhone(rawPhone);
+        if (digits.isBlank()) return Optional.empty();
+        List<String> variants = List.of(digits, "+" + digits, digits.replaceFirst("^244", "0"), digits.replaceFirst("^55", "0"));
+        for (String variant : variants) {
+            Optional<Student> byWhatsapp = studentRepository.findByWhatsapp(variant);
+            if (byWhatsapp.isPresent()) return byWhatsapp;
+            Optional<Student> byPhone = studentRepository.findByPhone(variant);
+            if (byPhone.isPresent()) return byPhone;
+            Optional<Student> byGuardian = studentRepository.findByGuardianPhone(variant);
+            if (byGuardian.isPresent()) return byGuardian;
+        }
+        return Optional.empty();
+    }
+
     private void clearExpired(String phone) {
         AppyPaySession session = sessions.get(phone);
         if (session != null && session.expiresAt().isBefore(LocalDateTime.now())) sessions.remove(phone);
@@ -1471,6 +1373,10 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
         AppyPaySession withSimplePayment(String referenceMonth, String serviceName, BigDecimal amount) {
             BigDecimal safeAmount = amount == null ? BigDecimal.ZERO : amount;
             return new AppyPaySession(step, action, studentNumber, studentName, email, phone, referenceMonth, paymentMethod, serviceName, safeAmount, BigDecimal.ZERO, BigDecimal.ZERO, safeAmount, LocalDate.now(), 0, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+        }
+
+        AppyPaySession withPaymentMethod(String paymentMethod) {
+            return new AppyPaySession(step, action, studentNumber, studentName, email, phone, referenceMonth, paymentMethod, serviceName, baseAmount, fineAmount, interestAmount, amount, dueDate, daysLate, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
         AppyPaySession withCharge(Charge charge) {
