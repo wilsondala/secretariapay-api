@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.nio.charset.StandardCharsets;
 
@@ -36,6 +37,11 @@ public class PublicReceiptController {
     @GetMapping("/validate/{receiptCode}")
     public ReceiptResponse validateByReceiptCode(@PathVariable String receiptCode) {
         return receiptService.findByCode(receiptCode);
+    }
+
+    @GetMapping("/validate/{receiptCode}/authentic")
+    public ReceiptResponse validateAuthenticity(@PathVariable String receiptCode, @RequestParam String hash) {
+        return receiptService.validate(receiptCode, hash);
     }
 
     @GetMapping("/{receiptCode}/pdf")
