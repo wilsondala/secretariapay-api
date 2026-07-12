@@ -74,17 +74,18 @@ public class FallbackNotificationService {
             }
 
             String guideCode = safe(request.getGuideCode(), "SecretariaPay");
+            String attachmentName = buildAttachmentName(request);
             helper.setSubject("Guia de pagamento - " + guideCode);
             helper.setText(buildPlainEmailBody(request), buildHtmlEmailBody(request));
 
-            byte[] pdf = guidePdfService.generateGuidePdf(request);
+            byte[] pdf = resolveAttachmentPdf(request);
             ByteArrayDataSource pdfSource = new ByteArrayDataSource(pdf, "application/pdf");
-            helper.addAttachment("guia-" + guideCode + ".pdf", pdfSource);
+            helper.addAttachment(attachmentName, pdfSource);
 
             mailSender.send(message);
 
-            Map<String, Object> response = delivery("EMAIL", "SENT", true, "Guia enviada por e-mail institucional com PDF em anexo e identidade SecretáriaPay.", request);
-            response.put("attachment", "guia-" + guideCode + ".pdf");
+            Map<String, Object> response = delivery("EMAIL", "SENT", true, "Guia enviada por e-mail institucional com PDF oficial em anexo.", request);
+            response.put("attachment", attachmentName);
             return response;
         } catch (Exception ex) {
             return delivery("EMAIL", "FAILED", false, "Falha ao enviar e-mail institucional: " + ex.getMessage(), request);
@@ -201,7 +202,7 @@ public class FallbackNotificationService {
                 + "</div>"
                 + "<div style='background:#ffffff;padding:28px;border:1px solid #e2e8f0;border-top:none;'>"
                 + "<h1 style='margin:0 0 12px;font-size:24px;color:#061936;'>Guia de pagamento emitida</h1>"
-                + "<p style='margin:0 0 22px;font-size:15px;line-height:1.6;color:#475569;'>Olá, <strong>" + studentName + "</strong>. Segue a sua guia de pagamento emitida pelo SecretáriaPay Académico. O PDF institucional está anexado neste e-mail.</p>"
+                + "<p style='margin:0 0 22px;font-size:15px;line-height:1.6;color:#475569;'>Olá, <strong>" + studentName + "</strong>. Segue a sua guia de pagamento emitida pelo SecretáriaPay Académico. O PDF institucional oficial está anexado neste e-mail.</p>"
                 + "<div style='border-radius:18px;background:#f8fafc;border:1px solid #e2e8f0;padding:18px;margin:18px 0;'>"
                 + "<p style='margin:0 0 10px;font-size:13px;color:#64748b;'>Código da guia</p><p style='margin:0 0 18px;font-size:22px;font-weight:900;color:#061936;'>" + guideCode + "</p>"
                 + "<table role='presentation' width='100%' cellspacing='0' cellpadding='0' style='font-size:14px;color:#334155;'>"
@@ -225,6 +226,32 @@ public class FallbackNotificationService {
                 + ". Link: " + resolveGuideUrl(request);
     }
 
+    private byte[] resolveAttachmentPdf(GuideFallbackRequest request) {
+        String pdfUrl = resolvePdfUrl(request);
+        if (!pdfUrl.isBlank()) {
+            try {
+                byte[] officialPdf = restClient.get()
+                        .uri(pdfUrl)
+                        .retrieve()
+                        .body(byte[].class);
+                if (officialPdf != null && officialPdf.length > 0) {
+                    return officialPdf;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return guidePdfService.generateGuidePdf(request);
+    }
+
+    private String buildAttachmentName(GuideFallbackRequest request) {
+        String guideCode = sanitizeFilePart(safe(request.getGuideCode(), "SecretariaPay"));
+        String studentNumber = sanitizeFilePart(safe(request.getStudentNumber(), "estudante"));
+        if (guideCode.startsWith("BORD") || guideCode.contains("RECEIPT") || guideCode.contains("RECIBO")) {
+            return "Comprovativo_Pagamentos_" + studentNumber + "_" + guideCode + ".pdf";
+        }
+        return "Guia_Pagamento_Academico_" + studentNumber + "_" + guideCode + ".pdf";
+    }
+
     private String resolveGuideUrl(GuideFallbackRequest request) {
         String provided = clean(request.getGuideUrl());
         if (!provided.isBlank()) {
@@ -241,6 +268,11 @@ public class FallbackNotificationService {
     }
 
     private String resolvePdfUrl(GuideFallbackRequest request) {
+        String provided = clean(request.getGuideUrl());
+        if (!provided.isBlank() && (provided.contains("/pdf") || provided.toLowerCase(Locale.ROOT).endsWith(".pdf"))) {
+            return provided;
+        }
+
         String guideCode = clean(request.getGuideCode());
         if (guideCode.isBlank()) {
             return "";
@@ -276,6 +308,13 @@ public class FallbackNotificationService {
         }
         String text = String.valueOf(value).trim();
         return text.isBlank() ? fallback : text;
+    }
+
+    private String sanitizeFilePart(String value) {
+        String sanitized = clean(value)
+                .replaceAll("[^A-Za-z0-9._-]", "-")
+                .replaceAll("-+", "-");
+        return sanitized.isBlank() ? "documento" : sanitized;
     }
 
     private String escapeHtml(String value) {
