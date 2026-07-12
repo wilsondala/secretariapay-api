@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.secretariapay.api.config.InfinitePayProperties;
 import com.secretariapay.api.dto.financial.ReceiptResponse;
 import com.secretariapay.api.dto.notification.GuideFallbackRequest;
+import com.secretariapay.api.dto.whatsapp.WhatsAppCloudSendResult;
 import com.secretariapay.api.entity.academic.Student;
 import com.secretariapay.api.entity.enums.financial.ChargeStatus;
 import com.secretariapay.api.entity.financial.Charge;
@@ -239,31 +240,43 @@ public class InfinitePayTestPaymentService {
     }
 
     private void sendPersistedReceipts(PendingPayment pending, List<PersistedPayment> payments) {
+        int whatsappDocumentsSent = 0;
+        int whatsappDocumentsFailed = 0;
+        int emailCopiesTriggered = 0;
+
         for (PersistedPayment payment : payments) {
             ReceiptResponse receipt = payment.receipt();
             AcademicLine line = payment.line();
-            String pdfUrl = firstNonBlank(receipt.getPdfUrl(), API_BASE_URL + "/api/v1/public/receipts/" + receipt.getReceiptCode() + "/pdf");
-            String caption = ("""
-                    SecretáriaPay Académico: bordereau emitido.
+            String publicPdfUrl = buildOfficialReceiptPdfUrl(receipt, false);
+            String deliveryPdfUrl = buildOfficialReceiptPdfUrl(receipt, true);
+            String caption = buildOfficialReceiptCaption(pending, line, receipt, publicPdfUrl);
 
-                    Bordereau: %s
-                    Estudante: %s
-                    Matrícula: %s
-                    Mês/serviço: %s
-                    Base: %s
-                    Multa: %s
-                    Juros: %s
-                    Total académico: %s
-                    Valor teste Brasil: %s
-                    Código teste: %s
-                    """).formatted(
-                    receipt.getReceiptCode(), pending.studentName(), pending.studentNumber(), line.referenceMonth(),
-                    moneyAoa(line.baseAmount()), moneyAoa(line.fineAmount()), moneyAoa(line.interestAmount()),
-                    moneyAoa(line.totalAmount()), moneyBrl(pending.amountBrl()), pending.orderNsu()
-            ).trim();
+            if (!pending.whatsappPhone().isBlank()) {
+                WhatsAppCloudSendResult result = whatsAppCloudApiClient.sendDocumentByLink(
+                        pending.whatsappPhone(),
+                        deliveryPdfUrl,
+                        buildOfficialReceiptFileName(pending, receipt),
+                        caption
+                );
 
-            if (!pending.whatsappPhone().isBlank()) whatsAppCloudApiClient.sendDocumentByLink(pending.whatsappPhone(), pdfUrl, "bordereau-" + receipt.getReceiptCode() + ".pdf", caption);
-            sendReceiptEmail(pending, payment, pdfUrl);
+                if (result.isSuccess()) {
+                    whatsappDocumentsSent++;
+                } else {
+                    whatsappDocumentsFailed++;
+                    whatsAppCloudApiClient.sendText(
+                            pending.whatsappPhone(),
+                            ("O comprovativo oficial foi emitido, mas o anexo não pôde ser entregue automaticamente neste momento.\n\n"
+                                    + "Comprovativo: %s\n"
+                                    + "Link público: %s")
+                                    .formatted(receipt.getReceiptCode(), publicPdfUrl)
+                    );
+                }
+            }
+
+            sendReceiptEmail(pending, payment, publicPdfUrl);
+            if (!pending.email().isBlank()) {
+                emailCopiesTriggered++;
+            }
         }
 
         if (!pending.whatsappPhone().isBlank()) {
@@ -277,7 +290,19 @@ public class InfinitePayTestPaymentService {
 
                     Meses/serviços baixados:
                     %s
-                    """).formatted(moneyBrl(pending.amountBrl()), pending.orderNsu(), summary(payments)).trim());
+
+                    Comprovativos oficiais enviados:
+                    - WhatsApp: %d
+                    - Falhas no anexo: %d
+                    - E-mail acionado: %d
+                    """).formatted(
+                    moneyBrl(pending.amountBrl()),
+                    pending.orderNsu(),
+                    summary(payments),
+                    whatsappDocumentsSent,
+                    whatsappDocumentsFailed,
+                    emailCopiesTriggered
+            ).trim());
         }
     }
 
@@ -310,8 +335,57 @@ public class InfinitePayTestPaymentService {
         request.setAmount(line.totalAmount());
         request.setCurrency("AOA");
         request.setDueDate(line.dueDate());
-        request.setMessage("Pagamento gravado por mês. Base: " + moneyAoa(line.baseAmount()) + ". Multa: " + moneyAoa(line.fineAmount()) + ". Juros: " + moneyAoa(line.interestAmount()) + ". Total: " + moneyAoa(line.totalAmount()) + ".");
+        request.setMessage("Comprovativo oficial emitido automaticamente após confirmação do pagamento. Referência: "
+                + line.referenceMonth() + ". Base: " + moneyAoa(line.baseAmount())
+                + ". Multa: " + moneyAoa(line.fineAmount())
+                + ". Juros: " + moneyAoa(line.interestAmount())
+                + ". Total: " + moneyAoa(line.totalAmount()) + ".");
         fallbackNotificationService.sendGuideByEmail(request);
+    }
+
+    private String buildOfficialReceiptPdfUrl(ReceiptResponse receipt, boolean bustCache) {
+        String baseUrl = API_BASE_URL + "/api/v1/public/receipts/" + encode(receipt.getReceiptCode()) + "/pdf";
+        return bustCache ? baseUrl + "?v=" + System.currentTimeMillis() : baseUrl;
+    }
+
+    private String buildOfficialReceiptFileName(PendingPayment pending, ReceiptResponse receipt) {
+        return "Comprovativo_Pagamentos_"
+                + safe(pending.studentNumber()).replaceAll("[^A-Za-z0-9._-]", "-")
+                + "_"
+                + safe(receipt.getReceiptCode()).replaceAll("[^A-Za-z0-9._-]", "-")
+                + ".pdf";
+    }
+
+    private String buildOfficialReceiptCaption(PendingPayment pending, AcademicLine line, ReceiptResponse receipt, String publicPdfUrl) {
+        return ("""
+                SecretáriaPay Académico: comprovativo oficial emitido.
+
+                Comprovativo: %s
+                Estudante: %s
+                Matrícula: %s
+                Referência: %s
+                Descrição: %s
+                Base: %s
+                Multa: %s
+                Juros: %s
+                Total académico: %s
+                Valor teste Brasil: %s
+                Código teste: %s
+                Link público: %s
+                """).formatted(
+                receipt.getReceiptCode(),
+                pending.studentName(),
+                pending.studentNumber(),
+                line.referenceMonth(),
+                line.description(),
+                moneyAoa(line.baseAmount()),
+                moneyAoa(line.fineAmount()),
+                moneyAoa(line.interestAmount()),
+                moneyAoa(line.totalAmount()),
+                moneyBrl(pending.amountBrl()),
+                pending.orderNsu(),
+                publicPdfUrl
+        ).trim();
     }
 
     private List<AcademicLine> buildLines(String referenceMonth, String serviceName, BigDecimal baseAmount, BigDecimal totalAmount, BigDecimal fineAmount, BigDecimal interestAmount, LocalDate dueDate) {
