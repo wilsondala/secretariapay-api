@@ -26,15 +26,18 @@ public class ReceiptService {
     private final ReceiptRepository receiptRepository;
     private final ChargeRepository chargeRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
+    private final ReceiptAuthenticityService authenticityService;
 
     public ReceiptService(
             ReceiptRepository receiptRepository,
             ChargeRepository chargeRepository,
-            PaymentTransactionRepository paymentTransactionRepository
+            PaymentTransactionRepository paymentTransactionRepository,
+            ReceiptAuthenticityService authenticityService
     ) {
         this.receiptRepository = receiptRepository;
         this.chargeRepository = chargeRepository;
         this.paymentTransactionRepository = paymentTransactionRepository;
+        this.authenticityService = authenticityService;
     }
 
     @Transactional
@@ -89,6 +92,16 @@ public class ReceiptService {
         return toResponse(receipt);
     }
 
+    @Transactional(readOnly = true)
+    public ReceiptResponse validate(String receiptCode, String hash) {
+        Receipt receipt = receiptRepository.findByReceiptCode(receiptCode)
+                .orElseThrow(() -> new NotFoundException("Comprovativo não encontrado."));
+        if (!authenticityService.matches(receipt, hash)) {
+            throw new IllegalArgumentException("HASH de autenticação inválido.");
+        }
+        return toResponse(receipt);
+    }
+
     @Transactional
     public ReceiptResponse cancel(UUID id) {
         Receipt receipt = findEntityById(id);
@@ -111,10 +124,8 @@ public class ReceiptService {
             pdfUrl = buildPdfUrl(receipt.getReceiptCode());
         }
 
-        String validationUrl = receipt.getValidationUrl();
-        if ((validationUrl == null || validationUrl.isBlank()) && receipt.getReceiptCode() != null) {
-            validationUrl = buildValidationUrl(receipt.getReceiptCode());
-        }
+        String validationUrl = receipt.getReceiptCode() == null ? receipt.getValidationUrl()
+                : buildValidationUrl(receipt.getReceiptCode()) + "/authentic?hash=" + authenticityService.hash(receipt);
 
         return new ReceiptResponse()
                 .setId(receipt.getId())
@@ -136,6 +147,8 @@ public class ReceiptService {
                 .setPdfUrl(pdfUrl)
                 .setQrCodeUrl(receipt.getQrCodeUrl())
                 .setValidationUrl(validationUrl)
+                .setAuthenticityHash(authenticityService.hash(receipt))
+                .setDigitalSignature("SECRETARIAPAY-SHA256-" + authenticityService.shortHash(receipt))
                 .setStatus(receipt.getStatus())
                 .setIssuedAt(receipt.getIssuedAt())
                 .setCancelledAt(receipt.getCancelledAt())
@@ -145,18 +158,15 @@ public class ReceiptService {
 
     private ReceiptResponse issueNewReceipt(Charge charge) {
         String receiptCode = generateReceiptCode();
-        String validationUrl = buildValidationUrl(receiptCode);
-        String qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + validationUrl;
-
         Receipt receipt = new Receipt()
                 .setCharge(charge)
                 .setReceiptCode(receiptCode)
-                .setValidationUrl(validationUrl)
-                .setQrCodeUrl(qrCodeUrl)
                 .setStatus(ReceiptStatus.VALID);
 
         Receipt savedReceipt = receiptRepository.save(receipt);
-
+        String validationUrl = buildValidationUrl(savedReceipt.getReceiptCode()) + "/authentic?hash=" + authenticityService.hash(savedReceipt);
+        savedReceipt.setValidationUrl(validationUrl);
+        savedReceipt.setQrCodeUrl(validationUrl);
         savedReceipt.setPdfUrl(buildPdfUrl(savedReceipt.getReceiptCode()));
 
         return toResponse(receiptRepository.save(savedReceipt));
