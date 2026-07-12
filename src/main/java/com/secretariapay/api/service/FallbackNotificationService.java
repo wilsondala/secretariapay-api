@@ -277,7 +277,7 @@ public class FallbackNotificationService {
         if (guideCode.isBlank()) {
             return "";
         }
-        return "https://secretariapay-api.paixaoangola.com/api/v1/public/guides/" + guideCode + "/pdf";
+        return "https://secretariapay-api.paixaoangola.com/api/v1/public/payment-guides/" + guideCode + "/pdf";
     }
 
     private String providerLabel() {
