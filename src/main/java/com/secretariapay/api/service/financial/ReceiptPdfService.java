@@ -89,9 +89,14 @@ public class ReceiptPdfService {
         for(int i=0;i<heads.length;i++) text(c,heads[i],6.4f,xs[i],headerY-16,Color.WHITE,true);
         float y=headerY-40; int n=1; BigDecimal gross=BigDecimal.ZERO,disc=BigDecimal.ZERO,fees=BigDecimal.ZERO,total=BigDecimal.ZERO;
         for(Receipt receipt:receipts){ Charge ch=receipt.getCharge();
-            text(c,String.valueOf(n++),8,28,y,NAVY,false); text(c,clip(ch.getDescription(),31),8,52,y,NAVY,false); text(c,safe(ch.getReferenceMonth()),8,190,y,NAVY,false);
-            text(c,safe(ch.getChargeCode()),8,246,y,NAVY,false); text(c,ch.getPaidAt()==null?"-":DATE_TIME.format(ch.getPaidAt()),7.5f,340,y,NAVY,false);
-            text(c,"PAGAMENTO CONFIRMADO",6.5f,438,y,GREEN,true); text(c,money(ch.getAmount()),8,552,y,NAVY,false); text(c,money(ch.getDiscountAmount()),8,620,y,NAVY,false);
+            text(c,String.valueOf(n++),8,28,y,NAVY,false);
+            fittedText(c, safe(ch.getDescription()), 8, 6.4f, 52, y, 120, NAVY, false);
+            fittedText(c, safe(ch.getReferenceMonth()), 8, 6.2f, 178, y, 62, NAVY, false);
+            fittedText(c, safe(ch.getChargeCode()), 7.4f, 5.8f, 246, y, 88, NAVY, false);
+            fittedText(c, ch.getPaidAt()==null?"-":DATE_TIME.format(ch.getPaidAt()), 7.3f, 6.1f, 340, y, 91, NAVY, false);
+            fittedText(c, "PAGAMENTO CONFIRMADO", 6.5f, 5.6f, 438, y, 104, GREEN, true);
+            text(c,money(ch.getAmount()),8,552,y,NAVY,false);
+            text(c,money(ch.getDiscountAmount()),8,620,y,NAVY,false);
             BigDecimal fee=nz(ch.getFineAmount()).add(nz(ch.getInterestAmount())); text(c,money(fee),8,688,y,NAVY,false); text(c,money(ch.getTotalAmount()),8,756,y,GREEN,true);
             line(c,new Color(210,218,232),m+2,y-12,w-m-2,y-12,.4f); y-=37; gross=gross.add(nz(ch.getAmount())); disc=disc.add(nz(ch.getDiscountAmount())); fees=fees.add(fee); total=total.add(nz(ch.getTotalAmount()));
         }
@@ -112,6 +117,7 @@ public class ReceiptPdfService {
     private BufferedImage createQr(String value)throws Exception{Map<EncodeHintType,Object> hints=new EnumMap<>(EncodeHintType.class);hints.put(EncodeHintType.ERROR_CORRECTION,ErrorCorrectionLevel.H);hints.put(EncodeHintType.MARGIN,1);BitMatrix matrix=new QRCodeWriter().encode(value,BarcodeFormat.QR_CODE,500,500,hints);return MatrixToImageWriter.toBufferedImage(matrix);}
     private void image(PDDocument d,PDPageContentStream c,String path,float x,float y,float w,float h){try{ClassPathResource r=new ClassPathResource(path);if(r.exists()){var i=org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject.createFromByteArray(d,r.getInputStream().readAllBytes(),path);c.drawImage(i,x,y,w,h);}}catch(Exception ignored){}}
     private void pair(PDPageContentStream c,String l,Object v,float x,float y)throws Exception{text(c,l+":",8,x,y,NAVY,true);text(c,clip(safe(v),36),8,x+72,y,Color.BLACK,false);}
+    private void fittedText(PDPageContentStream c,String value,float maxSize,float minSize,float x,float y,float maxWidth,Color color,boolean bold)throws Exception{String p=pdf(value);PDType1Font font=bold?PDType1Font.HELVETICA_BOLD:PDType1Font.HELVETICA;float size=maxSize;while(size>minSize&&font.getStringWidth(p)/1000*size>maxWidth)size-=.2f;if(font.getStringWidth(p)/1000*size>maxWidth){while(p.length()>4&&font.getStringWidth(p+"...")/1000*size>maxWidth)p=p.substring(0,p.length()-1);p=p+"...";}text(c,p,size,x,y,color,bold);}
     private void text(PDPageContentStream c,String s,float z,float x,float y,Color color,boolean bold)throws Exception{c.beginText();c.setNonStrokingColor(color);c.setFont(bold?PDType1Font.HELVETICA_BOLD:PDType1Font.HELVETICA,z);c.newLineAtOffset(x,y);c.showText(pdf(s));c.endText();}
     private void center(PDPageContentStream c,String s,float z,float x,float y,Color color,boolean bold)throws Exception{String p=pdf(s);PDType1Font f=bold?PDType1Font.HELVETICA_BOLD:PDType1Font.HELVETICA;text(c,p,z,x-(f.getStringWidth(p)/1000*z)/2,y,color,bold);}
     private void fill(PDPageContentStream c,Color color,float x,float y,float w,float h)throws Exception{c.setNonStrokingColor(color);c.addRect(x,y,w,h);c.fill();}
