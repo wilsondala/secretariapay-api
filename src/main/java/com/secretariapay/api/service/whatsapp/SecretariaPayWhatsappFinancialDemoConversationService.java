@@ -333,7 +333,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
                 AppyPaySession next = syncWithOfficialCharge(session.withPaymentMethod("Transferência mesmo banco")).withStep("WAITING_BANK_CONFIRMATION");
                 sessions.put(phone, next);
                 sendOfficialGuidePdf(phone, next);
-                return buildTransferSameBankReal(next);
+                return buildBankPaymentInstructions(next);
             }
             if ("4".equals(normalized) || containsAny(normalized, "deposito", "depósito", "outro banco")) {
                 AppyPaySession next = syncWithOfficialCharge(session.withPaymentMethod("Depósito bancário / transferência de outro banco")).withStep("WAITING_PROOF");
@@ -725,7 +725,7 @@ public class SecretariaPayWhatsappFinancialDemoConversationService extends Secre
 
         builder.append("Total em atraso: ").append(money(totalOverdue)).append("\n\n")
                 .append("Escolha uma opção:\n\n")
-                .append("[1..”).append(overdueCharges.size()).append("] Escolher um mês específico em atraso\n")
+                .append("[1..").append(overdueCharges.size()).append("] Escolher um mês específico em atraso\n")
                 .append("[").append(payAllOption).append("] Pagar todos os meses em atraso\n")
                 .append("[").append(backOption).append("] Voltar ao menu anterior\n\n")
                 .append("Também pode responder escrevendo o mês, por exemplo: Outubro/2026");
