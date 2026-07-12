@@ -28,6 +28,8 @@ public class ReceiptResponse {
     private String pdfUrl;
     private String qrCodeUrl;
     private String validationUrl;
+    private String authenticityHash;
+    private String digitalSignature;
     private ReceiptStatus status;
     private LocalDateTime issuedAt;
     private LocalDateTime cancelledAt;
@@ -90,6 +92,12 @@ public class ReceiptResponse {
 
     public String getValidationUrl() { return validationUrl; }
     public ReceiptResponse setValidationUrl(String validationUrl) { this.validationUrl = validationUrl; return this; }
+
+    public String getAuthenticityHash() { return authenticityHash; }
+    public ReceiptResponse setAuthenticityHash(String authenticityHash) { this.authenticityHash = authenticityHash; return this; }
+
+    public String getDigitalSignature() { return digitalSignature; }
+    public ReceiptResponse setDigitalSignature(String digitalSignature) { this.digitalSignature = digitalSignature; return this; }
 
     public ReceiptStatus getStatus() { return status; }
     public ReceiptResponse setStatus(ReceiptStatus status) { this.status = status; return this; }
