@@ -18,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -31,6 +33,9 @@ import java.util.UUID;
 
 @Service
 public class FinancialNotificationScheduler {
+
+    private static final String API_BASE_URL = "https://secretariapay-api.paixaoangola.com";
+    private static final String PANEL_BASE_URL = "https://painel-secretariapay.paixaoangola.com";
 
     private final ChargeRepository chargeRepository;
     private final NotificationLogRepository notificationLogRepository;
@@ -157,27 +162,33 @@ public class FinancialNotificationScheduler {
 
         Student student = charge.getStudent();
         String phone = firstNonBlank(student.getWhatsapp(), student.getPhone(), student.getGuardianPhone());
-        String message = buildMessage(charge, type);
+        String caption = buildWhatsappCaption(charge, type);
         if (phone.isBlank()) {
-            saveLog(charge, type, "WHATSAPP", "FAILED", businessDate, message, null, "Aluno sem WhatsApp/telefone cadastrado.");
+            saveLog(charge, type, "WHATSAPP", "FAILED", businessDate, caption, null, "Aluno sem WhatsApp/telefone cadastrado.");
             counter.failed++;
             return;
         }
 
         if (dryRun) {
-            saveLog(charge, type, "WHATSAPP", "PREPARED", businessDate, message, null, null);
+            saveLog(charge, type, "WHATSAPP", "PREPARED", businessDate, caption, null, null);
             counter.prepared++;
             return;
         }
 
-        WhatsAppCloudSendResult result = whatsAppCloudApiClient.sendText(phone, message);
+        String pdfUrl = buildOfficialGuidePdfUrl(charge, true);
+        WhatsAppCloudSendResult result = whatsAppCloudApiClient.sendDocumentByLink(
+                phone,
+                pdfUrl,
+                buildGuideFileName(charge),
+                caption
+        );
         saveLog(
                 charge,
                 type,
                 "WHATSAPP",
                 result.isSuccess() ? "SENT" : "FAILED",
                 businessDate,
-                message,
+                caption,
                 result.getProviderMessageId(),
                 result.getErrorMessage()
         );
@@ -192,7 +203,7 @@ public class FinancialNotificationScheduler {
 
         Student student = charge.getStudent();
         String email = firstNonBlank(student.getEmail(), student.getGuardianEmail());
-        String message = buildMessage(charge, type);
+        String message = buildEmailMessage(charge, type);
         if (email.isBlank()) {
             saveLog(charge, type, "EMAIL", "FAILED", businessDate, message, null, "Aluno sem e-mail cadastrado.");
             counter.failed++;
@@ -211,6 +222,7 @@ public class FinancialNotificationScheduler {
         request.setEmail(email);
         request.setPhoneNumber(firstNonBlank(student.getPhone(), student.getWhatsapp(), student.getGuardianPhone()));
         request.setGuideCode(charge.getChargeCode());
+        request.setGuideUrl(buildOfficialGuidePublicUrl(charge));
         request.setAmount(charge.getTotalAmount());
         request.setCurrency(charge.getCurrency());
         request.setDueDate(charge.getDueDate());
@@ -250,43 +262,65 @@ public class FinancialNotificationScheduler {
         notificationLogRepository.save(log);
     }
 
-    private String buildMessage(Charge charge, String type) {
+    private String buildWhatsappCaption(Charge charge, String type) {
         Student student = charge.getStudent();
-        String greeting = "Olá, " + firstNonBlank(student.getFullName(), "estudante") + ".";
         String intro = switch (type) {
-            case "DUE_TOMORROW" -> "A sua mensalidade vence amanhã.";
-            case "DUE_TODAY" -> "A sua mensalidade vence hoje.";
-            case "OVERDUE" -> "Identificamos uma mensalidade em aberto/vencida.";
-            default -> "Existe uma cobrança académica em aberto.";
+            case "DUE_TOMORROW" -> "Informamos que a sua guia de pagamento referente ao período abaixo já se encontra disponível. O vencimento ocorre amanhã.";
+            case "DUE_TODAY" -> "Informamos que a sua guia de pagamento vence hoje. Recomendamos a regularização ainda hoje para evitar juros e outros constrangimentos.";
+            case "OVERDUE" -> "Identificamos um pagamento em dívida/pendente. Regularize com urgência para evitar multas, bloqueios ou outros constrangimentos no acesso aos serviços académicos.";
+            default -> "Existe uma cobrança académica pendente para regularização.";
         };
 
-        return ("""
-                %s
+        return ("Caro(a) estudante,\n\n"
+                + "%s\n\n"
+                + "Dados da cobrança:\n\n"
+                + "Estudante: %s\n"
+                + "Matrícula: %s\n"
+                + "Referência: %s\n"
+                + "Descrição: %s\n"
+                + "Valor base: %s\n"
+                + "Multa: %s\n"
+                + "Juros: %s\n"
+                + "Total a pagar: %s\n"
+                + "Data de vencimento: %s\n\n"
+                + "A guia oficial segue em anexo neste WhatsApp.\n"
+                + "Link público: %s\n\n"
+                + "Caso o pagamento já tenha sido realizado, pedimos que envie o respetivo comprovativo para validação e atualização da sua situação financeira.\n\n"
+                + "Atenciosamente,\n\n"
+                + "Secretaria Financeira\n"
+                + "IMETRO\n"
+                + "SecretáriaPay Académico")
+                .formatted(
+                        intro,
+                        firstNonBlank(student.getFullName(), "Estudante"),
+                        firstNonBlank(student.getStudentNumber(), "-"),
+                        firstNonBlank(charge.getReferenceMonth(), charge.getDescription()),
+                        firstNonBlank(charge.getDescription(), "Cobrança académica"),
+                        money(charge.getAmount(), charge.getCurrency()),
+                        money(charge.getFineAmount(), charge.getCurrency()),
+                        money(charge.getInterestAmount(), charge.getCurrency()),
+                        money(charge.getTotalAmount(), charge.getCurrency()),
+                        charge.getDueDate(),
+                        buildOfficialGuidePdfUrl(charge, false)
+                );
+    }
 
-                %s
+    private String buildEmailMessage(Charge charge, String type) {
+        String intro = switch (type) {
+            case "DUE_TOMORROW" -> "Informamos que a sua guia de pagamento referente ao período abaixo já se encontra disponível. O vencimento ocorre amanhã.";
+            case "DUE_TODAY" -> "Informamos que a sua guia de pagamento vence hoje. Recomendamos a regularização ainda hoje para evitar juros e outros constrangimentos.";
+            case "OVERDUE" -> "Identificamos um pagamento em dívida/pendente. Regularize com urgência para evitar multas, bloqueios ou outros constrangimentos no acesso aos serviços académicos.";
+            default -> "Existe uma cobrança académica pendente para regularização.";
+        };
 
-                Referência: %s
-                Vencimento: %s
-                Valor base: %s
-                Multa: %s
-                Juros: %s
-                Total atualizado: %s
-
-                Para regularizar, responda no WhatsApp:
-                1 - Gerar guia de pagamento
-
-                Caso já tenha pago, por favor desconsidere esta mensagem.
-                SecretáriaPay Académico · IMETRO/DCR
-                """).formatted(
-                greeting,
-                intro,
-                firstNonBlank(charge.getReferenceMonth(), charge.getDescription()),
-                charge.getDueDate(),
-                money(charge.getAmount(), charge.getCurrency()),
-                money(charge.getFineAmount(), charge.getCurrency()),
-                money(charge.getInterestAmount(), charge.getCurrency()),
-                money(charge.getTotalAmount(), charge.getCurrency())
-        ).trim();
+        return (intro + " Guia oficial emitida pelo SecretáriaPay Académico. "
+                + "Referência: " + firstNonBlank(charge.getReferenceMonth(), charge.getDescription()) + ". "
+                + "Descrição: " + firstNonBlank(charge.getDescription(), "Cobrança académica") + ". "
+                + "Valor base: " + money(charge.getAmount(), charge.getCurrency()) + ". "
+                + "Multa: " + money(charge.getFineAmount(), charge.getCurrency()) + ". "
+                + "Juros: " + money(charge.getInterestAmount(), charge.getCurrency()) + ". "
+                + "Total: " + money(charge.getTotalAmount(), charge.getCurrency()) + ". "
+                + "Vencimento: " + charge.getDueDate() + ".");
     }
 
     private boolean isOpen(Charge charge) {
@@ -302,6 +336,31 @@ public class FinancialNotificationScheduler {
         map.put("startedAt", LocalDateTime.now(zoneId).toString());
         map.put("enabled", schedulerEnabled);
         return map;
+    }
+
+    private String buildOfficialGuidePdfUrl(Charge charge, boolean cacheBust) {
+        String base = API_BASE_URL + "/api/v1/public/payment-guides/" + encode(firstNonBlank(charge.getChargeCode(), "GUIDE")) + "/pdf";
+        return cacheBust ? base + "?v=" + System.currentTimeMillis() : base;
+    }
+
+    private String buildOfficialGuidePublicUrl(Charge charge) {
+        return PANEL_BASE_URL + "/guias/" + encode(firstNonBlank(charge.getChargeCode(), "GUIDE"));
+    }
+
+    private String buildGuideFileName(Charge charge) {
+        String studentNumber = charge.getStudent() != null ? firstNonBlank(charge.getStudent().getStudentNumber(), "estudante") : "estudante";
+        return "Guia_Pagamento_Academico_" + sanitizeFilePart(studentNumber) + "_" + sanitizeFilePart(firstNonBlank(charge.getChargeCode(), "GUIDE")) + ".pdf";
+    }
+
+    private String encode(String value) {
+        return URLEncoder.encode(firstNonBlank(value), StandardCharsets.UTF_8);
+    }
+
+    private String sanitizeFilePart(String value) {
+        String sanitized = clean(value, "documento")
+                .replaceAll("[^A-Za-z0-9._-]", "-")
+                .replaceAll("-+", "-");
+        return sanitized.isBlank() ? "documento" : sanitized;
     }
 
     private String money(BigDecimal value, String currency) {
