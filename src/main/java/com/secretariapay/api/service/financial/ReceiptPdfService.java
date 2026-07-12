@@ -40,17 +40,13 @@ import java.util.UUID;
 
 @Service
 public class ReceiptPdfService {
-
-    private static final Color NAVY = new Color(4, 34, 87);
-    private static final Color NAVY_2 = new Color(7, 56, 132);
-    private static final Color GREEN = new Color(27, 139, 62);
-    private static final Color GREEN_LIGHT = new Color(235, 249, 239);
-    private static final Color GOLD = new Color(218, 166, 38);
-    private static final Color LIGHT = new Color(248, 250, 253);
-    private static final Color BORDER = new Color(194, 207, 226);
-    private static final Color MUTED = new Color(76, 91, 113);
-    private static final Color ORANGE = new Color(242, 120, 24);
-    private static final Color PURPLE = new Color(112, 69, 190);
+    private static final Color NAVY = new Color(4, 42, 104);
+    private static final Color NAVY_2 = new Color(8, 58, 133);
+    private static final Color GREEN = new Color(22, 145, 58);
+    private static final Color GOLD = new Color(216, 164, 37);
+    private static final Color LIGHT = new Color(247, 249, 252);
+    private static final Color BORDER = new Color(205, 216, 230);
+    private static final Color MUTED = new Color(91, 104, 120);
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private final ReceiptRepository receiptRepository;
@@ -65,240 +61,156 @@ public class ReceiptPdfService {
     public byte[] generateReceiptPdf(UUID receiptId) {
         Receipt anchor = receiptRepository.findById(receiptId)
                 .orElseThrow(() -> new NotFoundException("Comprovativo não encontrado."));
-
         Student student = anchor.getCharge().getStudent();
         List<Receipt> receipts = receiptRepository
                 .findByChargeStudentIdAndStatusOrderByChargePaidAtAsc(student.getId(), ReceiptStatus.VALID);
-
-        if (receipts.isEmpty()) {
-            receipts = List.of(anchor);
-        }
+        if (receipts.isEmpty()) receipts = List.of(anchor);
 
         try (PDDocument document = new PDDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             PDPage page = new PDPage(new PDRectangle(PDRectangle.A4.getHeight(), PDRectangle.A4.getWidth()));
             document.addPage(page);
-
-            try (PDPageContentStream content = new PDPageContentStream(document, page)) {
-                draw(document, page, content, anchor, receipts, student);
+            try (PDPageContentStream c = new PDPageContentStream(document, page)) {
+                draw(document, page, c, anchor, receipts, student);
             }
-
             document.save(output);
             return output.toByteArray();
-        } catch (Exception exception) {
-            throw new IllegalStateException("Não foi possível gerar o comprovativo oficial.", exception);
+        } catch (Exception e) {
+            throw new IllegalStateException("Não foi possível gerar o comprovativo oficial.", e);
         }
     }
 
-    private void draw(PDDocument document, PDPage page, PDPageContentStream content,
-                      Receipt anchor, List<Receipt> receipts, Student student) throws Exception {
-        float width = page.getMediaBox().getWidth();
-        float height = page.getMediaBox().getHeight();
-        float margin = 18;
+    private void draw(PDDocument doc, PDPage page, PDPageContentStream c, Receipt anchor,
+                      List<Receipt> receipts, Student student) throws Exception {
+        float w = page.getMediaBox().getWidth();
+        float h = page.getMediaBox().getHeight();
+        float m = 22;
 
-        fill(content, Color.WHITE, 0, 0, width, height);
-        stroke(content, NAVY, margin, margin, width - 2 * margin, height - 2 * margin, 0.8f);
+        fill(c, Color.WHITE, 0, 0, w, h);
+        stroke(c, NAVY, m, m, w - 2 * m, h - 2 * m, .8f);
 
-        drawHeader(document, content, anchor, width, height);
-        drawStudentSummary(content, student, width, height);
+        image(doc, c, "static/assets/imetro.png", 34, h - 102, 118, 72);
+        brand(c, w - 218, h - 88);
+        center(c, "COMPROVATIVO DE PAGAMENTOS", 22, w / 2, h - 58, NAVY, true);
+        line(c, GOLD, w / 2 - 100, h - 72, w / 2 + 100, h - 72, 1.4f);
+        center(c, "Emitido em: " + DATE_TIME.format(anchor.getIssuedAt()), 9.5f, w / 2, h - 88, NAVY, false);
+        center(c, "Comprovativo Nº " + anchor.getReceiptCode(), 9.5f, w / 2, h - 102, NAVY, false);
 
-        float tableBottom = drawPaymentsTable(content, receipts, width, height);
-        drawValidationArea(document, content, anchor, width, tableBottom);
-        drawFooter(content, width);
-    }
+        float infoTop = h - 122;
+        roundedBox(c, m + 1, infoTop - 82, w - 2 * m - 2, 82, LIGHT, NAVY);
+        AcademicClass ac = student.getAcademicClass();
+        Course course = ac == null ? null : ac.getCourse();
+        pair(c, "NOME", student.getFullName(), 36, infoTop - 23, 220);
+        pair(c, "MATRÍCULA", student.getStudentNumber(), 36, infoTop - 47, 220);
+        pair(c, "CURSO", course == null ? "-" : course.getName(), 36, infoTop - 71, 220);
+        pair(c, "ANO ACADÉMICO", ac == null ? "-" : ac.getAcademicYear(), 325, infoTop - 23, 160);
+        pair(c, "TURMA", ac == null ? "-" : ac.getName(), 325, infoTop - 47, 190);
+        pair(c, "TELEFONE", mask(student.getPhone()), 325, infoTop - 71, 180);
+        pair(c, "DOCUMENTO", mask(student.getDocumentNumber()), 570, infoTop - 32, 190);
+        pair(c, "E-MAIL", student.getEmail(), 570, infoTop - 62, 190);
 
-    private void drawHeader(PDDocument document, PDPageContentStream content,
-                            Receipt anchor, float width, float height) throws Exception {
-        image(document, content, "static/assets/imetro.png", 28, height - 91, 132, 68);
-        image(document, content, "static/branding/secretariapay-logo.png", width - 215, height - 87, 184, 58);
+        float sectionY = infoTop - 104;
+        roundedBox(c, m + 1, sectionY - 24, w - 2 * m - 2, 24, NAVY, NAVY);
+        center(c, "DETALHAMENTO DOS PAGAMENTOS", 11.5f, w / 2, sectionY - 16, Color.WHITE, true);
 
-        center(content, "COMPROVATIVO DE PAGAMENTOS", 21, width / 2, height - 51, NAVY, true);
-        line(content, GOLD, width / 2 - 102, height - 65, width / 2 + 102, height - 65, 1.2f);
-        fill(content, GOLD, width / 2 - 2, height - 67, 4, 4);
+        float headerY = sectionY - 30;
+        fill(c, NAVY_2, m + 1, headerY - 27, w - 2 * m - 2, 27);
+        String[] heads = {"Nº", "DESCRIÇÃO DA COBRANÇA", "REF. PERÍODO", "REFERÊNCIA / GUIA", "DATA DO PAGAMENTO", "FORMA DE PAGAMENTO", "VALOR BRUTO", "DESCONTOS", "JUROS / MULTA", "VALOR LÍQUIDO"};
+        float[] xs = {29, 58, 190, 260, 355, 452, 565, 630, 692, 757};
+        for (int i = 0; i < heads.length; i++) text(c, heads[i], 6.5f, xs[i], headerY - 18, Color.WHITE, true);
 
-        center(content,
-                "Emitido em: " + DATE_TIME.format(anchor.getIssuedAt()) + "  •  Comprovativo Nº " + safe(anchor.getReceiptCode()),
-                9.5f, width / 2, height - 83, NAVY, false);
-    }
-
-    private void drawStudentSummary(PDPageContentStream content, Student student,
-                                    float width, float height) throws Exception {
-        float x = 32;
-        float y = height - 106;
-        float boxHeight = 69;
-        float boxWidth = width - 64;
-
-        roundedBox(content, x, y - boxHeight, boxWidth, boxHeight, Color.WHITE, NAVY);
-
-        AcademicClass academicClass = student.getAcademicClass();
-        Course course = academicClass == null ? null : academicClass.getCourse();
-
-        pair(content, "NOME", student.getFullName(), x + 14, y - 19, 230);
-        pair(content, "MATRÍCULA", student.getStudentNumber(), x + 14, y - 39, 230);
-        pair(content, "CURSO", course == null ? "-" : course.getName(), x + 14, y - 59, 230);
-
-        pair(content, "ANO ACADÉMICO", academicClass == null ? "-" : academicClass.getAcademicYear(), x + 305, y - 19, 185);
-        pair(content, "TURMA", academicClass == null ? "-" : academicClass.getName(), x + 305, y - 39, 185);
-        pair(content, "TELEFONE", mask(student.getPhone()), x + 305, y - 59, 185);
-
-        pair(content, "DOCUMENTO", mask(student.getDocumentNumber()), x + 570, y - 29, 210);
-        pair(content, "E-MAIL", student.getEmail(), x + 570, y - 52, 210);
-    }
-
-    private float drawPaymentsTable(PDPageContentStream content, List<Receipt> receipts,
-                                    float width, float height) throws Exception {
-        float left = 32;
-        float right = width - 32;
-        float titleY = height - 196;
-
-        fill(content, NAVY, left, titleY - 23, right - left, 23);
-        center(content, "DETALHAMENTO DOS PAGAMENTOS", 11.5f, width / 2, titleY - 16, Color.WHITE, true);
-
-        float headerY = titleY - 28;
-        fill(content, NAVY_2, left, headerY - 26, right - left, 26);
-        fill(content, GREEN, 744, headerY - 26, right - 744, 26);
-
-        String[] headers = {
-                "Nº", "DESCRIÇÃO DA COBRANÇA", "REF. PERÍODO", "REFERÊNCIA / GUIA",
-                "DATA DO PAGAMENTO", "FORMA DE PAGAMENTO", "VALOR BRUTO (KZ)",
-                "DESCONTOS (KZ)", "JUROS / MULTA (KZ)", "VALOR LÍQUIDO (KZ)"
-        };
-        float[] xPositions = {39, 78, 192, 258, 349, 450, 552, 620, 682, 752};
-        float[] maxWidths = {26, 108, 62, 88, 96, 94, 64, 60, 66, 70};
-
-        for (int i = 0; i < headers.length; i++) {
-            fittedText(content, headers[i], 6.2f, 5.2f, xPositions[i], headerY - 17, maxWidths[i], Color.WHITE, true);
-        }
-
-        int maxRows = Math.min(receipts.size(), 5);
-        float rowHeight = maxRows <= 3 ? 39 : 31;
-        float y = headerY - 45;
-
-        BigDecimal gross = BigDecimal.ZERO;
-        BigDecimal discounts = BigDecimal.ZERO;
-        BigDecimal fees = BigDecimal.ZERO;
-        BigDecimal total = BigDecimal.ZERO;
-
-        for (int index = 0; index < maxRows; index++) {
-            Receipt receipt = receipts.get(index);
-            Charge charge = receipt.getCharge();
-            BigDecimal fee = nz(charge.getFineAmount()).add(nz(charge.getInterestAmount()));
-
-            text(content, String.valueOf(index + 1), 8, 43, y, NAVY, false);
-            fittedText(content, safe(charge.getDescription()), 8, 6.5f, 78, y, 108, NAVY, false);
-            fittedText(content, safe(charge.getReferenceMonth()), 8, 6.5f, 192, y, 60, NAVY, false);
-            fittedText(content, safe(charge.getChargeCode()), 7.6f, 6.2f, 258, y, 86, NAVY, false);
-            fittedText(content, charge.getPaidAt() == null ? "-" : DATE_TIME.format(charge.getPaidAt()), 7.4f, 6.2f, 349, y, 94, NAVY, false);
-
-            drawPaymentMethod(content, charge, 450, y - 4);
-
-            text(content, money(charge.getAmount()), 8, 554, y, NAVY, false);
-            text(content, money(charge.getDiscountAmount()), 8, 624, y, NAVY, false);
-            text(content, money(fee), 8, 690, y, NAVY, false);
-            text(content, money(charge.getTotalAmount()), 8.4f, 760, y, GREEN, true);
-
-            line(content, BORDER, left, y - 13, right, y - 13, 0.45f);
-            y -= rowHeight;
-
-            gross = gross.add(nz(charge.getAmount()));
-            discounts = discounts.add(nz(charge.getDiscountAmount()));
+        float y = headerY - 47;
+        int n = 1;
+        BigDecimal gross = BigDecimal.ZERO, disc = BigDecimal.ZERO, fees = BigDecimal.ZERO, total = BigDecimal.ZERO;
+        List<Receipt> visible = receipts.stream().limit(5).toList();
+        for (Receipt receipt : visible) {
+            Charge ch = receipt.getCharge();
+            text(c, String.valueOf(n++), 8.2f, 31, y, NAVY, false);
+            text(c, clip(ch.getDescription(), 29), 8.2f, 58, y, NAVY, false);
+            text(c, safe(ch.getReferenceMonth()), 8, 190, y, NAVY, false);
+            text(c, clip(ch.getChargeCode(), 22), 7.4f, 260, y, NAVY, false);
+            text(c, ch.getPaidAt() == null ? "-" : DATE_TIME.format(ch.getPaidAt()), 7.5f, 355, y, NAVY, false);
+            paymentMethod(c, safe(ch.getPaymentMethod()), 452, y - 7);
+            text(c, money(ch.getAmount()), 8, 565, y, NAVY, false);
+            text(c, money(ch.getDiscountAmount()), 8, 630, y, NAVY, false);
+            BigDecimal fee = nz(ch.getFineAmount()).add(nz(ch.getInterestAmount()));
+            text(c, money(fee), 8, 692, y, NAVY, false);
+            text(c, money(ch.getTotalAmount()), 8.5f, 757, y, GREEN, true);
+            line(c, BORDER, m + 2, y - 14, w - m - 2, y - 14, .45f);
+            y -= 39;
+            gross = gross.add(nz(ch.getAmount()));
+            disc = disc.add(nz(ch.getDiscountAmount()));
             fees = fees.add(fee);
-            total = total.add(nz(charge.getTotalAmount()));
+            total = total.add(nz(ch.getTotalAmount()));
         }
 
-        if (receipts.size() > maxRows) {
-            text(content, "+ " + (receipts.size() - maxRows) + " pagamento(s) adicional(is)", 7.2f, 78, y + 7, MUTED, true);
-            y -= 16;
+        if (receipts.size() > visible.size()) {
+            text(c, "+ " + (receipts.size() - visible.size()) + " pagamento(s) adicional(is) no histórico", 7.5f, 58, y + 10, MUTED, false);
+            y -= 18;
         }
 
-        line(content, NAVY, left, y + 14, right, y + 14, 0.9f);
-        text(content, "Nº TOTAL DE TÍTULOS:", 8, 40, y - 2, NAVY, true);
-        text(content, String.valueOf(receipts.size()), 8, 138, y - 2, NAVY, false);
+        line(c, NAVY, m + 1, y + 17, w - m - 1, y + 17, .9f);
+        text(c, "Nº TOTAL DE TÍTULOS:  " + receipts.size(), 8.5f, 32, y, NAVY, true);
+        text(c, "SUBTOTAL:", 8.5f, 312, y, NAVY, true);
+        text(c, money(gross), 8.5f, 455, y, NAVY, false);
+        text(c, "ACRÉSCIMOS:", 8.5f, 312, y - 17, NAVY, true);
+        text(c, money(fees), 8.5f, 455, y - 17, NAVY_2, false);
+        text(c, "DESCONTOS:", 8.5f, 312, y - 34, NAVY, true);
+        text(c, money(disc), 8.5f, 455, y - 34, Color.RED, false);
+        roundedBox(c, 300, y - 62, 218, 22, NAVY, NAVY);
+        text(c, "TOTAL LÍQUIDO:", 8.5f, 314, y - 56, Color.WHITE, true);
+        text(c, money(total) + " KZ", 10.5f, 430, y - 56, Color.WHITE, true);
 
-        text(content, "SUBTOTAL:", 8, 316, y - 2, NAVY, true);
-        text(content, money(gross), 8, 462, y - 2, NAVY, false);
-        text(content, "ACRÉSCIMOS:", 8, 316, y - 18, NAVY, true);
-        text(content, money(fees), 8, 462, y - 18, NAVY_2, false);
-        text(content, "DESCONTOS:", 8, 316, y - 34, NAVY, true);
-        text(content, money(discounts), 8, 462, y - 34, Color.RED, false);
-
-        fill(content, NAVY, 305, y - 60, 215, 22);
-        text(content, "TOTAL LÍQUIDO:", 8.5f, 318, y - 53, Color.WHITE, true);
-        text(content, money(total) + " KZ", 10.5f, 432, y - 53, Color.WHITE, true);
-
-        return y - 75;
-    }
-
-    private void drawPaymentMethod(PDPageContentStream content, Charge charge, float x, float y) throws Exception {
-        String method = "PAGAMENTO CONFIRMADO";
-        Color color = GREEN;
-
-        if (charge.getDescription() != null) {
-            String normalized = charge.getDescription().toUpperCase(Locale.ROOT);
-            if (normalized.contains("MULTICAIXA")) {
-                method = "MULTICAIXA EXPRESS";
-                color = ORANGE;
-            } else if (normalized.contains("UNITEL")) {
-                method = "UNITEL MONEY";
-                color = PURPLE;
-            } else if (normalized.contains("TRANSFER")) {
-                method = "TRANSFERÊNCIA BANCÁRIA";
-                color = GREEN;
-            }
-        }
-
-        roundedBox(content, x, y - 8, 16, 16, color, color);
-        center(content, method.startsWith("MULTICAIXA") ? "M" : method.startsWith("UNITEL") ? "U" : "B",
-                7, x + 8, y - 2, Color.WHITE, true);
-        fittedText(content, method, 6.8f, 5.8f, x + 22, y + 1, 70, color, true);
-    }
-
-    private void drawValidationArea(PDDocument document, PDPageContentStream content,
-                                    Receipt anchor, float width, float top) throws Exception {
-        float boxX = 32;
-        float boxY = 43;
-        float boxW = width - 64;
-        float boxH = Math.max(105, top - boxY);
-
-        roundedBox(content, boxX, boxY, boxW, boxH, Color.WHITE, NAVY);
-
+        float boxY = 42;
+        float boxH = 116;
+        roundedBox(c, m + 1, boxY, w - 2 * m - 2, boxH, Color.WHITE, NAVY);
         String hash = authenticityService.hash(anchor);
-        String validationUrl = anchor.getValidationUrl();
-        if (validationUrl == null || !validationUrl.contains("hash=")) {
-            validationUrl = "https://secretariapay-api.paixaoangola.com/api/v1/public/receipts/validate/"
+        String url = anchor.getValidationUrl();
+        if (url == null || !url.contains("hash=")) {
+            url = "https://secretariapay-api.paixaoangola.com/api/v1/public/receipts/validate/"
                     + anchor.getReceiptCode() + "/authentic?hash=" + hash;
         }
 
-        BufferedImage qr = createQr(validationUrl);
-        content.drawImage(LosslessFactory.createFromImage(document, qr), 44, boxY + 14, 86, 86);
+        BufferedImage qr = createQr(url);
+        c.drawImage(LosslessFactory.createFromImage(doc, qr), 34, 55, 90, 90);
+        roundedBox(c, 142, 92, 30, 30, new Color(235, 249, 240), GREEN);
+        center(c, "V", 15, 157, 101, GREEN, true);
+        text(c, "COMPROVATIVO VÁLIDO", 9.5f, 184, 119, GREEN, true);
+        text(c, "Este documento comprova os pagamentos recebidos", 8.2f, 184, 101, NAVY, false);
+        text(c, "e registados pela tesouraria do IMETRO.", 8.2f, 184, 86, NAVY, false);
+        text(c, "Valide pelo QR Code ou pela página pública de consulta.", 8, 184, 69, GREEN, true);
+        text(c, "Código de verificação: " + authenticityService.shortHash(anchor) + "-IMETRO", 7.3f, 184, 53, NAVY, false);
 
-        roundedBox(content, 145, boxY + 53, 30, 30, GREEN_LIGHT, GREEN);
-        center(content, "V", 17, 160, boxY + 61, GREEN, true);
+        line(c, BORDER, 432, 52, 432, 145, .8f);
+        center(c, "RESPONSÁVEL / TESOURARIA", 8.5f, 548, 122, NAVY, true);
+        center(c, "Assinado digitalmente", 11, 548, 93, new Color(39, 54, 205), false);
+        line(c, NAVY, 478, 79, 618, 79, .6f);
+        center(c, "Tesouraria IMETRO", 8.2f, 548, 62, NAVY, false);
 
-        text(content, "COMPROVATIVO VÁLIDO", 9.5f, 187, boxY + 81, GREEN, true);
-        text(content, "Este documento comprova os pagamentos recebidos", 8, 187, boxY + 62, NAVY, false);
-        text(content, "e registados pela tesouraria do IMETRO.", 8, 187, boxY + 47, NAVY, false);
-        text(content, "Valide pelo QR Code ou pela página pública de consulta.", 7.6f, 187, boxY + 30, GREEN, true);
-        fittedText(content, "Código de verificação: " + authenticityService.shortHash(anchor) + "-IMETRO",
-                7.4f, 6.2f, 187, boxY + 15, 220, NAVY, false);
+        center(c, "SELO DIGITAL", 8.2f, 714, 123, new Color(112, 148, 211), true);
+        roundedBox(c, 666, 59, 96, 66, Color.WHITE, new Color(112, 148, 211));
+        center(c, "IMETRO", 15, 714, 91, new Color(112, 148, 211), true);
+        center(c, "PAGO", 7.5f, 714, 75, GREEN, true);
+        center(c, "LIQUIDADO", 7.5f, 714, 63, GREEN, true);
 
-        line(content, BORDER, 420, boxY + 12, 420, boxY + boxH - 12, 0.7f);
-        center(content, "RESPONSÁVEL / TESOURARIA", 8.3f, 530, boxY + 80, NAVY, true);
-        center(content, "Assinado digitalmente", 11, 530, boxY + 51, new Color(45, 60, 190), false);
-        line(content, NAVY, 460, boxY + 39, 600, boxY + 39, 0.55f);
-        center(content, "Tesouraria IMETRO", 8, 530, boxY + 22, NAVY, false);
-
-        line(content, BORDER, 640, boxY + 12, 640, boxY + boxH - 12, 0.7f);
-        center(content, "SELO DIGITAL", 8.2f, 710, boxY + 82, new Color(118, 151, 213), true);
-        stroke(content, new Color(118, 151, 213), 666, boxY + 22, 88, 62, 1.3f);
-        center(content, "IMETRO", 16, 710, boxY + 51, new Color(118, 151, 213), true);
-        center(content, "PAGO", 7.5f, 710, boxY + 35, GREEN, true);
-        center(content, "LIQUIDADO", 7.5f, 710, boxY + 24, GREEN, true);
+        line(c, NAVY, m + 1, 33, w - m - 1, 33, .8f);
+        center(c, "Documento emitido eletronicamente pelo SecretáriaPay Académico - IMETRO", 8, w / 2, 22, NAVY, false);
+        center(c, "Este documento não substitui o recibo individual do estudante.", 7.4f, w / 2, 12, NAVY, false);
     }
 
-    private void drawFooter(PDPageContentStream content, float width) throws Exception {
-        line(content, NAVY, 32, 35, width - 32, 35, 0.7f);
-        center(content, "Documento emitido eletronicamente pelo SecretáriaPay Académico - IMETRO", 8, width / 2, 23, NAVY, false);
-        center(content, "Este documento não substitui o recibo individual do estudante.", 7.5f, width / 2, 13, NAVY, false);
+    private void paymentMethod(PDPageContentStream c, String method, float x, float y) throws Exception {
+        String normalized = method == null ? "PAGAMENTO CONFIRMADO" : method.replace('_', ' ').toUpperCase(Locale.ROOT);
+        roundedBox(c, x, y, 14, 14, new Color(232, 248, 237), GREEN);
+        center(c, normalized.startsWith("TRANSFER") ? "B" : normalized.startsWith("MULTICAIXA") ? "M" : normalized.startsWith("UNITEL") ? "U" : "P", 7, x + 7, y + 4, GREEN, true);
+        text(c, clip(normalized, 18), 6.4f, x + 20, y + 4, GREEN, true);
+    }
+
+    private void brand(PDPageContentStream c, float x, float y) throws Exception {
+        roundedBox(c, x, y, 30, 30, NAVY, NAVY);
+        roundedBox(c, x + 5, y + 5, 20, 20, NAVY, GOLD);
+        center(c, "SP", 8.5f, x + 15, y + 10, Color.WHITE, true);
+        text(c, "Secretária", 14, x + 40, y + 16, NAVY, true);
+        text(c, "Pay", 14, x + 105, y + 16, GOLD, true);
+        text(c, "ACADÉMICO", 5.8f, x + 41, y + 4, MUTED, true);
     }
 
     private BufferedImage createQr(String value) throws Exception {
@@ -309,127 +221,78 @@ public class ReceiptPdfService {
         return MatrixToImageWriter.toBufferedImage(matrix);
     }
 
-    private void image(PDDocument document, PDPageContentStream content,
-                       String path, float x, float y, float w, float h) {
+    private void image(PDDocument d, PDPageContentStream c, String path, float x, float y, float w, float h) {
         try {
-            ClassPathResource resource = new ClassPathResource(path);
-            if (resource.exists()) {
-                PDImageXObject image = PDImageXObject.createFromByteArray(
-                        document, resource.getInputStream().readAllBytes(), path);
-                content.drawImage(image, x, y, w, h);
+            ClassPathResource r = new ClassPathResource(path);
+            if (r.exists()) {
+                PDImageXObject i = PDImageXObject.createFromByteArray(d, r.getInputStream().readAllBytes(), path);
+                c.drawImage(i, x, y, w, h);
             }
         } catch (Exception ignored) {
         }
     }
 
-    private void pair(PDPageContentStream content, String label, Object value,
-                      float x, float y, float maxWidth) throws Exception {
-        text(content, label + ":", 8, x, y, NAVY, true);
-        fittedText(content, safe(value), 8, 6.4f, x + 72, y, maxWidth - 72, Color.BLACK, false);
+    private void pair(PDPageContentStream c, String label, Object value, float x, float y, float maxWidth) throws Exception {
+        text(c, label + ":", 8.2f, x, y, NAVY, true);
+        fittedText(c, safe(value), 8.2f, 6.8f, x + 76, y, maxWidth - 76, Color.BLACK, false);
     }
 
-    private void fittedText(PDPageContentStream content, String value, float maxSize, float minSize,
+    private void fittedText(PDPageContentStream c, String value, float maxSize, float minSize,
                             float x, float y, float maxWidth, Color color, boolean bold) throws Exception {
-        String safeValue = pdf(value);
-        PDType1Font font = bold ? PDType1Font.HELVETICA_BOLD : PDType1Font.HELVETICA;
+        String p = pdf(value);
+        PDType1Font f = bold ? PDType1Font.HELVETICA_BOLD : PDType1Font.HELVETICA;
         float size = maxSize;
-        while (size > minSize && font.getStringWidth(safeValue) / 1000f * size > maxWidth) {
-            size -= 0.2f;
-        }
-        if (font.getStringWidth(safeValue) / 1000f * size > maxWidth) {
-            safeValue = clipToWidth(safeValue, font, size, maxWidth);
-        }
-        text(content, safeValue, size, x, y, color, bold);
+        while (size > minSize && f.getStringWidth(p) / 1000 * size > maxWidth) size -= .3f;
+        text(c, p, size, x, y, color, bold);
     }
 
-    private String clipToWidth(String value, PDType1Font font, float size, float maxWidth) throws Exception {
-        String suffix = "...";
-        String candidate = value;
-        while (!candidate.isEmpty() && font.getStringWidth(candidate + suffix) / 1000f * size > maxWidth) {
-            candidate = candidate.substring(0, candidate.length() - 1);
-        }
-        return candidate.isEmpty() ? suffix : candidate + suffix;
+    private void text(PDPageContentStream c, String s, float z, float x, float y, Color color, boolean bold) throws Exception {
+        c.beginText();
+        c.setNonStrokingColor(color);
+        c.setFont(bold ? PDType1Font.HELVETICA_BOLD : PDType1Font.HELVETICA, z);
+        c.newLineAtOffset(x, y);
+        c.showText(pdf(s));
+        c.endText();
     }
 
-    private void text(PDPageContentStream content, String value, float size,
-                      float x, float y, Color color, boolean bold) throws Exception {
-        content.beginText();
-        content.setNonStrokingColor(color);
-        content.setFont(bold ? PDType1Font.HELVETICA_BOLD : PDType1Font.HELVETICA, size);
-        content.newLineAtOffset(x, y);
-        content.showText(pdf(value));
-        content.endText();
+    private void center(PDPageContentStream c, String s, float z, float x, float y, Color color, boolean bold) throws Exception {
+        String p = pdf(s);
+        PDType1Font f = bold ? PDType1Font.HELVETICA_BOLD : PDType1Font.HELVETICA;
+        text(c, p, z, x - (f.getStringWidth(p) / 1000 * z) / 2, y, color, bold);
     }
 
-    private void center(PDPageContentStream content, String value, float size,
-                        float centerX, float y, Color color, boolean bold) throws Exception {
-        String safeValue = pdf(value);
-        PDType1Font font = bold ? PDType1Font.HELVETICA_BOLD : PDType1Font.HELVETICA;
-        float textWidth = font.getStringWidth(safeValue) / 1000f * size;
-        text(content, safeValue, size, centerX - textWidth / 2, y, color, bold);
+    private void fill(PDPageContentStream c, Color color, float x, float y, float w, float h) throws Exception {
+        c.setNonStrokingColor(color); c.addRect(x, y, w, h); c.fill();
     }
 
-    private void fill(PDPageContentStream content, Color color,
-                      float x, float y, float w, float h) throws Exception {
-        content.setNonStrokingColor(color);
-        content.addRect(x, y, w, h);
-        content.fill();
+    private void stroke(PDPageContentStream c, Color color, float x, float y, float w, float h, float z) throws Exception {
+        c.setStrokingColor(color); c.setLineWidth(z); c.addRect(x, y, w, h); c.stroke();
     }
 
-    private void stroke(PDPageContentStream content, Color color,
-                        float x, float y, float w, float h, float lineWidth) throws Exception {
-        content.setStrokingColor(color);
-        content.setLineWidth(lineWidth);
-        content.addRect(x, y, w, h);
-        content.stroke();
+    private void roundedBox(PDPageContentStream c, float x, float y, float w, float h, Color fill, Color stroke) throws Exception {
+        fill(c, fill, x, y, w, h); stroke(c, stroke, x, y, w, h, .7f);
     }
 
-    private void roundedBox(PDPageContentStream content, float x, float y, float w, float h,
-                            Color fillColor, Color strokeColor) throws Exception {
-        fill(content, fillColor, x, y, w, h);
-        stroke(content, strokeColor, x, y, w, h, 0.7f);
+    private void line(PDPageContentStream c, Color color, float x1, float y1, float x2, float y2, float z) throws Exception {
+        c.setStrokingColor(color); c.setLineWidth(z); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
     }
 
-    private void line(PDPageContentStream content, Color color,
-                      float x1, float y1, float x2, float y2, float lineWidth) throws Exception {
-        content.setStrokingColor(color);
-        content.setLineWidth(lineWidth);
-        content.moveTo(x1, y1);
-        content.lineTo(x2, y2);
-        content.stroke();
+    private String money(BigDecimal v) {
+        DecimalFormatSymbols s = new DecimalFormatSymbols(new Locale("pt", "AO"));
+        s.setGroupingSeparator('.'); s.setDecimalSeparator(',');
+        return new DecimalFormat("#,##0.00", s).format(nz(v));
     }
 
-    private String money(BigDecimal value) {
-        DecimalFormatSymbols symbols = new DecimalFormatSymbols(new Locale("pt", "AO"));
-        symbols.setGroupingSeparator('.');
-        symbols.setDecimalSeparator(',');
-        return new DecimalFormat("#,##0.00", symbols).format(nz(value));
+    private BigDecimal nz(BigDecimal v) { return v == null ? BigDecimal.ZERO : v; }
+    private String safe(Object v) { return v == null ? "-" : String.valueOf(v); }
+    private String clip(String v, int n) { return v == null ? "-" : v.length() > n ? v.substring(0, n - 3) + "..." : v; }
+    private String mask(String v) {
+        if (v == null || v.isBlank()) return "-";
+        if (v.length() < 7) return "***";
+        return v.substring(0, Math.min(4, v.length())) + " *** *** " + v.substring(v.length() - 3);
     }
-
-    private BigDecimal nz(BigDecimal value) {
-        return value == null ? BigDecimal.ZERO : value;
-    }
-
-    private String safe(Object value) {
-        return value == null || String.valueOf(value).isBlank() ? "-" : String.valueOf(value);
-    }
-
-    private String mask(String value) {
-        if (value == null || value.isBlank()) return "-";
-        if (value.length() < 7) return "***";
-        return value.substring(0, Math.min(4, value.length())) + " *** *** " + value.substring(value.length() - 3);
-    }
-
-    private String pdf(String value) {
-        return safe(value)
-                .replace("•", "|")
-                .replace("–", "-")
-                .replace("—", "-")
-                .replace("“", "\"")
-                .replace("”", "\"")
-                .replace("’", "'")
-                .replace("…", "...")
-                .replace("✓", "V")
-                .replaceAll("[^\\x20-\\x7EÀ-ÖØ-öø-ÿ]", "");
+    private String pdf(String v) {
+        return safe(v).replace("–", "-").replace("—", "-").replace("“", "\"")
+                .replace("”", "\"").replace("’", "'").replace("…", "...").replace("✓", "V");
     }
 }
