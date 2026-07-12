@@ -27,10 +27,14 @@ import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HexFormat;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -38,17 +42,20 @@ import java.util.UUID;
 public class PaymentGuidePdfService {
 
     private static final String API_BASE_URL = "https://secretariapay-api.paixaoangola.com";
+    private static final String DOCUMENT_VERSION = "2.0";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
-    private static final Color NAVY = new Color(4, 34, 82);
-    private static final Color NAVY_DARK = new Color(2, 24, 58);
-    private static final Color BLUE = new Color(18, 74, 155);
-    private static final Color GOLD = new Color(219, 168, 28);
-    private static final Color GOLD_DARK = new Color(166, 116, 0);
+    private static final Color NAVY = new Color(5, 31, 72);
+    private static final Color NAVY_2 = new Color(10, 48, 101);
+    private static final Color BLUE = new Color(27, 86, 177);
+    private static final Color GOLD = new Color(224, 170, 29);
+    private static final Color GOLD_LIGHT = new Color(253, 247, 229);
+    private static final Color GREEN = new Color(23, 137, 95);
     private static final Color LIGHT = new Color(247, 249, 252);
-    private static final Color BORDER = new Color(194, 207, 224);
-    private static final Color MUTED = new Color(72, 88, 111);
-    private static final Color GREEN = new Color(15, 130, 86);
+    private static final Color BORDER = new Color(208, 218, 231);
+    private static final Color MUTED = new Color(87, 101, 119);
+    private static final Color SHADOW = new Color(229, 234, 241);
 
     private final ChargeRepository chargeRepository;
     private final String bankName;
@@ -60,8 +67,8 @@ public class PaymentGuidePdfService {
     private final boolean paymentQrEnabled;
     private final String paymentQrPayloadTemplate;
     private final String whatsappNumber;
-    private final String institutionWebsite;
-    private final String financeEmail;
+    private final String institutionalSite;
+    private final String financialEmail;
 
     public PaymentGuidePdfService(
             ChargeRepository chargeRepository,
@@ -69,26 +76,26 @@ public class PaymentGuidePdfService {
             @Value("${secretariapay.payment.account-holder:OMNEN INTELENGENDA}") String accountHolder,
             @Value("${secretariapay.payment.iban:AO06 0040 0000 6014 4677 1017 1}") String iban,
             @Value("${secretariapay.payment.account-number:06014467710001}") String accountNumber,
-            @Value("${secretariapay.payment.multicaixa-reference:Multicaixa Express / transferência bancária}") String multicaixaReference,
-            @Value("${secretariapay.payment.mobile-money-info:Unitel Money / Afrimoney quando autorizado}") String mobileMoneyInfo,
+            @Value("${secretariapay.payment.multicaixa-reference:Multicaixa Express / transferência bancária para a conta AKZ indicada}") String multicaixaReference,
+            @Value("${secretariapay.payment.mobile-money-info:Unitel Money/Afrimoney quando autorizado pela instituição}") String mobileMoneyInfo,
             @Value("${secretariapay.payment.qr-enabled:true}") boolean paymentQrEnabled,
             @Value("${secretariapay.payment.qr-payload-template:}") String paymentQrPayloadTemplate,
-            @Value("${secretariapay.contact.whatsapp:+244 923 168 085}") String whatsappNumber,
-            @Value("${secretariapay.contact.website:www.imetroangola.com}") String institutionWebsite,
-            @Value("${secretariapay.contact.finance-email:secretaria.financeira@imetroangola.com}") String financeEmail
+            @Value("${secretariapay.institution.whatsapp:+244 923 168 085}") String whatsappNumber,
+            @Value("${secretariapay.institution.site:www.imetroangola.com}") String institutionalSite,
+            @Value("${secretariapay.institution.financial-email:secretaria.financeira@imetroangola.com}") String financialEmail
     ) {
         this.chargeRepository = chargeRepository;
         this.bankName = clean(bankName, "Banco Angolano de Investimento");
         this.accountHolder = clean(accountHolder, "OMNEN INTELENGENDA");
         this.iban = clean(iban, "AO06 0040 0000 6014 4677 1017 1");
         this.accountNumber = clean(accountNumber, "06014467710001");
-        this.multicaixaReference = clean(multicaixaReference, "Multicaixa Express / transferência bancária");
-        this.mobileMoneyInfo = clean(mobileMoneyInfo, "Unitel Money / Afrimoney quando autorizado");
+        this.multicaixaReference = clean(multicaixaReference, "Multicaixa Express / transferência bancária para a conta AKZ indicada");
+        this.mobileMoneyInfo = clean(mobileMoneyInfo, "Unitel Money/Afrimoney quando autorizado pela instituição");
         this.paymentQrEnabled = paymentQrEnabled;
         this.paymentQrPayloadTemplate = paymentQrPayloadTemplate == null ? "" : paymentQrPayloadTemplate.trim();
         this.whatsappNumber = clean(whatsappNumber, "+244 923 168 085");
-        this.institutionWebsite = clean(institutionWebsite, "www.imetroangola.com");
-        this.financeEmail = clean(financeEmail, "secretaria.financeira@imetroangola.com");
+        this.institutionalSite = clean(institutionalSite, "www.imetroangola.com");
+        this.financialEmail = clean(financialEmail, "secretaria.financeira@imetroangola.com");
     }
 
     @Transactional(readOnly = true)
@@ -123,232 +130,249 @@ public class PaymentGuidePdfService {
         Course course = academicClass != null ? academicClass.getCourse() : null;
         Institution institution = course != null ? course.getInstitution() : null;
 
-        float width = page.getMediaBox().getWidth();
-        float margin = 34;
-        float innerWidth = width - (margin * 2);
+        float pageWidth = page.getMediaBox().getWidth();
+        float margin = 28;
+        float width = pageWidth - (margin * 2);
+        LocalDateTime issuedAt = LocalDateTime.now();
+        String hash = documentHash(charge, issuedAt);
 
-        content.setNonStrokingColor(Color.WHITE);
-        content.addRect(0, 0, width, page.getMediaBox().getHeight());
-        content.fill();
-
-        drawTopBand(content, width);
-        drawHeader(document, content, institution, margin, 553, innerWidth);
-        drawTitle(content, width, 478);
-        drawIdentityStrip(content, charge, margin, 433, innerWidth);
-        drawStudentSection(content, student, academicClass, course, margin, 370, innerWidth);
-        drawChargeSection(content, charge, margin, 292, innerWidth);
-        drawPaymentAndInstructions(document, content, charge, margin, 205, innerWidth);
-        drawValidationAndContact(document, content, charge, margin, 83, innerWidth);
-        drawFooter(content, width);
+        drawPageBackground(content, pageWidth, page.getMediaBox().getHeight());
+        drawHeader(document, content, institution, margin, 555, width);
+        drawTitle(content, pageWidth, 480);
+        drawIdentityCards(content, charge, margin, 430, width);
+        drawStudentSection(content, student, academicClass, course, margin, 352, width);
+        drawChargeSection(content, charge, margin, 274, width);
+        drawPaymentAndInstructions(document, content, charge, margin, 183, width);
+        drawValidationAndSupport(document, content, charge, issuedAt, hash, margin, 82, width);
+        drawFooter(content, pageWidth, issuedAt, hash);
     }
 
-    private void drawTopBand(PDPageContentStream content, float width) throws Exception {
+    private void drawPageBackground(PDPageContentStream content, float width, float height) throws Exception {
+        content.setNonStrokingColor(Color.WHITE);
+        content.addRect(0, 0, width, height);
+        content.fill();
         content.setNonStrokingColor(NAVY);
-        content.addRect(0, 578, width, 18);
+        content.addRect(0, height - 12, width, 12);
         content.fill();
         content.setNonStrokingColor(GOLD);
-        content.addRect(0, 573, width, 5);
+        content.addRect(0, height - 17, width, 5);
         content.fill();
     }
 
     private void drawHeader(PDDocument document, PDPageContentStream content, Institution institution,
                             float x, float y, float width) throws Exception {
-        drawImetroLogo(document, content, x + 8, y - 48, 78, 54);
+        shadowBox(content, x, y - 62, width, 58, Color.WHITE, BORDER);
 
-        drawCenteredText(content, institutionName(institution).toUpperCase(Locale.ROOT),
-                PDType1Font.HELVETICA_BOLD, 13, x + width / 2, y - 15, NAVY);
-        drawCenteredText(content, "Secretaria Financeira | Gestão Académica e Financeira",
-                PDType1Font.HELVETICA_BOLD, 10, x + width / 2, y - 34, NAVY);
-        drawCenteredText(content, "Documento emitido eletronicamente pelo SecretáriaPay",
-                PDType1Font.HELVETICA, 9, x + width / 2, y - 51, BLUE);
+        drawImetroLogo(document, content, x + 15, y - 53, 55, 43);
+        drawText(content, institutionName(institution), PDType1Font.HELVETICA_BOLD, 12.5f, x + 88, y - 20, NAVY);
+        drawText(content, "Secretaria Financeira | Gestão Académica e Financeira", PDType1Font.HELVETICA_BOLD, 9.2f, x + 88, y - 39, NAVY_2);
+        drawText(content, "Documento emitido eletronicamente pelo SecretáriaPay", PDType1Font.HELVETICA, 8.2f, x + 88, y - 54, MUTED);
 
-        drawSecretariaPayBrand(content, x + width - 180, y - 48);
+        drawSecretariaPayBrand(content, x + width - 206, y - 50);
     }
 
-    private void drawImetroLogo(PDDocument document, PDPageContentStream content,
-                                float x, float y, float width, float height) {
+    private void drawImetroLogo(PDDocument document, PDPageContentStream content, float x, float y, float w, float h) throws Exception {
         try {
             ClassPathResource logoResource = new ClassPathResource("static/assets/imetro.png");
             if (logoResource.exists()) {
-                PDImageXObject logo = PDImageXObject.createFromByteArray(document,
-                        logoResource.getInputStream().readAllBytes(), "imetro-logo");
-                content.drawImage(logo, x, y, width, height);
+                PDImageXObject logo = PDImageXObject.createFromByteArray(document, logoResource.getInputStream().readAllBytes(), "imetro-logo");
+                content.drawImage(logo, x, y, w, h);
+                return;
             }
         } catch (Exception ignored) {
         }
+        drawText(content, "IMETRO", PDType1Font.HELVETICA_BOLD, 15, x, y + 15, GOLD);
     }
 
     private void drawSecretariaPayBrand(PDPageContentStream content, float x, float y) throws Exception {
-        content.setNonStrokingColor(NAVY);
-        content.addRect(x, y + 6, 34, 34);
+        roundedBox(content, x, y, 34, 34, NAVY, NAVY);
+        roundedBox(content, x + 5, y + 5, 24, 24, NAVY, GOLD);
+        drawCenteredText(content, "SP", PDType1Font.HELVETICA_BOLD, 10, x + 17, y + 12, Color.WHITE);
+        drawText(content, "Secretária", PDType1Font.HELVETICA_BOLD, 16, x + 45, y + 17, NAVY);
+        drawText(content, "Pay", PDType1Font.HELVETICA_BOLD, 16, x + 117, y + 17, GOLD);
+        drawText(content, "SISTEMA DE GESTÃO FINANCEIRA ACADÉMICA", PDType1Font.HELVETICA_BOLD, 5.8f, x + 45, y + 4, MUTED);
+    }
+
+    private void drawTitle(PDPageContentStream content, float pageWidth, float y) throws Exception {
+        drawCenteredText(content, "GUIA DE PAGAMENTO ACADÉMICO", PDType1Font.HELVETICA_BOLD, 21, pageWidth / 2, y, NAVY);
+        drawCenteredText(content, "Documento oficial para regularização financeira", PDType1Font.HELVETICA, 9.2f, pageWidth / 2, y - 17, MUTED);
+        pill(content, pageWidth / 2 - 58, y - 38, 116, 17, GOLD_LIGHT, GOLD, "DOCUMENTO OFICIAL", NAVY);
+    }
+
+    private void drawIdentityCards(PDPageContentStream content, Charge charge, float x, float y, float width) throws Exception {
+        float gap = 9;
+        float cardW = (width - gap * 3) / 4;
+        identityCard(content, "GUIA Nº", safe(charge.getChargeCode()), x, y - 48, cardW, NAVY_2);
+        identityCard(content, "EMISSÃO", LocalDate.now().format(DATE_FORMATTER), x + cardW + gap, y - 48, cardW, BLUE);
+        identityCard(content, "VENCIMENTO", formatDate(charge.getDueDate()), x + (cardW + gap) * 2, y - 48, cardW, NAVY_2);
+        identityCard(content, "SITUAÇÃO", chargeStatus(charge), x + (cardW + gap) * 3, y - 48, cardW, GOLD);
+    }
+
+    private void identityCard(PDPageContentStream content, String label, String value, float x, float y,
+                              float width, Color accent) throws Exception {
+        shadowBox(content, x, y, width, 44, Color.WHITE, BORDER);
+        content.setNonStrokingColor(accent);
+        content.addRect(x, y, 5, 44);
         content.fill();
-        content.setStrokingColor(GOLD);
-        content.setLineWidth(2);
-        content.addRect(x + 7, y + 13, 20, 20);
-        content.stroke();
-        drawCenteredText(content, "SP", PDType1Font.HELVETICA_BOLD, 9, x + 17, y + 20, Color.WHITE);
-
-        drawText(content, "Secretária", PDType1Font.HELVETICA_BOLD, 18, x + 44, y + 23, NAVY);
-        drawText(content, "Pay", PDType1Font.HELVETICA_BOLD, 18, x + 121, y + 23, GOLD);
-        drawText(content, "SISTEMA DE GESTÃO FINANCEIRA ACADÉMICA",
-                PDType1Font.HELVETICA_BOLD, 5.8f, x + 45, y + 9, MUTED);
+        drawText(content, label, PDType1Font.HELVETICA_BOLD, 7.2f, x + 13, y + 29, MUTED);
+        drawFittedText(content, value, PDType1Font.HELVETICA_BOLD, 10.5f, 7.2f, x + 13, y + 11, width - 23, NAVY);
     }
 
-    private void drawTitle(PDPageContentStream content, float width, float y) throws Exception {
-        drawCenteredText(content, "GUIA DE PAGAMENTO ACADÉMICO",
-                PDType1Font.HELVETICA_BOLD, 22, width / 2, y, NAVY);
-        drawCenteredText(content, "Documento oficial para regularização financeira",
-                PDType1Font.HELVETICA, 10, width / 2, y - 19, MUTED);
+    private void drawStudentSection(PDPageContentStream content, Student student, AcademicClass academicClass,
+                                    Course course, float x, float y, float width) throws Exception {
+        sectionHeader(content, "DADOS DO ESTUDANTE", x, y, width);
+        shadowBox(content, x, y - 63, width, 49, Color.WHITE, BORDER);
+        float col = width / 3;
+        infoPair(content, "NOME COMPLETO", student != null ? student.getFullName() : "-", x + 15, y - 31, col - 25);
+        infoPair(content, "MATRÍCULA", student != null ? student.getStudentNumber() : "-", x + col + 10, y - 31, col - 20);
+        infoPair(content, "DOCUMENTO", student != null ? safe(student.getDocumentType()) + " " + safe(student.getDocumentNumber()) : "-", x + col * 2 + 10, y - 31, col - 25);
+        infoPair(content, "CURSO", course != null ? course.getName() : "-", x + 15, y - 52, col - 25);
+        infoPair(content, "TURMA", academicClass != null ? academicClass.getName() : "-", x + col + 10, y - 52, col - 20);
+        infoPair(content, "ANO ACADÉMICO", academicClass != null ? academicClass.getAcademicYear() : "-", x + col * 2 + 10, y - 52, col - 25);
     }
 
-    private void drawIdentityStrip(PDPageContentStream content, Charge charge,
-                                   float x, float y, float width) throws Exception {
-        roundedBox(content, x, y - 48, width, 48, Color.WHITE, BORDER);
-        float col = width / 4;
+    private void drawChargeSection(PDPageContentStream content, Charge charge, float x, float y, float width) throws Exception {
+        sectionHeader(content, "DETALHES DA COBRANÇA", x, y, width);
+        shadowBox(content, x, y - 64, width, 50, Color.WHITE, BORDER);
 
-        identityItem(content, "Nº DA GUIA", safe(charge.getChargeCode()), x + 18, y - 16, col - 25);
-        identityItem(content, "DATA DE EMISSÃO", LocalDate.now().format(DATE_FORMATTER), x + col + 16, y - 16, col - 25);
-        identityItem(content, "VALIDADE", formatDate(charge.getDueDate()), x + col * 2 + 16, y - 16, col - 25);
-        identityItem(content, "SITUAÇÃO", statusLabel(charge), x + col * 3 + 16, y - 16, col - 25);
-    }
+        float col = width / 3;
+        infoPair(content, "DESCRIÇÃO", safe(charge.getDescription()), x + 15, y - 32, col - 25);
+        infoPair(content, "REFERÊNCIA", safe(charge.getReferenceMonth()), x + col + 10, y - 32, col - 20);
+        infoPair(content, "VENCIMENTO", formatDate(charge.getDueDate()), x + col * 2 + 10, y - 32, col - 25);
 
-    private void identityItem(PDPageContentStream content, String label, String value,
-                              float x, float y, float maxWidth) throws Exception {
-        drawText(content, label, PDType1Font.HELVETICA_BOLD, 8, x, y, MUTED);
-        drawWrappedText(content, value, PDType1Font.HELVETICA_BOLD, 11, x, y - 17, maxWidth, 12, NAVY);
-    }
-
-    private void drawStudentSection(PDPageContentStream content, Student student,
-                                    AcademicClass academicClass, Course course,
-                                    float x, float y, float width) throws Exception {
-        sectionTitle(content, "DADOS DO ESTUDANTE", x, y, width);
-        roundedBox(content, x, y - 66, width, 48, Color.WHITE, BORDER);
-
-        float c1 = x + 16;
-        float c2 = x + width * 0.44f;
-        float c3 = x + width * 0.78f;
-
-        info(content, "NOME COMPLETO", student != null ? student.getFullName() : "-", c1, y - 34, width * 0.37f);
-        info(content, "MATRÍCULA", student != null ? student.getStudentNumber() : "-", c2, y - 34, width * 0.27f);
-        info(content, "DOCUMENTO", student != null ? safe(student.getDocumentType()) + " " + safe(student.getDocumentNumber()) : "-", c3, y - 34, width * 0.19f);
-
-        info(content, "CURSO", course != null ? course.getName() : "-", c1, y - 55, width * 0.37f);
-        info(content, "TURMA", academicClass != null ? academicClass.getName() : "-", c2, y - 55, width * 0.27f);
-        info(content, "ANO ACADÉMICO", academicClass != null ? academicClass.getAcademicYear() : "-", c3, y - 55, width * 0.19f);
-    }
-
-    private void drawChargeSection(PDPageContentStream content, Charge charge,
-                                   float x, float y, float width) throws Exception {
-        sectionTitle(content, "DETALHES DA COBRANÇA", x, y, width);
-        roundedBox(content, x, y - 72, width, 54, Color.WHITE, BORDER);
-
-        info(content, "DESCRIÇÃO", charge.getDescription(), x + 16, y - 35, width * 0.40f);
-        info(content, "REFERÊNCIA", charge.getReferenceMonth(), x + width * 0.47f, y - 35, width * 0.24f);
-        info(content, "VENCIMENTO", formatDate(charge.getDueDate()), x + width * 0.79f, y - 35, width * 0.18f);
-
-        BigDecimal base = value(charge.getAmount());
+        BigDecimal base = charge.getAmount() == null ? BigDecimal.ZERO : charge.getAmount();
         BigDecimal total = charge.getTotalAmount() == null ? base : charge.getTotalAmount();
         BigDecimal adjustments = total.subtract(base);
 
-        drawText(content, "VALOR BASE", PDType1Font.HELVETICA_BOLD, 7.5f, x + 16, y - 58, MUTED);
-        drawText(content, formatMoney(base, charge.getCurrency()), PDType1Font.HELVETICA_BOLD, 11, x + 16, y - 70, NAVY);
-        drawText(content, "ACRÉSCIMOS/AJUSTES", PDType1Font.HELVETICA_BOLD, 7.5f, x + width * 0.39f, y - 58, MUTED);
-        drawText(content, formatMoney(adjustments, charge.getCurrency()), PDType1Font.HELVETICA_BOLD, 11, x + width * 0.39f, y - 70, NAVY);
-        drawText(content, "TOTAL A PAGAR", PDType1Font.HELVETICA_BOLD, 8, x + width * 0.74f, y - 58, NAVY);
-        drawText(content, formatMoney(total, charge.getCurrency()), PDType1Font.HELVETICA_BOLD, 16, x + width * 0.74f, y - 72, GOLD_DARK);
+        moneyCell(content, "VALOR BASE", formatMoney(base, charge.getCurrency()), x + 15, y - 57, col - 25, NAVY);
+        moneyCell(content, "ACRÉSCIMOS/AJUSTES", formatMoney(adjustments, charge.getCurrency()), x + col + 10, y - 57, col - 20, NAVY);
+        roundedBox(content, x + col * 2 + 5, y - 61, col - 15, 25, GOLD_LIGHT, GOLD);
+        drawText(content, "TOTAL A PAGAR", PDType1Font.HELVETICA_BOLD, 7.2f, x + col * 2 + 17, y - 46, MUTED);
+        drawFittedText(content, formatMoney(total, charge.getCurrency()), PDType1Font.HELVETICA_BOLD, 17, 12,
+                x + col * 2 + 17, y - 59, col - 38, GOLD);
     }
 
     private void drawPaymentAndInstructions(PDDocument document, PDPageContentStream content, Charge charge,
                                             float x, float y, float width) throws Exception {
-        float leftWidth = width * 0.76f;
-        float rightX = x + leftWidth + 12;
-        float rightWidth = width - leftWidth - 12;
+        float instructionsW = 190;
+        float gap = 10;
+        float paymentW = width - instructionsW - gap;
 
-        sectionTitle(content, "FORMAS DE PAGAMENTO", x, y, leftWidth);
-        roundedBox(content, x, y - 105, leftWidth, 87, Color.WHITE, BORDER);
+        sectionHeader(content, "FORMAS DE PAGAMENTO", x, y, paymentW);
+        shadowBox(content, x, y - 81, paymentW, 67, Color.WHITE, BORDER);
+        float detailsW = paymentW - 112;
+        float col = detailsW / 2;
 
-        info(content, "BENEFICIÁRIO", accountHolder, x + 16, y - 36, leftWidth * 0.34f);
-        info(content, "BANCO", bankName, x + 16, y - 62, leftWidth * 0.34f);
-        info(content, "Nº DA CONTA (AKZ)", accountNumber, x + 16, y - 88, leftWidth * 0.34f);
-        info(content, "IBAN", iban, x + leftWidth * 0.40f, y - 36, leftWidth * 0.36f);
-        info(content, "MEIOS DE PAGAMENTO", multicaixaReference + " | " + mobileMoneyInfo,
-                x + leftWidth * 0.40f, y - 62, leftWidth * 0.36f);
+        infoPair(content, "BENEFICIÁRIO", accountHolder, x + 15, y - 34, col - 20);
+        infoPair(content, "IBAN", iban, x + col + 10, y - 34, col - 20);
+        infoPair(content, "BANCO", bankName, x + 15, y - 57, col - 20);
+        infoPair(content, "Nº DA CONTA (AKZ)", accountNumber, x + col + 10, y - 57, col - 20);
+        drawWrappedText(content, multicaixaReference + " | " + mobileMoneyInfo,
+                PDType1Font.HELVETICA_BOLD, 7.2f, x + 15, y - 73, detailsW - 22, 8, MUTED);
 
         if (paymentQrEnabled) {
-            BufferedImage qrImage = createQr(buildPaymentPayload(charge));
-            PDImageXObject qr = LosslessFactory.createFromImage(document, qrImage);
-            content.drawImage(qr, x + leftWidth - 92, y - 96, 76, 76);
-            drawCenteredText(content, "QR CODE PARA PAGAMENTO", PDType1Font.HELVETICA_BOLD, 7,
-                    x + leftWidth - 54, y - 14, NAVY);
+            drawQr(document, content, buildPaymentPayload(charge), x + paymentW - 92, y - 77, 72);
+            drawCenteredText(content, "QR PARA PAGAMENTO", PDType1Font.HELVETICA_BOLD, 6.5f,
+                    x + paymentW - 56, y - 12, NAVY);
         }
 
-        roundedBox(content, rightX, y - 105, rightWidth, 105, NAVY, NAVY);
-        drawText(content, "INSTRUÇÕES IMPORTANTES", PDType1Font.HELVETICA_BOLD, 9, rightX + 12, y - 18, Color.WHITE);
-        drawBullet(content, "Efetue o pagamento até à data de vencimento.", rightX + 12, y - 39, rightWidth - 24);
-        drawBullet(content, "Após o pagamento, envie o comprovativo pelo WhatsApp institucional.", rightX + 12, y - 63, rightWidth - 24);
-        drawBullet(content, "O recibo oficial será emitido após validação ou confirmação automática.", rightX + 12, y - 87, rightWidth - 24);
+        float ix = x + paymentW + gap;
+        roundedBox(content, ix, y - 81, instructionsW, 81, NAVY, NAVY);
+        drawText(content, "INSTRUÇÕES IMPORTANTES", PDType1Font.HELVETICA_BOLD, 9, ix + 13, y - 18, Color.WHITE);
+        drawBullet(content, "Efetue o pagamento até à data de vencimento.", ix + 13, y - 36, instructionsW - 26);
+        drawBullet(content, "Após o pagamento, envie o comprovativo pelo WhatsApp institucional.", ix + 13, y - 53, instructionsW - 26);
+        drawBullet(content, "O recibo será emitido após validação ou confirmação automática.", ix + 13, y - 70, instructionsW - 26);
     }
 
-    private void drawValidationAndContact(PDDocument document, PDPageContentStream content, Charge charge,
-                                          float x, float y, float width) throws Exception {
-        float leftWidth = width * 0.64f;
-        float rightX = x + leftWidth + 12;
-        float rightWidth = width - leftWidth - 12;
+    private void drawValidationAndSupport(PDDocument document, PDPageContentStream content, Charge charge,
+                                          LocalDateTime issuedAt, String hash, float x, float y, float width) throws Exception {
+        float gap = 10;
+        float validationW = width * 0.62f;
+        float supportW = width - validationW - gap;
+        String validationUrl = publicGuideUrl(charge.getChargeCode());
 
-        sectionTitle(content, "VALIDAÇÃO DIGITAL", x, y, leftWidth);
-        roundedBox(content, x, y - 72, leftWidth, 54, Color.WHITE, BORDER);
-        String url = publicGuideUrl(charge.getChargeCode());
-        drawText(content, "Código de validação:", PDType1Font.HELVETICA_BOLD, 8, x + 16, y - 37, MUTED);
-        drawText(content, safe(charge.getChargeCode()), PDType1Font.HELVETICA_BOLD, 10, x + 16, y - 52, NAVY);
-        drawWrappedText(content, "Verifique a autenticidade deste documento no sistema ou através do QR Code.",
-                PDType1Font.HELVETICA, 8.5f, x + 16, y - 66, leftWidth - 130, 10, MUTED);
+        sectionHeader(content, "VALIDAÇÃO DIGITAL", x, y, validationW);
+        shadowBox(content, x, y - 66, validationW, 52, Color.WHITE, BORDER);
+        pill(content, x + 14, y - 47, 92, 19, new Color(232, 247, 240), GREEN, "EMITIDO DIGITALMENTE", GREEN);
+        drawText(content, "Código de validação:", PDType1Font.HELVETICA_BOLD, 7, x + 118, y - 31, MUTED);
+        drawFittedText(content, safe(charge.getChargeCode()), PDType1Font.HELVETICA_BOLD, 9.2f, 7,
+                x + 118, y - 45, validationW - 225, NAVY);
+        drawText(content, "Versão " + DOCUMENT_VERSION + " | " + issuedAt.format(DATE_TIME_FORMATTER),
+                PDType1Font.HELVETICA, 6.8f, x + 118, y - 58, MUTED);
+        drawQr(document, content, validationUrl, x + validationW - 63, y - 61, 48);
 
-        BufferedImage qrImage = createQr(url);
-        PDImageXObject qr = LosslessFactory.createFromImage(document, qrImage);
-        content.drawImage(qr, x + leftWidth - 78, y - 67, 58, 58);
-        drawCenteredText(content, "QR CODE DE VALIDAÇÃO", PDType1Font.HELVETICA_BOLD, 6.8f,
-                x + leftWidth - 49, y - 14, NAVY);
-
-        roundedBox(content, rightX, y - 72, rightWidth, 72, new Color(255, 251, 240), new Color(226, 187, 79));
-        drawText(content, "ATENDIMENTO FINANCEIRO", PDType1Font.HELVETICA_BOLD, 10, rightX + 14, y - 22, NAVY);
-        drawWrappedText(content, "Em caso de dúvidas, entre em contacto pelo WhatsApp institucional.",
-                PDType1Font.HELVETICA, 8.5f, rightX + 14, y - 39, rightWidth - 28, 10, MUTED);
-        drawText(content, whatsappNumber, PDType1Font.HELVETICA_BOLD, 11, rightX + 14, y - 61, GOLD_DARK);
+        float sx = x + validationW + gap;
+        shadowBox(content, sx, y - 66, supportW, 66, GOLD_LIGHT, new Color(233, 199, 102));
+        drawText(content, "ATENDIMENTO FINANCEIRO", PDType1Font.HELVETICA_BOLD, 9.2f, sx + 14, y - 20, NAVY);
+        drawWrappedText(content, "Em caso de dúvidas, contacte a Secretaria Financeira pelo WhatsApp institucional.",
+                PDType1Font.HELVETICA, 7.5f, sx + 14, y - 36, supportW - 28, 9, MUTED);
+        drawText(content, whatsappNumber, PDType1Font.HELVETICA_BOLD, 10, sx + 14, y - 58, GOLD);
     }
 
-    private void drawFooter(PDPageContentStream content, float width) throws Exception {
-        content.setNonStrokingColor(NAVY_DARK);
-        content.addRect(0, 0, width, 30);
-        content.fill();
-        drawText(content, "IMETRO - Secretaria Financeira", PDType1Font.HELVETICA_BOLD, 8, 34, 18, Color.WHITE);
-        drawCenteredText(content, institutionWebsite + "   |   " + financeEmail,
-                PDType1Font.HELVETICA, 8, width / 2, 18, Color.WHITE);
-        drawText(content, "Powered by SecretáriaPay", PDType1Font.HELVETICA_BOLD, 8, width - 150, 18, Color.WHITE);
-        drawCenteredText(content, "Documento oficial gerado pelo SecretáriaPay Académico",
-                PDType1Font.HELVETICA, 6.5f, width / 2, 7, new Color(210, 220, 234));
-    }
-
-    private void sectionTitle(PDPageContentStream content, String title, float x, float y, float width) throws Exception {
+    private void drawFooter(PDPageContentStream content, float pageWidth, LocalDateTime issuedAt, String hash) throws Exception {
         content.setNonStrokingColor(NAVY);
-        content.addRect(x, y - 18, width, 18);
+        content.addRect(0, 0, pageWidth, 36);
         content.fill();
         content.setNonStrokingColor(GOLD);
-        content.addRect(x, y - 18, 6, 18);
+        content.addRect(0, 36, pageWidth, 3);
         content.fill();
-        drawText(content, title, PDType1Font.HELVETICA_BOLD, 9.5f, x + 15, y - 13, Color.WHITE);
+
+        drawText(content, "IMETRO - Secretaria Financeira", PDType1Font.HELVETICA_BOLD, 7.4f, 28, 23, Color.WHITE);
+        drawText(content, "Documento oficial gerado pelo SecretáriaPay Académico", PDType1Font.HELVETICA, 6.2f, 28, 11, new Color(220, 228, 238));
+        drawCenteredText(content, institutionalSite + "  |  " + financialEmail, PDType1Font.HELVETICA, 7,
+                pageWidth / 2, 20, Color.WHITE);
+        drawCenteredText(content, "Versão " + DOCUMENT_VERSION + " | " + issuedAt.format(DATE_TIME_FORMATTER),
+                PDType1Font.HELVETICA, 5.8f, pageWidth / 2, 9, new Color(220, 228, 238));
+        drawText(content, "Powered by SecretáriaPay | TRIA Company", PDType1Font.HELVETICA_BOLD, 7,
+                pageWidth - 192, 23, Color.WHITE);
+        drawFittedText(content, "HASH: " + hash, PDType1Font.COURIER, 5.5f, 4.6f,
+                pageWidth - 192, 11, 164, new Color(220, 228, 238));
     }
 
-    private void info(PDPageContentStream content, String label, String value,
-                      float x, float y, float maxWidth) throws Exception {
-        drawText(content, label, PDType1Font.HELVETICA_BOLD, 7.3f, x, y, MUTED);
-        drawWrappedText(content, safe(value), PDType1Font.HELVETICA_BOLD, 9.2f,
-                x, y - 13, maxWidth, 10.5f, NAVY);
+    private void sectionHeader(PDPageContentStream content, String title, float x, float y, float width) throws Exception {
+        roundedBox(content, x, y - 14, width, 14, NAVY, NAVY);
+        content.setNonStrokingColor(GOLD);
+        content.addRect(x, y - 14, 5, 14);
+        content.fill();
+        drawText(content, title, PDType1Font.HELVETICA_BOLD, 8.5f, x + 14, y - 10, Color.WHITE);
+    }
+
+    private void infoPair(PDPageContentStream content, String label, String value, float x, float y, float maxWidth) throws Exception {
+        drawText(content, label, PDType1Font.HELVETICA_BOLD, 6.5f, x, y + 8, MUTED);
+        drawFittedText(content, safe(value), PDType1Font.HELVETICA_BOLD, 8.6f, 6.5f, x, y - 2, maxWidth, NAVY);
+    }
+
+    private void moneyCell(PDPageContentStream content, String label, String value, float x, float y,
+                           float maxWidth, Color color) throws Exception {
+        drawText(content, label, PDType1Font.HELVETICA_BOLD, 6.5f, x, y + 7, MUTED);
+        drawFittedText(content, value, PDType1Font.HELVETICA_BOLD, 9.8f, 7.4f, x, y - 4, maxWidth, color);
     }
 
     private void drawBullet(PDPageContentStream content, String text, float x, float y, float maxWidth) throws Exception {
-        drawText(content, "✓", PDType1Font.ZAPF_DINGBATS, 9, x, y, Color.WHITE);
-        drawWrappedText(content, text, PDType1Font.HELVETICA_BOLD, 7.8f,
-                x + 14, y, maxWidth - 14, 9.5f, Color.WHITE);
+        drawText(content, "✓", PDType1Font.ZAPF_DINGBATS, 8, x, y + 1, Color.WHITE);
+        drawWrappedText(content, text, PDType1Font.HELVETICA_BOLD, 6.7f, x + 12, y,
+                maxWidth - 12, 7.6f, Color.WHITE);
+    }
+
+    private void drawQr(PDDocument document, PDPageContentStream content, String value,
+                        float x, float y, float size) throws Exception {
+        roundedBox(content, x - 4, y - 4, size + 8, size + 8, Color.WHITE, BORDER);
+        BufferedImage qrImage = createQr(value);
+        PDImageXObject qr = LosslessFactory.createFromImage(document, qrImage);
+        content.drawImage(qr, x, y, size, size);
+    }
+
+    private void pill(PDPageContentStream content, float x, float y, float width, float height,
+                      Color fill, Color stroke, String text, Color textColor) throws Exception {
+        roundedBox(content, x, y, width, height, fill, stroke);
+        drawCenteredText(content, text, PDType1Font.HELVETICA_BOLD, 6.7f,
+                x + width / 2, y + 5.5f, textColor);
+    }
+
+    private void shadowBox(PDPageContentStream content, float x, float y, float width, float height,
+                           Color fill, Color stroke) throws Exception {
+        roundedBox(content, x + 2.5f, y - 2.5f, width, height, SHADOW, SHADOW);
+        roundedBox(content, x, y, width, height, fill, stroke);
     }
 
     private void roundedBox(PDPageContentStream content, float x, float y, float width, float height,
@@ -357,7 +381,6 @@ public class PaymentGuidePdfService {
         content.addRect(x, y, width, height);
         content.fill();
         content.setStrokingColor(stroke);
-        content.setLineWidth(0.8f);
         content.addRect(x, y, width, height);
         content.stroke();
     }
@@ -394,28 +417,32 @@ public class PaymentGuidePdfService {
         return API_BASE_URL + "/api/v1/public/payment-guides/" + chargeCode + "/pdf";
     }
 
-    private String statusLabel(Charge charge) {
+    private String institutionName(Institution institution) {
+        if (institution != null && institution.getLegalName() != null && !institution.getLegalName().isBlank()) return institution.getLegalName();
+        if (institution != null && institution.getName() != null && !institution.getName().isBlank()) return institution.getName();
+        return "Instituto Superior Politécnico Metropolitano de Angola";
+    }
+
+    private String chargeStatus(Charge charge) {
         if (charge == null || charge.getStatus() == null) return "PENDENTE";
-        return switch (charge.getStatus().name()) {
+        String status = charge.getStatus().name();
+        return switch (status) {
             case "PAID" -> "PAGO";
-            case "CANCELLED", "CANCELED" -> "CANCELADO";
+            case "CANCELLED" -> "CANCELADO";
             case "OVERDUE" -> "VENCIDO";
             default -> "PENDENTE";
         };
     }
 
-    private String institutionName(Institution institution) {
-        if (institution != null && institution.getLegalName() != null && !institution.getLegalName().isBlank()) {
-            return institution.getLegalName();
+    private String documentHash(Charge charge, LocalDateTime issuedAt) {
+        try {
+            String source = safe(charge.getId()) + "|" + safe(charge.getChargeCode()) + "|"
+                    + amountPlain(charge.getTotalAmount()) + "|" + issuedAt + "|" + DOCUMENT_VERSION;
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(source.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().withUpperCase().formatHex(digest).substring(0, 32);
+        } catch (Exception ignored) {
+            return safe(charge.getId()).replace("-", "").toUpperCase(Locale.ROOT);
         }
-        if (institution != null && institution.getName() != null && !institution.getName().isBlank()) {
-            return institution.getName();
-        }
-        return "Instituto Superior Politécnico Metropolitano de Angola";
-    }
-
-    private BigDecimal value(BigDecimal value) {
-        return value == null ? BigDecimal.ZERO : value;
     }
 
     private String clean(String value, String fallback) {
@@ -460,7 +487,27 @@ public class PaymentGuidePdfService {
                                   float size, float centerX, float y, Color color) throws Exception {
         String safeText = pdfSafe(text);
         float textWidth = font.getStringWidth(safeText) / 1000 * size;
-        drawText(content, safeText, font, size, centerX - textWidth / 2, y, color);
+        drawText(content, safeText, font, size, centerX - (textWidth / 2), y, color);
+    }
+
+    private void drawFittedText(PDPageContentStream content, String text, PDType1Font font,
+                                float preferredSize, float minSize, float x, float y,
+                                float maxWidth, Color color) throws Exception {
+        String safeText = pdfSafe(text);
+        float size = preferredSize;
+        while (size > minSize && font.getStringWidth(safeText) / 1000 * size > maxWidth) {
+            size -= 0.4f;
+        }
+        if (font.getStringWidth(safeText) / 1000 * size <= maxWidth) {
+            drawText(content, safeText, font, size, x, y, color);
+            return;
+        }
+        String ellipsis = "...";
+        String candidate = safeText;
+        while (!candidate.isEmpty() && font.getStringWidth(candidate + ellipsis) / 1000 * size > maxWidth) {
+            candidate = candidate.substring(0, candidate.length() - 1);
+        }
+        drawText(content, candidate + ellipsis, font, size, x, y, color);
     }
 
     private void drawWrappedText(PDPageContentStream content, String text, PDType1Font font, float size,
