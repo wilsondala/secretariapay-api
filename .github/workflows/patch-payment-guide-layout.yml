@@ -1,0 +1,49 @@
+name: Patch payment guide layout
+
+on:
+  push:
+    branches:
+      - fix/consolidar-propinas-referencia
+
+permissions:
+  contents: write
+
+jobs:
+  patch-layout:
+    if: ${{ !contains(github.event.head_commit.message, 'fix: ajustar espaçamento visual da guia 3.1') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/consolidar-propinas-referencia
+          fetch-depth: 0
+
+      - name: Correct vertical spacing
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/main/java/com/secretariapay/api/service/financial/PaymentGuidePdfService.java')
+          content = path.read_text(encoding='utf-8')
+          original = content
+          content = content.replace(
+              'drawStudent(content, student, academicClass, course, margin, 574, width);',
+              'drawStudent(content, student, academicClass, course, margin, 546, width);'
+          )
+          content = content.replace(
+              'drawCharge(content, charge, margin, 463, width);',
+              'drawCharge(content, charge, margin, 445, width);'
+          )
+          if content == original:
+              raise SystemExit('As coordenadas esperadas não foram encontradas ou já estavam ajustadas.')
+          path.write_text(content, encoding='utf-8')
+          PY
+
+      - name: Commit visual correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/main/java/com/secretariapay/api/service/financial/PaymentGuidePdfService.java
+          git commit -m "fix: ajustar espaçamento visual da guia 3.1"
+          git push origin HEAD:fix/consolidar-propinas-referencia
