@@ -15,6 +15,7 @@ import com.secretariapay.api.service.FallbackNotificationService;
 import com.secretariapay.api.service.financial.FinancialChargeCalculation;
 import com.secretariapay.api.service.financial.FinancialPenaltyCalculatorService;
 import com.secretariapay.api.service.financial.ReceiptService;
+import com.secretariapay.api.service.financial.TuitionChargeSettlementService;
 import com.secretariapay.api.service.whatsapp.WhatsAppCloudApiClient;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,7 @@ public class InfinitePayTestPaymentService {
     private final StudentRepository studentRepository;
     private final ChargeRepository chargeRepository;
     private final ReceiptService receiptService;
+    private final TuitionChargeSettlementService tuitionChargeSettlementService;
     private final FinancialPenaltyCalculatorService penaltyCalculatorService;
     private final Map<String, PendingPayment> pendingPayments = new ConcurrentHashMap<>();
 
@@ -63,7 +65,8 @@ public class InfinitePayTestPaymentService {
             StudentRepository studentRepository,
             ChargeRepository chargeRepository,
             ReceiptService receiptService,
-            FinancialPenaltyCalculatorService penaltyCalculatorService
+            FinancialPenaltyCalculatorService penaltyCalculatorService,
+            TuitionChargeSettlementService tuitionChargeSettlementService
     ) {
         this.properties = properties;
         this.restClient = restClientBuilder.build();
@@ -74,6 +77,7 @@ public class InfinitePayTestPaymentService {
         this.chargeRepository = chargeRepository;
         this.receiptService = receiptService;
         this.penaltyCalculatorService = penaltyCalculatorService;
+        this.tuitionChargeSettlementService = tuitionChargeSettlementService;
     }
 
     public BigDecimal getTestAmountBrl() {
@@ -218,21 +222,17 @@ public class InfinitePayTestPaymentService {
         List<PersistedPayment> result = new ArrayList<>();
 
         for (AcademicLine line : pending.lines()) {
-            Charge charge = new Charge()
-                    .setStudent(student)
-                    .setChargeCode(generateChargeCode())
-                    .setDescription("Teste real InfinitePay - " + line.description())
-                    .setReferenceMonth(line.referenceMonth())
-                    .setDueDate(line.dueDate())
-                    .setAmount(line.baseAmount())
-                    .setFineAmount(line.fineAmount())
-                    .setInterestAmount(line.interestAmount())
-                    .setDiscountAmount(BigDecimal.ZERO)
-                    .setCurrency("AOA")
-                    .setStatus(ChargeStatus.PAID)
-                    .setPaidAt(LocalDateTime.now());
-
-            Charge saved = chargeRepository.save(charge);
+            Charge saved = tuitionChargeSettlementService.settleTuitionPayment(
+                    student,
+                    line.referenceMonth(),
+                    line.description(),
+                    line.dueDate(),
+                    line.baseAmount(),
+                    line.fineAmount(),
+                    line.interestAmount(),
+                    "AOA",
+                    LocalDateTime.now()
+            );
             ReceiptResponse receipt = receiptService.issueOrFindForCharge(saved.getId());
             result.add(new PersistedPayment(line, saved, receipt));
         }

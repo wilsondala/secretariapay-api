@@ -104,7 +104,13 @@ public class TuitionChargeGenerationService {
             Course course = academicClass != null ? academicClass.getCourse() : null;
 
             String chargeCode = buildChargeCode(serviceCode, referenceMonth, student.getStudentNumber());
-            Optional<Charge> existingCharge = chargeRepository.findByChargeCode(chargeCode);
+            LocalDate periodStart = request.getDueDate().withDayOfMonth(1);
+            LocalDate periodEnd = periodStart.plusMonths(1).minusDays(1);
+            Optional<Charge> existingCharge = chargeRepository
+                    .findActiveTuitionByStudentAndPeriodForUpdate(student.getId(), periodStart, periodEnd)
+                    .stream()
+                    .findFirst()
+                    .or(() -> chargeRepository.findByChargeCode(chargeCode));
 
             Charge charge;
             String action;

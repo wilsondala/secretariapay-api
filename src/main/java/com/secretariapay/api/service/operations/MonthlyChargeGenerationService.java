@@ -74,7 +74,13 @@ public class MonthlyChargeGenerationService {
 
                 String referenceMonth = monthLabel(month) + "/" + year;
                 String chargeCode = buildChargeCode(student, year, month);
-                boolean exists = chargeRepository.existsByStudentIdAndReferenceMonthIgnoreCase(student.getId(), referenceMonth)
+                LocalDate periodStart = LocalDate.of(year, month, 1);
+                LocalDate periodEnd = periodStart.plusMonths(1).minusDays(1);
+                boolean exists = chargeRepository.existsActiveTuitionByStudentAndPeriod(
+                                student.getId(),
+                                periodStart,
+                                periodEnd
+                        ) || chargeRepository.existsByStudentIdAndReferenceMonthIgnoreCase(student.getId(), referenceMonth)
                         || chargeRepository.existsByChargeCode(chargeCode);
 
                 if (exists) {
