@@ -134,4 +134,4 @@ log "Deploy controlado concluído"
 printf 'Branch: %s\n' "$(git rev-parse --abbrev-ref HEAD)"
 printf 'Commit: %s\n' "$(git rev-parse HEAD)"
 printf 'Backup: %s\n' "${BACKUP_DIR}"
-printf 'Próximo teste: abrir o Preview Vercel e validar /academic-documents com a matrícula 202301404.\n'
+printf 'Próximo teste: gerar novamente a declaração e validar logos, acentos, QR e envio pelo WhatsApp.\n'
