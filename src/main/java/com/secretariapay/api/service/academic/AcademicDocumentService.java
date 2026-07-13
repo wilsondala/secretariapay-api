@@ -135,9 +135,7 @@ public class AcademicDocumentService {
     @Transactional
     public AcademicDocumentDto.Response sendByWhatsapp(UUID id) {
         AcademicDocumentRequest entity = load(id);
-        if (!"SIGNED".equals(entity.getStatus()) && !"SENT".equals(entity.getStatus())) {
-            throw new IllegalStateException("Somente documentos assinados podem ser enviados.");
-        }
+        ensurePubliclyAvailable(entity);
 
         Student student = entity.getStudent();
         String recipient = firstNonBlank(student.getWhatsapp(), student.getPhone(), student.getGuardianPhone());
@@ -174,17 +172,18 @@ public class AcademicDocumentService {
 
     @Transactional(readOnly = true)
     public byte[] generatePublicPdf(String documentCode) {
-        return pdfService.generate(loadByCode(documentCode));
+        AcademicDocumentRequest entity = loadByCode(documentCode);
+        ensurePubliclyAvailable(entity);
+        return pdfService.generate(entity);
     }
 
     @Transactional(readOnly = true)
     public AcademicDocumentDto.ValidationResponse validatePublic(String documentCode) {
         AcademicDocumentRequest entity = loadByCode(documentCode);
+        ensurePubliclyAvailable(entity);
         Student student = entity.getStudent();
-        boolean valid = ("SIGNED".equals(entity.getStatus()) || "SENT".equals(entity.getStatus()))
-                && !isBlank(entity.getDocumentHash());
         return new AcademicDocumentDto.ValidationResponse(
-                valid,
+                true,
                 entity.getDocumentCode(),
                 entity.getStatus(),
                 student.getStudentNumber(),
@@ -216,6 +215,13 @@ public class AcademicDocumentService {
         }
         if ("CANCELLED".equals(entity.getStatus())) {
             throw new IllegalStateException("Documento cancelado não pode ser alterado.");
+        }
+    }
+
+    private void ensurePubliclyAvailable(AcademicDocumentRequest entity) {
+        boolean signed = "SIGNED".equals(entity.getStatus()) || "SENT".equals(entity.getStatus());
+        if (!signed || isBlank(entity.getDocumentHash()) || entity.getSignedAt() == null) {
+            throw new NotFoundException("Documento assinado não encontrado.");
         }
     }
 
