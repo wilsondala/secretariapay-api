@@ -180,10 +180,8 @@ public class WhatsappInteractiveMenuFactory {
                 case "1" -> "Consultar e pagar propinas";
                 case "2" -> "Ver pagamentos e valores pendentes";
                 case "3" -> "Consultar borderô de pagamentos";
-                case "4" -> "Gerar guia de matrícula";
-                case "5" -> "Gerar guia de recurso";
-                case "6" -> "Gerar guia de declaração";
-                case "7" -> "Solicitar atendimento humano";
+                case "4" -> "Consultar serviços e preços";
+                case "5" -> "Solicitar atendimento humano";
                 default -> null;
             };
         }
@@ -208,6 +206,9 @@ public class WhatsappInteractiveMenuFactory {
         String normalized = normalize(message);
         if (normalized.contains("como posso ajudar")) {
             return new MenuPresentation("SecretáriaPay — IMETRO", "Atendimento financeiro académico", "Ver opções", "Serviços");
+        }
+        if (normalized.contains("servicos academicos disponiveis")) {
+            return new MenuPresentation("Serviços académicos", "Consulte a tabela institucional de preços", "Escolher serviço", "Tabela de preços");
         }
         if (normalized.contains("meses disponiveis para pagamento")) {
             return new MenuPresentation("Propinas disponíveis", "Selecione a propina que deseja pagar", "Escolher propina", "Propinas");
