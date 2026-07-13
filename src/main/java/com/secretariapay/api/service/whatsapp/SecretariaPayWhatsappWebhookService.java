@@ -320,6 +320,11 @@ public class SecretariaPayWhatsappWebhookService {
                     .replaceAll("(?m)^Comprovativo:\\s*", "Código do último registo: ");
         }
 
+        sanitized = sanitized.replace(
+                "Obrigado. Foi um prazer atender.",
+                "Obrigado. Foi um prazer atender.\n\nInstituto Superior Politécnico Metropolitano de Angola — IMETRO."
+        );
+
         return sanitized;
     }
 
