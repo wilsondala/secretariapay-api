@@ -2,6 +2,7 @@ package com.secretariapay.api.service.whatsapp;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.secretariapay.api.dto.whatsapp.WhatsAppCloudSendResult;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,8 @@ public class SecretariaPayWhatsappWebhookService {
     private final String graphApiBaseUrl;
     private final SecretariaPayWhatsappAcademicSupportService academicSupportService;
     private final SecretariaPayWhatsappFinancialDemoConversationService financialConversationService;
+    private final WhatsappInteractiveMenuFactory interactiveMenuFactory;
+    private final WhatsAppCloudApiClient whatsAppCloudApiClient;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
@@ -39,7 +42,9 @@ public class SecretariaPayWhatsappWebhookService {
             @Value("${secretariapay.whatsapp.graph-api-base-url:https://graph.facebook.com}") String graphApiBaseUrl,
             SecretariaPayWhatsappBrainService brainService,
             SecretariaPayWhatsappAcademicSupportService academicSupportService,
-            SecretariaPayWhatsappFinancialDemoConversationService financialConversationService
+            SecretariaPayWhatsappFinancialDemoConversationService financialConversationService,
+            WhatsappInteractiveMenuFactory interactiveMenuFactory,
+            WhatsAppCloudApiClient whatsAppCloudApiClient
     ) {
         this.verifyToken = verifyToken;
         this.whatsappEnabled = whatsappEnabled;
@@ -49,6 +54,8 @@ public class SecretariaPayWhatsappWebhookService {
         this.graphApiBaseUrl = graphApiBaseUrl;
         this.academicSupportService = academicSupportService;
         this.financialConversationService = financialConversationService;
+        this.interactiveMenuFactory = interactiveMenuFactory;
+        this.whatsAppCloudApiClient = whatsAppCloudApiClient;
         this.httpClient = HttpClient.newHttpClient();
         this.objectMapper = new ObjectMapper();
     }
@@ -82,12 +89,27 @@ public class SecretariaPayWhatsappWebhookService {
         InboundWhatsappMessage message = inboundMessage.get();
         String replyText;
         WhatsappSendResult sendResult;
+        boolean interactiveAttempted = false;
+        boolean interactiveSent = false;
 
         WhatsappRecipientOverrideContext.set(message.from());
         try {
             Optional<String> financialReply = financialConversationService.handle(message.from(), message.type(), message.body());
             replyText = financialReply.orElseGet(() -> buildMediaOrScopeReply(message));
-            sendResult = sendTextMessage(message.from(), replyText);
+
+            Optional<WhatsappInteractiveListMessage> interactiveMessage = interactiveMenuFactory.fromReplyText(replyText);
+            if (interactiveMessage.isPresent()) {
+                interactiveAttempted = true;
+                WhatsAppCloudSendResult interactiveResult = whatsAppCloudApiClient.sendInteractiveList(message.from(), interactiveMessage.get());
+                interactiveSent = interactiveResult.isSuccess();
+                if (interactiveSent) {
+                    sendResult = toWebhookSendResult(interactiveResult);
+                } else {
+                    sendResult = sendTextMessage(message.from(), interactiveMessage.get().fallbackText());
+                }
+            } else {
+                sendResult = sendTextMessage(message.from(), replyText);
+            }
         } finally {
             WhatsappRecipientOverrideContext.clear();
         }
@@ -99,6 +121,9 @@ public class SecretariaPayWhatsappWebhookService {
         response.put("messageType", message.type());
         response.put("messageText", message.body());
         response.put("replyText", replyText);
+        response.put("replyType", interactiveSent ? "INTERACTIVE_LIST" : "TEXT");
+        response.put("interactiveAttempted", interactiveAttempted);
+        response.put("interactiveSent", interactiveSent);
         response.put("replySent", sendResult.success());
         response.put("providerStatusCode", sendResult.statusCode());
 
@@ -109,6 +134,15 @@ public class SecretariaPayWhatsappWebhookService {
         if (sendResult.errorMessage() != null && !sendResult.errorMessage().isBlank()) response.put("errorMessage", sendResult.errorMessage());
 
         return response;
+    }
+
+    private WhatsappSendResult toWebhookSendResult(WhatsAppCloudSendResult result) {
+        return new WhatsappSendResult(
+                result != null && result.isSuccess(),
+                result == null || result.getHttpStatus() == null ? 0 : result.getHttpStatus(),
+                result == null ? null : result.getProviderMessageId(),
+                result == null ? "Resultado do WhatsApp vazio." : result.getErrorMessage()
+        );
     }
 
     private String buildMediaOrScopeReply(InboundWhatsappMessage message) {
@@ -194,8 +228,14 @@ public class SecretariaPayWhatsappWebhookService {
         }
         if ("interactive".equalsIgnoreCase(type)) {
             JsonNode interactive = message.path("interactive");
+
+            String buttonReplyId = interactive.path("button_reply").path("id").asText("");
+            if (buttonReplyId != null && !buttonReplyId.isBlank()) return buttonReplyId.trim();
             String buttonReplyTitle = interactive.path("button_reply").path("title").asText("");
             if (buttonReplyTitle != null && !buttonReplyTitle.isBlank()) return buttonReplyTitle.trim();
+
+            String listReplyId = interactive.path("list_reply").path("id").asText("");
+            if (listReplyId != null && !listReplyId.isBlank()) return listReplyId.trim();
             String listReplyTitle = interactive.path("list_reply").path("title").asText("");
             if (listReplyTitle != null && !listReplyTitle.isBlank()) return listReplyTitle.trim();
         }
