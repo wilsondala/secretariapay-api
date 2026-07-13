@@ -42,6 +42,7 @@ class WhatsappInteractiveMenuFactoryTest {
         assertThat(menu.sections().getFirst().rows().getFirst().id()).isEqualTo("1");
         assertThat(menu.sections().getFirst().rows().getFirst().title()).isEqualTo("Propinas");
         assertThat(menu.sections().getFirst().rows().getFirst().description()).isEqualTo("Consultar e pagar propinas");
+        assertThat(menu.sections().getFirst().rows().get(2).description()).isEqualTo("Consultar borderô de pagamentos");
         assertThat(menu.fallbackText()).isEqualTo(reply);
     }
 
@@ -76,6 +77,36 @@ class WhatsappInteractiveMenuFactoryTest {
                     assertThat(row.description()).contains("BAI");
                 });
         assertThat(menu.body()).doesNotContain("[1]", "[2]", "[3]");
+    }
+
+    @Test
+    void deveApresentarComprovativosComoBorderoConsolidado() {
+        String reply = """
+                📄 Comprovativos encontrados.
+
+                Estudante: Wilson dos Santos Kahango Dala
+                Matrícula: 202301404
+
+                Escolha qual comprovativo deseja receber:
+
+                [1] Julho/2026 — 40.000,00 Kz — RCT173389775556
+                [2] Setembro/2026 — 40.000,00 Kz — RCT173389775557
+                [3] Novembro/2026 — 5.000,00 Kz — RCT173389775558
+                [4] Voltar
+                """.trim();
+
+        WhatsappInteractiveListMessage menu = factory.fromReplyText(reply).orElseThrow();
+
+        assertThat(menu.header()).isEqualTo("Borderô financeiro");
+        assertThat(menu.buttonLabel()).isEqualTo("Ver borderô");
+        assertThat(menu.sections().getFirst().rows()).hasSize(2);
+        assertThat(menu.sections().getFirst().rows().getFirst().id()).isEqualTo("1");
+        assertThat(menu.sections().getFirst().rows().getFirst().title()).isEqualTo("Emitir borderô");
+        assertThat(menu.sections().getFirst().rows().getFirst().description()).contains("todos os pagamentos");
+        assertThat(menu.sections().getFirst().rows().get(1).id()).isEqualTo("4");
+        assertThat(menu.body()).contains("Julho/2026", "Setembro/2026", "Novembro/2026");
+        assertThat(menu.body()).contains("Cada novo pagamento será acrescentado automaticamente");
+        assertThat(menu.body()).doesNotContain("Escolha qual comprovativo");
     }
 
     @Test
