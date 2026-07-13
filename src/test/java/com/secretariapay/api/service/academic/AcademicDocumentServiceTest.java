@@ -34,37 +34,22 @@ class AcademicDocumentServiceTest {
         studentRepository = mock(StudentRepository.class);
         AcademicDocumentPdfService pdfService = mock(AcademicDocumentPdfService.class);
         WhatsAppCloudApiClient whatsAppCloudApiClient = mock(WhatsAppCloudApiClient.class);
-        service = new AcademicDocumentService(
-                repository,
-                studentRepository,
-                pdfService,
-                whatsAppCloudApiClient,
-                "https://secretariapay-api.paixaoangola.com"
-        );
+        service = new AcademicDocumentService(repository, studentRepository, pdfService, whatsAppCloudApiClient,
+                "https://secretariapay-api.paixaoangola.com");
 
         Course course = new Course().setName("Gestão Financeira");
-        AcademicClass academicClass = new AcademicClass()
-                .setName("GF-2026")
-                .setAcademicYear("2026")
-                .setCourse(course);
-        student = new Student()
-                .setStudentNumber("202301404")
-                .setFullName("Wilson dos Santos Kahango Dala")
-                .setDocumentNumber("001058899UE035")
-                .setAcademicClass(academicClass);
+        AcademicClass academicClass = new AcademicClass().setName("GF-2026").setAcademicYear("2026").setCourse(course);
+        student = new Student().setStudentNumber("202301404").setFullName("Wilson dos Santos Kahango Dala")
+                .setDocumentNumber("001058899UE035").setAcademicClass(academicClass);
 
-        when(repository.save(any(AcademicDocumentRequest.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(repository.save(any(AcademicDocumentRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
     void deveCriarDeclaracaoDemoEmRascunho() {
         when(studentRepository.findByStudentNumber("202301404")).thenReturn(Optional.of(student));
-
         AcademicDocumentDto.Response response = service.createDemoDeclaration(
-                new AcademicDocumentDto.CreateDemoRequest("202301404", "Comprovação académica", null)
-        );
-
+                new AcademicDocumentDto.CreateDemoRequest("202301404", "Comprovação académica", null));
         assertThat(response.status()).isEqualTo("DRAFT");
         assertThat(response.demoMode()).isTrue();
         assertThat(response.studentNumber()).isEqualTo("202301404");
@@ -77,19 +62,15 @@ class AcademicDocumentServiceTest {
     void naoDeveAssinarAntesDeEstarPronto() {
         AcademicDocumentRequest document = document("DRAFT");
         when(repository.findById(any(UUID.class))).thenReturn(Optional.of(document));
-
         assertThatThrownBy(() -> service.signDemo(UUID.randomUUID()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("pronto para assinatura");
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("pronto para assinatura");
     }
 
     @Test
     void deveAssinarECalcularHash() {
         AcademicDocumentRequest document = document("READY_FOR_SIGNATURE");
         when(repository.findById(any(UUID.class))).thenReturn(Optional.of(document));
-
         AcademicDocumentDto.Response response = service.signDemo(UUID.randomUUID());
-
         assertThat(response.status()).isEqualTo("SIGNED");
         assertThat(response.signatureMethod()).isEqualTo("SECRETARIAPAY_DEMO_ELECTRONIC_SIGNATURE");
         assertThat(response.documentHash()).hasSize(64);
@@ -100,38 +81,27 @@ class AcademicDocumentServiceTest {
     void naoDeveEditarDocumentoAssinado() {
         AcademicDocumentRequest document = document("SIGNED");
         when(repository.findById(any(UUID.class))).thenReturn(Optional.of(document));
-
-        assertThatThrownBy(() -> service.update(
-                UUID.randomUUID(),
-                new AcademicDocumentDto.UpdateRequest("Nova finalidade", "Novo texto")
-        ))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("não pode ser alterado");
+        assertThatThrownBy(() -> service.update(UUID.randomUUID(),
+                new AcademicDocumentDto.UpdateRequest("Nova finalidade", "Novo texto")))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("não pode ser alterado");
     }
 
     @Test
     void naoDeveExporPdfPublicoAntesDaAssinatura() {
         AcademicDocumentRequest document = document("DRAFT");
         when(repository.findByDocumentCode(document.getDocumentCode())).thenReturn(Optional.of(document));
-
         assertThatThrownBy(() -> service.generatePublicPdf(document.getDocumentCode()))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessageContaining("assinado não encontrado");
+                .isInstanceOf(NotFoundException.class).hasMessageContaining("assinado não encontrado");
     }
 
     private AcademicDocumentRequest document(String status) {
         AcademicDocumentRequest document = new AcademicDocumentRequest()
-                .setDocumentCode("IMT-DECL-SN-20260713-202301404")
-                .setStudent(student)
-                .setServiceCode("DECLARATION_WITHOUT_GRADES")
-                .setDocumentType("SIMPLE_DECLARATION")
-                .setStatus(status)
-                .setPurpose("Comprovação académica")
+                .setDocumentCode("IMT-DECL-SN-20260713-202301404").setStudent(student)
+                .setServiceCode("DECLARATION_WITHOUT_GRADES").setDocumentType("SIMPLE_DECLARATION")
+                .setStatus(status).setPurpose("Comprovação académica")
                 .setDeclarationText("Declaração de teste para o estudante.")
-                .setSignatoryName("Zakeu António Zengo")
-                .setSignatoryRole("Presidente da Instituição")
-                .setDemoMode(true)
-                .setVersionNumber(1);
+                .setSignatoryName("Zakeu António Zengo").setSignatoryRole("Presidente da Instituição")
+                .setDemoMode(true).setVersionNumber(1);
         document.prePersist();
         return document;
     }
