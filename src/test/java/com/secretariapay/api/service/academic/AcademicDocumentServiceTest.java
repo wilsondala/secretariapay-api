@@ -5,6 +5,7 @@ import com.secretariapay.api.entity.academic.AcademicClass;
 import com.secretariapay.api.entity.academic.AcademicDocumentRequest;
 import com.secretariapay.api.entity.academic.Course;
 import com.secretariapay.api.entity.academic.Student;
+import com.secretariapay.api.exception.NotFoundException;
 import com.secretariapay.api.repository.academic.AcademicDocumentRequestRepository;
 import com.secretariapay.api.repository.academic.StudentRepository;
 import com.secretariapay.api.service.whatsapp.WhatsAppCloudApiClient;
@@ -106,6 +107,16 @@ class AcademicDocumentServiceTest {
         ))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("não pode ser alterado");
+    }
+
+    @Test
+    void naoDeveExporPdfPublicoAntesDaAssinatura() {
+        AcademicDocumentRequest document = document("DRAFT");
+        when(repository.findByDocumentCode(document.getDocumentCode())).thenReturn(Optional.of(document));
+
+        assertThatThrownBy(() -> service.generatePublicPdf(document.getDocumentCode()))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessageContaining("assinado não encontrado");
     }
 
     private AcademicDocumentRequest document(String status) {
