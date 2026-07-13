@@ -9,11 +9,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class WhatsAppCloudApiClient {
+
+    private static final int MAX_INTERACTIVE_ROWS = 10;
+    private static final int MAX_HEADER_LENGTH = 60;
+    private static final int MAX_BODY_LENGTH = 1024;
+    private static final int MAX_FOOTER_LENGTH = 60;
+    private static final int MAX_BUTTON_LENGTH = 20;
+    private static final int MAX_SECTION_TITLE_LENGTH = 24;
+    private static final int MAX_ROW_ID_LENGTH = 200;
+    private static final int MAX_ROW_TITLE_LENGTH = 24;
+    private static final int MAX_ROW_DESCRIPTION_LENGTH = 72;
 
     private final RestClient restClient;
     private final String graphApiBaseUrl;
@@ -38,6 +50,71 @@ public class WhatsAppCloudApiClient {
         if (configurationError != null) return configurationError;
         if (messageBody == null || messageBody.isBlank()) return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: mensagem vazia.", null);
         Map<String, Object> payload = Map.of("messaging_product", "whatsapp", "to", normalizePhone(recipientPhone), "type", "text", "text", Map.of("preview_url", true, "body", messageBody));
+        return sendPayload(payload);
+    }
+
+    public WhatsAppCloudSendResult sendInteractiveList(String recipientPhone, WhatsappInteractiveListMessage message) {
+        WhatsAppCloudSendResult configurationError = validateBasicConfiguration(recipientPhone);
+        if (configurationError != null) return configurationError;
+        if (message == null) return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: menu interativo vazio.", null);
+        if (message.body() == null || message.body().isBlank()) return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: corpo do menu interativo vazio.", null);
+        if (message.sections() == null || message.sections().isEmpty()) return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: menu interativo sem opções.", null);
+
+        List<Map<String, Object>> sectionsPayload = new ArrayList<>();
+        int totalRows = 0;
+
+        for (WhatsappInteractiveListSection section : message.sections()) {
+            if (section == null || section.rows() == null || section.rows().isEmpty()) continue;
+
+            List<Map<String, Object>> rowsPayload = new ArrayList<>();
+            for (WhatsappInteractiveListRow row : section.rows()) {
+                if (row == null || isBlank(row.id()) || isBlank(row.title())) continue;
+                totalRows++;
+                if (totalRows > MAX_INTERACTIVE_ROWS) {
+                    return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: menu interativo excede o limite de 10 opções.", null);
+                }
+
+                Map<String, Object> rowPayload = new LinkedHashMap<>();
+                rowPayload.put("id", limit(row.id(), MAX_ROW_ID_LENGTH));
+                rowPayload.put("title", limit(row.title(), MAX_ROW_TITLE_LENGTH));
+                if (!isBlank(row.description())) {
+                    rowPayload.put("description", limit(row.description(), MAX_ROW_DESCRIPTION_LENGTH));
+                }
+                rowsPayload.add(rowPayload);
+            }
+
+            if (rowsPayload.isEmpty()) continue;
+            Map<String, Object> sectionPayload = new LinkedHashMap<>();
+            if (!isBlank(section.title())) {
+                sectionPayload.put("title", limit(section.title(), MAX_SECTION_TITLE_LENGTH));
+            }
+            sectionPayload.put("rows", rowsPayload);
+            sectionsPayload.add(sectionPayload);
+        }
+
+        if (sectionsPayload.isEmpty() || totalRows == 0) {
+            return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: menu interativo sem opções válidas.", null);
+        }
+
+        Map<String, Object> interactive = new LinkedHashMap<>();
+        interactive.put("type", "list");
+        if (!isBlank(message.header())) {
+            interactive.put("header", Map.of("type", "text", "text", limit(message.header(), MAX_HEADER_LENGTH)));
+        }
+        interactive.put("body", Map.of("text", limit(message.body(), MAX_BODY_LENGTH)));
+        if (!isBlank(message.footer())) {
+            interactive.put("footer", Map.of("text", limit(message.footer(), MAX_FOOTER_LENGTH)));
+        }
+        interactive.put("action", Map.of(
+                "button", limit(firstNonBlank(message.buttonLabel(), "Ver opções"), MAX_BUTTON_LENGTH),
+                "sections", sectionsPayload
+        ));
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("messaging_product", "whatsapp");
+        payload.put("to", normalizePhone(recipientPhone));
+        payload.put("type", "interactive");
+        payload.put("interactive", interactive);
         return sendPayload(payload);
     }
 
@@ -134,4 +211,7 @@ public class WhatsAppCloudApiClient {
     private String stripTrailingSlash(String value) { if (value == null || value.isBlank()) return "https://graph.facebook.com"; return value.endsWith("/") ? value.substring(0, value.length() - 1) : value; }
     private String limitCaption(String caption) { if (caption == null) return ""; return caption.length() <= 1024 ? caption : caption.substring(0, 1021) + "..."; }
     private String safeBody(String body) { if (body == null || body.isBlank()) return "sem detalhes"; return body.length() > 700 ? body.substring(0, 700) + "..." : body; }
+    private boolean isBlank(String value) { return value == null || value.isBlank(); }
+    private String firstNonBlank(String value, String fallback) { return isBlank(value) ? fallback : value.trim(); }
+    private String limit(String value, int maxLength) { if (value == null) return ""; String trimmed = value.trim(); return trimmed.length() <= maxLength ? trimmed : trimmed.substring(0, maxLength); }
 }
