@@ -49,7 +49,8 @@ public class WhatsAppCloudApiClient {
         WhatsAppCloudSendResult configurationError = validateBasicConfiguration(recipientPhone);
         if (configurationError != null) return configurationError;
         if (messageBody == null || messageBody.isBlank()) return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: mensagem vazia.", null);
-        Map<String, Object> payload = Map.of("messaging_product", "whatsapp", "to", normalizePhone(recipientPhone), "type", "text", "text", Map.of("preview_url", true, "body", messageBody));
+        String safeBody = sanitizeInstitutionalLanguage(messageBody);
+        Map<String, Object> payload = Map.of("messaging_product", "whatsapp", "to", normalizePhone(recipientPhone), "type", "text", "text", Map.of("preview_url", true, "body", safeBody));
         return sendPayload(payload);
     }
 
@@ -101,7 +102,7 @@ public class WhatsAppCloudApiClient {
         if (!isBlank(message.header())) {
             interactive.put("header", Map.of("type", "text", "text", limit(message.header(), MAX_HEADER_LENGTH)));
         }
-        interactive.put("body", Map.of("text", limit(message.body(), MAX_BODY_LENGTH)));
+        interactive.put("body", Map.of("text", limit(sanitizeInstitutionalLanguage(message.body()), MAX_BODY_LENGTH)));
         if (!isBlank(message.footer())) {
             interactive.put("footer", Map.of("text", limit(message.footer(), MAX_FOOTER_LENGTH)));
         }
@@ -123,7 +124,7 @@ public class WhatsAppCloudApiClient {
         if (configurationError != null) return configurationError;
         if (documentUrl == null || documentUrl.isBlank()) return WhatsAppCloudSendResult.failed("WhatsApp Cloud API: URL do documento vazia.", null);
         String safeFileName = fileName == null || fileName.isBlank() ? "secretariapay-documento.pdf" : fileName.trim();
-        String safeCaption = caption == null ? "" : caption.trim();
+        String safeCaption = caption == null ? "" : sanitizeInstitutionalLanguage(caption.trim());
         Map<String, Object> documentPayload = safeCaption.isBlank()
                 ? Map.of("link", documentUrl.trim(), "filename", safeFileName)
                 : Map.of("link", documentUrl.trim(), "filename", safeFileName, "caption", limitCaption(safeCaption));
@@ -205,6 +206,17 @@ public class WhatsAppCloudApiClient {
         if (value.startsWith("unknown/")) return "";
         int slashIndex = value.indexOf('/');
         return slashIndex >= 0 ? value.substring(0, slashIndex) : value;
+    }
+
+    private String sanitizeInstitutionalLanguage(String value) {
+        if (value == null || value.isBlank()) return value == null ? "" : value;
+        return value
+                .replaceAll("(?iu)PDF da guia oficial", "PDF da guia de pagamento")
+                .replaceAll("(?iu)guia oficial", "guia de pagamento")
+                .replaceAll("(?iu)comprovativos oficiais", "comprovativos de pagamento")
+                .replaceAll("(?iu)comprovativo oficial", "comprovativo de pagamento")
+                .replaceAll("(?iu)recibo oficial", "recibo de pagamento")
+                .replaceAll("(?iu)documento oficial", "documento financeiro");
     }
 
     private String normalizePhone(String phone) { if (phone == null) return ""; String digits = phone.replaceAll("[^0-9]", ""); return digits.startsWith("00") ? digits.substring(2) : digits; }
