@@ -82,6 +82,19 @@ GET /api/v1/public/receipts/validate/{receiptCode}
 - Branding público institucional do IMETRO
 - Páginas legais públicas do SecretáriaPay
 
+## Consistência financeira das propinas
+
+A propina é tratada como um único lançamento financeiro por estudante e período.
+
+Regras aplicadas:
+
+- a geração mensal não cria nova propina quando já existe cobrança aberta ou paga no mesmo mês;
+- a confirmação de pagamento liquida a cobrança que originou a guia;
+- a confirmação manual utiliza a mesma lógica canónica de liquidação;
+- cobranças pagas, recibos e comprovativos nunca são eliminados;
+- duplicatas abertas antigas são canceladas logicamente por migration;
+- o banco impede mais de uma propina aberta por estudante e mês.
+
 ## Modo WhatsApp
 
 Por segurança, o envio real pela Meta permanece desativado até configuração explícita.
