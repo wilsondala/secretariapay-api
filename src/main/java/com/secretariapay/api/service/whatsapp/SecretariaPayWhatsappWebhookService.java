@@ -14,6 +14,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -165,7 +166,7 @@ public class SecretariaPayWhatsappWebhookService {
         return """
                 Este canal é exclusivo para atendimento financeiro académico do IMETRO.
 
-                Posso ajudar com propinas, guias de pagamento, atrasos, multas, comprovativos, recibos e situação financeira.
+                Posso ajudar com propinas, guias de pagamento, atrasos, multas, borderô financeiro, comprovativos e situação financeira.
 
                 Para começar, responda menu ou escolha uma opção de 1 a 6.
                 """.trim();
@@ -293,13 +294,33 @@ public class SecretariaPayWhatsappWebhookService {
 
     private String sanitizeInstitutionalLanguage(String value) {
         if (value == null || value.isBlank()) return value == null ? "" : value;
-        return value
+
+        String sanitized = value
                 .replaceAll("(?iu)PDF da guia oficial", "PDF da guia de pagamento")
                 .replaceAll("(?iu)guia oficial", "guia de pagamento")
                 .replaceAll("(?iu)comprovativos oficiais", "comprovativos de pagamento")
                 .replaceAll("(?iu)comprovativo oficial", "comprovativo de pagamento")
                 .replaceAll("(?iu)recibo oficial", "recibo de pagamento")
                 .replaceAll("(?iu)documento oficial", "documento financeiro");
+
+        String normalized = sanitized.toLowerCase(Locale.ROOT);
+        boolean consolidatedBordereauReply = normalized.contains("comprovativo reenviado com sucesso")
+                || normalized.contains("o comprovativo de pagamento foi emitido em pdf");
+
+        if (consolidatedBordereauReply) {
+            sanitized = sanitized
+                    .replaceAll("(?iu)comprovativo reenviado com sucesso", "borderô financeiro consolidado emitido com sucesso")
+                    .replaceAll(
+                            "(?iu)📄 O comprovativo de pagamento foi emitido em PDF\\.",
+                            "📄 O borderô financeiro consolidado foi emitido em PDF.\\n\\nO documento reúne todos os pagamentos validados deste estudante e será atualizado a cada novo pagamento confirmado."
+                    )
+                    .replaceAll("(?m)^Forma de pagamento:\\s*", "Forma do último pagamento: ")
+                    .replaceAll("(?m)^Referência:\\s*", "Última referência atualizada: ")
+                    .replaceAll("(?m)^Valor pago:\\s*", "Valor do último pagamento: ")
+                    .replaceAll("(?m)^Comprovativo:\\s*", "Código do último registo: ");
+        }
+
+        return sanitized;
     }
 
     private String sanitizePhone(String phone) {
