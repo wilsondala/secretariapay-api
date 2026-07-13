@@ -74,7 +74,7 @@ docker compose up -d --no-deps api
 
 log "Aguardar inicialização da API"
 for attempt in $(seq 1 45); do
-  if curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health >/dev/null; then
+  if curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health >/dev/null 2>&1; then
     break
   fi
   if ! docker inspect -f '{{.State.Running}}' "${API_CONTAINER}" 2>/dev/null | grep -qx true; then
@@ -89,14 +89,13 @@ for attempt in $(seq 1 45); do
 done
 
 log "Validação das migrations"
-docker exec "${DB_CONTAINER}" sh -lc '
-  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "
-    SELECT installed_rank, version, description, success
-    FROM flyway_schema_history
-    WHERE version IN (\047203607131900\047, \047203607132000\047)
-    ORDER BY installed_rank;
-  "
-' | tee "${BACKUP_DIR}/flyway-validation.txt"
+docker exec -i "${DB_CONTAINER}" sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<'SQL' \
+  | tee "${BACKUP_DIR}/flyway-validation.txt"
+SELECT installed_rank, version, description, success
+FROM flyway_schema_history
+WHERE version IN ('203607131900', '203607132000')
+ORDER BY installed_rank;
+SQL
 
 grep -q "configure official academic service prices" "${BACKUP_DIR}/flyway-validation.txt" \
   || fail "migration de preços não encontrada no histórico"
@@ -104,19 +103,18 @@ grep -q "create academic document requests" "${BACKUP_DIR}/flyway-validation.txt
   || fail "migration de documentos não encontrada no histórico"
 
 log "Validação da tabela de preços"
-docker exec "${DB_CONTAINER}" sh -lc '
-  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "
-    SELECT code, name, unit_price, currency, active, available_whatsapp
-    FROM academic_service_catalog
-    WHERE code IN (
-      \047TUITION\047, \047ENROLLMENT\047, \047ENROLLMENT_CONFIRMATION\047,
-      \047REGISTRATION\047, \047RESIT_EXAM\047, \047SPECIAL_EXAM\047,
-      \047DECLARATION_WITH_GRADES\047, \047DECLARATION_WITHOUT_GRADES\047,
-      \047CERTIFICATE\047, \047DIPLOMA\047
-    )
-    ORDER BY display_order, code;
-  "
-' | tee "${BACKUP_DIR}/catalog-validation.txt"
+docker exec -i "${DB_CONTAINER}" sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<'SQL' \
+  | tee "${BACKUP_DIR}/catalog-validation.txt"
+SELECT code, name, unit_price, currency, active, available_whatsapp
+FROM academic_service_catalog
+WHERE code IN (
+  'TUITION', 'ENROLLMENT', 'ENROLLMENT_CONFIRMATION',
+  'REGISTRATION', 'RESIT_EXAM', 'SPECIAL_EXAM',
+  'DECLARATION_WITH_GRADES', 'DECLARATION_WITHOUT_GRADES',
+  'CERTIFICATE', 'DIPLOMA'
+)
+ORDER BY display_order, code;
+SQL
 
 log "Health checks finais"
 curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health | tee "${BACKUP_DIR}/health-local.json"
