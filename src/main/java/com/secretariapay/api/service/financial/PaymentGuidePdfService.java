@@ -42,7 +42,7 @@ import java.util.UUID;
 public class PaymentGuidePdfService {
 
     private static final String API_BASE_URL = "https://secretariapay-api.paixaoangola.com";
-    private static final String DOCUMENT_VERSION = "3.0";
+    private static final String DOCUMENT_VERSION = "3.1";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
@@ -172,8 +172,8 @@ public class PaymentGuidePdfService {
 
     private void drawTitle(PDPageContentStream content, float pageWidth, float y) throws Exception {
         drawCenteredText(content, "GUIA DE PAGAMENTO ACADÉMICO", PDType1Font.HELVETICA_BOLD, 18, pageWidth / 2, y, NAVY);
-        drawCenteredText(content, "Documento oficial para regularização financeira", PDType1Font.HELVETICA, 8.3f, pageWidth / 2, y - 16, MUTED);
-        pill(content, pageWidth / 2 - 47, y - 38, 94, 16, GOLD_LIGHT, GOLD, "DOCUMENTO OFICIAL", NAVY);
+        drawCenteredText(content, "Regularização financeira académica", PDType1Font.HELVETICA, 8.3f, pageWidth / 2, y - 16, MUTED);
+        pill(content, pageWidth / 2 - 47, y - 38, 94, 16, GOLD_LIGHT, GOLD, "PAGAMENTO ACADÉMICO", NAVY);
     }
 
     private void drawIdentity(PDPageContentStream content, Charge charge, float x, float y, float width) throws Exception {
@@ -218,7 +218,7 @@ public class PaymentGuidePdfService {
 
     private void drawPayment(PDPageContentStream content, PDDocument document, Charge charge,
                              float x, float y, float width) throws Exception {
-        sectionHeader(content, "FORMAS DE PAGAMENTO", x, y, width);
+        sectionHeader(content, "DADOS PARA PAGAMENTO", x, y, width);
         box(content, x, y - 103, width, 84, LIGHT, BORDER);
         float qrArea = 112;
         float textWidth = width - qrArea - 20;
@@ -226,8 +226,10 @@ public class PaymentGuidePdfService {
         infoPair(content, "IBAN", iban, x + textWidth * .48f, y - 37, textWidth * .49f);
         infoPair(content, "BANCO", bankName, x + 14, y - 67, textWidth * .45f);
         infoPair(content, "Nº DA CONTA (AKZ)", accountNumber, x + textWidth * .48f, y - 67, textWidth * .49f);
-        drawWrappedText(content, multicaixaReference + " | " + mobileMoneyInfo,
-                PDType1Font.HELVETICA, 7.1f, x + 14, y - 88, textWidth - 8, 9, NAVY);
+        drawWrappedText(content,
+                "Referência de pagamento: " + reconciliationCode(charge)
+                        + " | Em transferência BAI, informe esta referência na descrição da operação.",
+                PDType1Font.HELVETICA_BOLD, 7.1f, x + 14, y - 88, textWidth - 8, 9, NAVY);
 
         if (paymentQrEnabled) {
             BufferedImage qrImage = createQr(buildPaymentPayload(charge));
@@ -241,7 +243,7 @@ public class PaymentGuidePdfService {
         sectionHeader(content, "INSTRUÇÕES IMPORTANTES", x, y, width);
         box(content, x, y - 75, width, 56, NAVY, NAVY);
         drawWrappedText(content,
-                "1. Efetue o pagamento até à data de vencimento.  2. Após o pagamento, envie o comprovativo pelo WhatsApp institucional.  3. O recibo oficial será emitido somente após validação da tesouraria ou confirmação automática da integração de pagamento.",
+                "1. Efetue o pagamento até à data de vencimento.  2. Na transferência BAI, informe a referência de pagamento na descrição.  3. O recibo será emitido após validação da tesouraria ou confirmação automática da integração de pagamento.",
                 PDType1Font.HELVETICA_BOLD, 8.2f, x + 14, y - 37, width - 28, 12, Color.WHITE);
     }
 
@@ -253,7 +255,7 @@ public class PaymentGuidePdfService {
         sectionHeader(content, "VALIDAÇÃO DIGITAL", x, y, leftW);
         box(content, x, y - 75, leftW, 56, Color.WHITE, BORDER);
         pill(content, x + 14, y - 47, 98, 17, new Color(233, 248, 242), GREEN, "EMITIDO DIGITALMENTE", GREEN);
-        drawText(content, "Código: " + safe(charge.getChargeCode()), PDType1Font.HELVETICA_BOLD, 7.4f, x + 14, y - 64, NAVY);
+        drawText(content, "Cobrança: " + safe(charge.getChargeCode()), PDType1Font.HELVETICA_BOLD, 7.4f, x + 14, y - 64, NAVY);
         drawText(content, "Versão " + DOCUMENT_VERSION + " | " + issuedAt.format(DATE_TIME_FORMATTER), PDType1Font.HELVETICA, 6.4f, x + 14, y - 73, MUTED);
 
         String url = publicGuideUrl(charge.getChargeCode());
@@ -275,7 +277,7 @@ public class PaymentGuidePdfService {
         drawText(content, "IMETRO - Secretaria Financeira", PDType1Font.HELVETICA_BOLD, 6.7f, 34, 24, Color.WHITE);
         drawCenteredText(content, institutionalSite + " | " + financialEmail, PDType1Font.HELVETICA, 6.2f, pageWidth / 2, 24, Color.WHITE);
         drawText(content, "Powered by SecretáriaPay | TRIA Company", PDType1Font.HELVETICA_BOLD, 6.4f, pageWidth - 190, 24, Color.WHITE);
-        drawCenteredText(content, "Documento oficial | Versão " + DOCUMENT_VERSION + " | " + issuedAt.format(DATE_TIME_FORMATTER), PDType1Font.HELVETICA, 5.6f, pageWidth / 2, 10, new Color(220, 228, 240));
+        drawCenteredText(content, "Documento financeiro | Versão " + DOCUMENT_VERSION + " | " + issuedAt.format(DATE_TIME_FORMATTER), PDType1Font.HELVETICA, 5.6f, pageWidth / 2, 10, new Color(220, 228, 240));
     }
 
     private void drawImetroLogo(PDDocument document, PDPageContentStream content, float x, float y, float w, float h) throws Exception {
@@ -349,6 +351,7 @@ public class PaymentGuidePdfService {
         if (!paymentQrPayloadTemplate.isBlank()) {
             return paymentQrPayloadTemplate
                     .replace("{chargeCode}", safe(charge.getChargeCode()))
+                    .replace("{paymentReference}", reconciliationCode(charge))
                     .replace("{amount}", amountPlain(charge.getTotalAmount()))
                     .replace("{currency}", safe(charge.getCurrency()))
                     .replace("{dueDate}", charge.getDueDate() == null ? "" : charge.getDueDate().toString())
@@ -358,12 +361,36 @@ public class PaymentGuidePdfService {
                     .replace("{studentNumber}", charge.getStudent() == null ? "" : safe(charge.getStudent().getStudentNumber()));
         }
         return "SECRETARIAPAY|TYPE=PAYMENT|CHARGE=" + safe(charge.getChargeCode())
+                + "|REFERENCE=" + reconciliationCode(charge)
                 + "|AMOUNT=" + amountPlain(charge.getTotalAmount())
                 + "|CURRENCY=" + safe(charge.getCurrency())
                 + "|BANK=" + bankName
                 + "|HOLDER=" + accountHolder
                 + "|IBAN=" + iban
                 + "|ACCOUNT_AKZ=" + accountNumber;
+    }
+
+    private String reconciliationCode(Charge charge) {
+        String chargeCode = charge == null ? "" : safe(charge.getChargeCode());
+        String normalized = chargeCode.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
+        if (normalized.isBlank() || "-".equals(normalized)) {
+            normalized = charge != null && charge.getId() != null
+                    ? charge.getId().toString().replace("-", "").toUpperCase(Locale.ROOT)
+                    : "PAGAMENTO";
+        }
+        if (normalized.length() > 22) {
+            normalized = normalized.substring(0, 13) + shortDigest(chargeCode).substring(0, 8);
+        }
+        return "SPAY-BAI-" + normalized;
+    }
+
+    private String shortDigest(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(safe(value).getBytes(StandardCharsets.UTF_8))).toUpperCase(Locale.ROOT);
+        } catch (Exception exception) {
+            return UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
+        }
     }
 
     private String publicGuideUrl(String chargeCode) {
