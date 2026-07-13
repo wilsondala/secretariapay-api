@@ -31,22 +31,9 @@ jobs:
         run: python3 .github/scripts/apply_tuition_consolidation.py
 
       - name: Validate Maven package
-        id: maven
-        shell: bash
-        run: |
-          chmod +x mvnw
-          ./mvnw clean package -DskipTests 2>&1 | tee /tmp/maven-consolidation.log
-
-      - name: Upload Maven diagnostic
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: maven-consolidation-diagnostic
-          path: /tmp/maven-consolidation.log
-          if-no-files-found: error
+        run: mvn -B clean package -DskipTests
 
       - name: Commit validated changes
-        if: success()
         run: |
           git rm .github/patches/consolidate-tuition-reference.patch
           git rm .github/scripts/apply_tuition_consolidation.py
