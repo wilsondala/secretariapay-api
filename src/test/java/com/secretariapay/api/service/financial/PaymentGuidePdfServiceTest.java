@@ -49,6 +49,9 @@ class PaymentGuidePdfServiceTest {
         try (PDDocument document = PDDocument.load(pdf)) {
             String text = new PDFTextStripper().getText(document);
             assertThat(text).doesNotContainIgnoringCase("oficial");
+            assertThat(text).contains("Instituto Superior Politécnico Metropolitano de Angola");
+            assertThat(text).contains("Secretaria Financeira | Gestão Académica e Financeira");
+            assertThat(text).contains("Documento emitido eletronicamente pelo SecretáriaPay");
             assertThat(text).contains("GUIA DE PAGAMENTO ACADÉMICO");
             assertThat(text).contains("DADOS PARA PAGAMENTO");
             assertThat(text).contains("Banco Angolano de Investimento");
