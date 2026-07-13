@@ -1,9 +1,9 @@
 name: Apply tuition consolidation patch
 
 on:
-  push:
+  pull_request:
     branches:
-      - fix/consolidar-propinas-referencia
+      - main
 
 permissions:
   contents: write
