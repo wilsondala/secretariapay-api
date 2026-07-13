@@ -7,6 +7,7 @@ import com.google.zxing.qrcode.QRCodeWriter;
 import com.secretariapay.api.entity.academic.AcademicClass;
 import com.secretariapay.api.entity.academic.AcademicDocumentRequest;
 import com.secretariapay.api.entity.academic.Course;
+import com.secretariapay.api.entity.academic.Institution;
 import com.secretariapay.api.entity.academic.Student;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -18,6 +19,7 @@ import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.util.Matrix;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
@@ -32,11 +34,9 @@ import java.util.List;
 @Service
 public class AcademicDocumentPdfService {
 
-    private static final Color NAVY = new Color(8, 38, 74);
-    private static final Color NAVY_2 = new Color(14, 55, 104);
-    private static final Color BRAND_BLUE = new Color(49, 87, 213);
-    private static final Color BRAND_GREEN = new Color(23, 139, 79);
-    private static final Color GOLD = new Color(216, 169, 40);
+    private static final Color NAVY = new Color(5, 31, 72);
+    private static final Color NAVY_2 = new Color(10, 48, 101);
+    private static final Color GOLD = new Color(224, 170, 29);
     private static final Color LIGHT = new Color(245, 248, 252);
     private static final Color BORDER = new Color(184, 199, 217);
     private static final Color MUTED = new Color(95, 111, 130);
@@ -74,11 +74,12 @@ public class AcademicDocumentPdfService {
         Student student = request.getStudent();
         AcademicClass academicClass = student == null ? null : student.getAcademicClass();
         Course course = academicClass == null ? null : academicClass.getCourse();
+        Institution institution = course == null ? null : course.getInstitution();
 
         paintPage(content, width, height);
         if (request.isDemoMode()) drawWatermark(content, width, height);
 
-        drawHeader(content, margin, height - 50, contentWidth);
+        drawHeader(document, content, institution, margin, height - 50, contentWidth);
         drawCentered(content, "DECLARAÇÃO", PDType1Font.HELVETICA_BOLD, 20, width / 2, height - 145, NAVY);
         drawCentered(content, "Declaração académica simples", PDType1Font.HELVETICA, 8.5f, width / 2, height - 163, MUTED);
 
@@ -130,93 +131,49 @@ public class AcademicDocumentPdfService {
         content.restoreGraphicsState();
     }
 
-    private void drawHeader(PDPageContentStream content, float x, float y, float width) throws Exception {
-        box(content, x, y - 65, width, 60, Color.WHITE, BORDER);
-
-        drawImetroLogo(content, x + 11, y - 57, 43, 47);
-        drawText(content, "IMETRO", PDType1Font.HELVETICA_BOLD, 16.5f, x + 62, y - 24, NAVY);
-        drawText(content, "Instituto Superior Politécnico Metropolitano de Angola", PDType1Font.HELVETICA_BOLD, 7.6f, x + 62, y - 40, NAVY);
-        drawText(content, "Secretaria Académica e Financeira", PDType1Font.HELVETICA, 7f, x + 62, y - 53, MUTED);
-
-        drawSecretariaPayLogo(content, x + width - 139, y - 52);
+    /**
+     * Cabeçalho institucional idêntico ao utilizado na guia de pagamento académico.
+     */
+    private void drawHeader(PDDocument document, PDPageContentStream content, Institution institution,
+                            float x, float y, float width) throws Exception {
+        box(content, x, y - 62, width, 58, Color.WHITE, BORDER);
+        drawImetroLogo(document, content, x + 12, y - 54, 58, 44);
+        drawText(content, institutionName(institution), PDType1Font.HELVETICA_BOLD, 9.8f, x + 78, y - 20, NAVY);
+        drawText(content, "Secretaria Académica | Gestão Documental", PDType1Font.HELVETICA_BOLD, 7.6f, x + 78, y - 36, NAVY_2);
+        drawText(content, "Documento emitido eletronicamente pelo SecretáriaPay", PDType1Font.HELVETICA, 6.8f, x + 78, y - 50, MUTED);
+        drawSecretariaPayBrand(content, x + width - 150, y - 50);
     }
 
-    private void drawImetroLogo(PDPageContentStream content, float x, float y, float width, float height) throws Exception {
-        float centerX = x + width / 2;
-        float shieldX = x + 9;
-        float shieldY = y + 2;
-        float shieldW = width - 18;
-        float shieldH = height - 5;
-
-        content.saveGraphicsState();
-
-        content.setStrokingColor(BRAND_GREEN);
-        content.setLineWidth(1.25f);
-        content.moveTo(x + 7, y + 7);
-        content.curveTo(x - 1, y + 18, x + 1, y + 35, x + 9, y + 43);
-        content.stroke();
-        content.moveTo(x + width - 7, y + 7);
-        content.curveTo(x + width + 1, y + 18, x + width - 1, y + 35, x + width - 9, y + 43);
-        content.stroke();
-
-        for (int i = 0; i < 5; i++) {
-            float leafY = y + 10 + i * 6.3f;
-            content.setNonStrokingColor(BRAND_GREEN);
-            content.addRect(x + 2 + (i % 2), leafY, 4.4f, 2.2f);
-            content.fill();
-            content.addRect(x + width - 6.4f - (i % 2), leafY, 4.4f, 2.2f);
-            content.fill();
+    /**
+     * Utiliza exatamente a mesma imagem institucional da guia de pagamento.
+     */
+    private void drawImetroLogo(PDDocument document, PDPageContentStream content,
+                                float x, float y, float width, float height) throws Exception {
+        try {
+            ClassPathResource resource = new ClassPathResource("static/assets/imetro.png");
+            if (resource.exists()) {
+                PDImageXObject logo = PDImageXObject.createFromByteArray(
+                        document,
+                        resource.getInputStream().readAllBytes(),
+                        "imetro-logo"
+                );
+                content.drawImage(logo, x, y, width, height);
+                return;
+            }
+        } catch (Exception ignored) {
         }
-
-        content.setNonStrokingColor(Color.WHITE);
-        content.setStrokingColor(NAVY);
-        content.setLineWidth(1.35f);
-        content.moveTo(shieldX, shieldY + shieldH);
-        content.lineTo(shieldX + shieldW, shieldY + shieldH);
-        content.lineTo(shieldX + shieldW - 2, shieldY + 13);
-        content.lineTo(centerX, shieldY);
-        content.lineTo(shieldX + 2, shieldY + 13);
-        content.closePath();
-        content.fillAndStroke();
-
-        content.setNonStrokingColor(NAVY);
-        content.moveTo(shieldX + 3, shieldY + shieldH - 13);
-        content.lineTo(centerX, shieldY + shieldH - 2);
-        content.lineTo(shieldX + shieldW - 3, shieldY + shieldH - 13);
-        content.closePath();
-        content.fill();
-
-        content.addRect(shieldX + 4, shieldY + 11, shieldW - 8, 2.6f);
-        content.fill();
-        content.addRect(shieldX + 5, shieldY + 29, shieldW - 10, 2.4f);
-        content.fill();
-
-        float columnStart = shieldX + 6;
-        float columnWidth = 2.6f;
-        float gap = 3.7f;
-        for (int i = 0; i < 4; i++) {
-            content.addRect(columnStart + i * (columnWidth + gap), shieldY + 14, columnWidth, 14);
-            content.fill();
-        }
-
-        content.addRect(shieldX + 4, shieldY + 8, shieldW - 8, 2.4f);
-        content.fill();
-
-        content.restoreGraphicsState();
+        drawText(content, "IMETRO", PDType1Font.HELVETICA_BOLD, 14, x, y + 16, GOLD);
     }
 
-    private void drawSecretariaPayLogo(PDPageContentStream content, float x, float y) throws Exception {
-        float iconSize = 31;
-        content.saveGraphicsState();
-        content.setNonStrokingColor(BRAND_BLUE);
-        content.addRect(x, y, iconSize, iconSize);
-        content.fill();
-        drawCentered(content, "SP", PDType1Font.HELVETICA_BOLD, 10.5f, x + iconSize / 2, y + 10.5f, Color.WHITE);
-
-        drawText(content, "Secretária", PDType1Font.HELVETICA_BOLD, 10.5f, x + 39, y + 18.5f, NAVY);
-        drawText(content, "Pay", PDType1Font.HELVETICA_BOLD, 10.5f, x + 84.5f, y + 18.5f, BRAND_BLUE);
-        drawText(content, "Académico", PDType1Font.HELVETICA_BOLD, 7f, x + 39, y + 6.5f, BRAND_GREEN);
-        content.restoreGraphicsState();
+    /**
+     * Marca SecretáriaPay copiada da guia de pagamento, com as mesmas dimensões e cores.
+     */
+    private void drawSecretariaPayBrand(PDPageContentStream content, float x, float y) throws Exception {
+        box(content, x, y, 28, 28, NAVY, GOLD);
+        drawCentered(content, "SP", PDType1Font.HELVETICA_BOLD, 8.5f, x + 14, y + 9, Color.WHITE);
+        drawText(content, "Secretária", PDType1Font.HELVETICA_BOLD, 11.5f, x + 36, y + 14, NAVY);
+        drawText(content, "Pay", PDType1Font.HELVETICA_BOLD, 11.5f, x + 92, y + 14, GOLD);
+        drawText(content, "GESTÃO FINANCEIRA ACADÉMICA", PDType1Font.HELVETICA_BOLD, 4.8f, x + 36, y + 3, MUTED);
     }
 
     private void drawInfoGrid(PDPageContentStream content, AcademicDocumentRequest request, float x, float y, float width) throws Exception {
@@ -407,6 +364,16 @@ public class AcademicDocumentPdfService {
         if (hash == null || hash.isBlank()) return "Hash pendente";
         if (hash.length() <= 28) return hash;
         return hash.substring(0, 14) + "..." + hash.substring(hash.length() - 10);
+    }
+
+    private String institutionName(Institution institution) {
+        if (institution != null && institution.getLegalName() != null && !institution.getLegalName().isBlank()) {
+            return institution.getLegalName();
+        }
+        if (institution != null && institution.getName() != null && !institution.getName().isBlank()) {
+            return institution.getName();
+        }
+        return "Instituto Superior Politécnico Metropolitano de Angola";
     }
 
     private LocalDateTime firstNonNull(LocalDateTime first, LocalDateTime second) {
