@@ -25,5 +25,8 @@ jobs:
           java-version: '21'
           cache: maven
 
+      - name: Run WhatsApp academic services tests
+        run: mvn -B -Dtest=AcademicServicesWhatsappFlowAspectTest,AcademicServicesInteractiveMenuTest,WhatsappInteractiveMenuFactoryTest,SecretariaPayWhatsappWebhookServiceInteractiveTest test
+
       - name: Compile and package
         run: mvn -B -DskipTests clean package
