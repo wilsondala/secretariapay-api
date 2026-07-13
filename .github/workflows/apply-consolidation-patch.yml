@@ -28,21 +28,34 @@ jobs:
           cache: maven
 
       - name: Apply consolidation changes
-        run: |
-          python3 .github/scripts/apply_tuition_consolidation.py
-          git rm .github/patches/consolidate-tuition-reference.patch
-          git rm .github/scripts/apply_tuition_consolidation.py
-          git rm .github/workflows/apply-consolidation-patch.yml
+        run: python3 .github/scripts/apply_tuition_consolidation.py
 
       - name: Validate Maven package
+        id: maven
+        shell: bash
         run: |
           chmod +x mvnw
-          ./mvnw clean package -DskipTests
+          set +e
+          ./mvnw clean package -DskipTests > /tmp/maven.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            tail -n 220 /tmp/maven.log > .github/maven-consolidation-diagnostic.log
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/maven-consolidation-diagnostic.log
+            git commit -m "ci: registrar diagnóstico da consolidação financeira"
+            git push origin HEAD:fix/consolidar-propinas-referencia
+            exit "$status"
+          fi
 
       - name: Commit validated changes
         run: |
+          git rm .github/patches/consolidate-tuition-reference.patch
+          git rm .github/scripts/apply_tuition_consolidation.py
+          git rm .github/workflows/apply-consolidation-patch.yml
+          rm -f .github/maven-consolidation-diagnostic.log
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src
+          git add src .github
           git commit -m "fix: liquidar propina sem duplicar referência"
           git push origin HEAD:fix/consolidar-propinas-referencia
