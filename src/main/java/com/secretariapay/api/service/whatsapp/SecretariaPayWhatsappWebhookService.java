@@ -96,6 +96,7 @@ public class SecretariaPayWhatsappWebhookService {
         try {
             Optional<String> financialReply = financialConversationService.handle(message.from(), message.type(), message.body());
             replyText = financialReply.orElseGet(() -> buildMediaOrScopeReply(message));
+            replyText = sanitizeInstitutionalLanguage(replyText);
 
             Optional<WhatsappInteractiveListMessage> interactiveMessage = interactiveMenuFactory.fromReplyText(replyText);
             if (interactiveMessage.isPresent()) {
@@ -254,7 +255,7 @@ public class SecretariaPayWhatsappWebhookService {
 
             Map<String, Object> text = new LinkedHashMap<>();
             text.put("preview_url", false);
-            text.put("body", body);
+            text.put("body", sanitizeInstitutionalLanguage(body));
             payload.put("text", text);
 
             HttpRequest request = HttpRequest.newBuilder()
@@ -288,6 +289,17 @@ public class SecretariaPayWhatsappWebhookService {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private String sanitizeInstitutionalLanguage(String value) {
+        if (value == null || value.isBlank()) return value == null ? "" : value;
+        return value
+                .replaceAll("(?iu)PDF da guia oficial", "PDF da guia de pagamento")
+                .replaceAll("(?iu)guia oficial", "guia de pagamento")
+                .replaceAll("(?iu)comprovativos oficiais", "comprovativos de pagamento")
+                .replaceAll("(?iu)comprovativo oficial", "comprovativo de pagamento")
+                .replaceAll("(?iu)recibo oficial", "recibo de pagamento")
+                .replaceAll("(?iu)documento oficial", "documento financeiro");
     }
 
     private String sanitizePhone(String phone) {
