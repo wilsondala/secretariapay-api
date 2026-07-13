@@ -1,0 +1,27 @@
+name: Validate payment guide
+
+on:
+  push:
+    branches:
+      - fix/consolidar-propinas-referencia
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run focused financial tests
+        run: mvn -B -Dtest=PaymentGuidePdfServiceTest,TuitionChargeSettlementServiceTest,ChargeServiceTest test
+
+      - name: Build backend
+        run: mvn -B -DskipTests package
