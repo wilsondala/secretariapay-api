@@ -34,11 +34,12 @@ public class AcademicDocumentPdfService {
 
     private static final Color NAVY = new Color(8, 38, 74);
     private static final Color NAVY_2 = new Color(14, 55, 104);
+    private static final Color BRAND_BLUE = new Color(49, 87, 213);
+    private static final Color BRAND_GREEN = new Color(23, 139, 79);
     private static final Color GOLD = new Color(216, 169, 40);
     private static final Color LIGHT = new Color(245, 248, 252);
     private static final Color BORDER = new Color(184, 199, 217);
     private static final Color MUTED = new Color(95, 111, 130);
-    private static final Color GREEN = new Color(21, 154, 109);
     private static final Color RED = new Color(179, 38, 30);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd 'de' MMMM 'de' yyyy", java.util.Locale.forLanguageTag("pt-AO"));
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
@@ -78,8 +79,8 @@ public class AcademicDocumentPdfService {
         if (request.isDemoMode()) drawWatermark(content, width, height);
 
         drawHeader(content, margin, height - 50, contentWidth);
-        drawCentered(content, "DECLARACAO", PDType1Font.HELVETICA_BOLD, 20, width / 2, height - 145, NAVY);
-        drawCentered(content, "Declaracao academica simples", PDType1Font.HELVETICA, 8.5f, width / 2, height - 163, MUTED);
+        drawCentered(content, "DECLARAÇÃO", PDType1Font.HELVETICA_BOLD, 20, width / 2, height - 145, NAVY);
+        drawCentered(content, "Declaração académica simples", PDType1Font.HELVETICA, 8.5f, width / 2, height - 163, MUTED);
 
         drawInfoGrid(content, request, margin, height - 192, contentWidth);
 
@@ -87,7 +88,7 @@ public class AcademicDocumentPdfService {
         String body = firstNonBlank(request.getDeclarationText(), defaultDeclarationText(student, academicClass, course));
         bodyY = drawWrappedParagraph(content, body, PDType1Font.HELVETICA, 11.2f, margin + 12, bodyY, contentWidth - 24, 18, new Color(31, 41, 55));
         bodyY -= 20;
-        drawText(content, "A presente declaracao e emitida a pedido do interessado para os fins declarados.", PDType1Font.HELVETICA, 10.5f, margin + 12, bodyY, new Color(31, 41, 55));
+        drawText(content, "A presente declaração é emitida a pedido do interessado para os fins declarados.", PDType1Font.HELVETICA, 10.5f, margin + 12, bodyY, new Color(31, 41, 55));
         bodyY -= 44;
         drawText(content, "Luanda, " + LocalDate.now().format(DATE_FORMAT) + ".", PDType1Font.HELVETICA, 10.5f, margin + 12, bodyY, new Color(31, 41, 55));
 
@@ -124,19 +125,98 @@ public class AcademicDocumentPdfService {
         content.beginText();
         content.setFont(PDType1Font.HELVETICA_BOLD, 34);
         content.setTextMatrix(Matrix.getRotateInstance(Math.toRadians(32), width / 2 - 210, height / 2 - 10));
-        content.showText("DEMONSTRACAO - SEM VALIDADE");
+        content.showText("DEMONSTRAÇÃO - SEM VALIDADE");
         content.endText();
         content.restoreGraphicsState();
     }
 
     private void drawHeader(PDPageContentStream content, float x, float y, float width) throws Exception {
         box(content, x, y - 65, width, 60, Color.WHITE, BORDER);
-        drawText(content, "IMETRO", PDType1Font.HELVETICA_BOLD, 17, x + 14, y - 25, NAVY);
-        drawText(content, "Instituto Superior Politecnico Metropolitano de Angola", PDType1Font.HELVETICA_BOLD, 8.3f, x + 14, y - 41, NAVY);
-        drawText(content, "Secretaria Academica e Financeira", PDType1Font.HELVETICA, 7.2f, x + 14, y - 54, MUTED);
 
-        drawText(content, "SecretariaPay", PDType1Font.HELVETICA_BOLD, 11, x + width - 105, y - 28, NAVY);
-        drawText(content, "Gestao documental", PDType1Font.HELVETICA, 7, x + width - 105, y - 43, MUTED);
+        drawImetroLogo(content, x + 11, y - 57, 43, 47);
+        drawText(content, "IMETRO", PDType1Font.HELVETICA_BOLD, 16.5f, x + 62, y - 24, NAVY);
+        drawText(content, "Instituto Superior Politécnico Metropolitano de Angola", PDType1Font.HELVETICA_BOLD, 7.6f, x + 62, y - 40, NAVY);
+        drawText(content, "Secretaria Académica e Financeira", PDType1Font.HELVETICA, 7f, x + 62, y - 53, MUTED);
+
+        drawSecretariaPayLogo(content, x + width - 139, y - 52);
+    }
+
+    private void drawImetroLogo(PDPageContentStream content, float x, float y, float width, float height) throws Exception {
+        float centerX = x + width / 2;
+        float shieldX = x + 9;
+        float shieldY = y + 2;
+        float shieldW = width - 18;
+        float shieldH = height - 5;
+
+        content.saveGraphicsState();
+
+        content.setStrokingColor(BRAND_GREEN);
+        content.setLineWidth(1.25f);
+        content.moveTo(x + 7, y + 7);
+        content.curveTo(x - 1, y + 18, x + 1, y + 35, x + 9, y + 43);
+        content.stroke();
+        content.moveTo(x + width - 7, y + 7);
+        content.curveTo(x + width + 1, y + 18, x + width - 1, y + 35, x + width - 9, y + 43);
+        content.stroke();
+
+        for (int i = 0; i < 5; i++) {
+            float leafY = y + 10 + i * 6.3f;
+            content.setNonStrokingColor(BRAND_GREEN);
+            content.addRect(x + 2 + (i % 2), leafY, 4.4f, 2.2f);
+            content.fill();
+            content.addRect(x + width - 6.4f - (i % 2), leafY, 4.4f, 2.2f);
+            content.fill();
+        }
+
+        content.setNonStrokingColor(Color.WHITE);
+        content.setStrokingColor(NAVY);
+        content.setLineWidth(1.35f);
+        content.moveTo(shieldX, shieldY + shieldH);
+        content.lineTo(shieldX + shieldW, shieldY + shieldH);
+        content.lineTo(shieldX + shieldW - 2, shieldY + 13);
+        content.lineTo(centerX, shieldY);
+        content.lineTo(shieldX + 2, shieldY + 13);
+        content.closePath();
+        content.fillAndStroke();
+
+        content.setNonStrokingColor(NAVY);
+        content.moveTo(shieldX + 3, shieldY + shieldH - 13);
+        content.lineTo(centerX, shieldY + shieldH - 2);
+        content.lineTo(shieldX + shieldW - 3, shieldY + shieldH - 13);
+        content.closePath();
+        content.fill();
+
+        content.addRect(shieldX + 4, shieldY + 11, shieldW - 8, 2.6f);
+        content.fill();
+        content.addRect(shieldX + 5, shieldY + 29, shieldW - 10, 2.4f);
+        content.fill();
+
+        float columnStart = shieldX + 6;
+        float columnWidth = 2.6f;
+        float gap = 3.7f;
+        for (int i = 0; i < 4; i++) {
+            content.addRect(columnStart + i * (columnWidth + gap), shieldY + 14, columnWidth, 14);
+            content.fill();
+        }
+
+        content.addRect(shieldX + 4, shieldY + 8, shieldW - 8, 2.4f);
+        content.fill();
+
+        content.restoreGraphicsState();
+    }
+
+    private void drawSecretariaPayLogo(PDPageContentStream content, float x, float y) throws Exception {
+        float iconSize = 31;
+        content.saveGraphicsState();
+        content.setNonStrokingColor(BRAND_BLUE);
+        content.addRect(x, y, iconSize, iconSize);
+        content.fill();
+        drawCentered(content, "SP", PDType1Font.HELVETICA_BOLD, 10.5f, x + iconSize / 2, y + 10.5f, Color.WHITE);
+
+        drawText(content, "Secretária", PDType1Font.HELVETICA_BOLD, 10.5f, x + 39, y + 18.5f, NAVY);
+        drawText(content, "Pay", PDType1Font.HELVETICA_BOLD, 10.5f, x + 84.5f, y + 18.5f, BRAND_BLUE);
+        drawText(content, "Académico", PDType1Font.HELVETICA_BOLD, 7f, x + 39, y + 6.5f, BRAND_GREEN);
+        content.restoreGraphicsState();
     }
 
     private void drawInfoGrid(PDPageContentStream content, AcademicDocumentRequest request, float x, float y, float width) throws Exception {
@@ -146,9 +226,9 @@ public class AcademicDocumentPdfService {
         line(content, x, y - 47, x + width, y - 47, BORDER);
 
         info(content, "TIPO DE DOCUMENTO", documentTypeLabel(request.getDocumentType()), x + 12, y - 20, half - 24);
-        info(content, "CODIGO", request.getDocumentCode(), x + half + 12, y - 20, half - 24);
+        info(content, "CÓDIGO", request.getDocumentCode(), x + half + 12, y - 20, half - 24);
         info(content, "ESTADO", statusLabel(request.getStatus()), x + 12, y - 67, half - 24);
-        info(content, "EMISSAO", formatDateTime(firstNonNull(request.getIssuedAt(), request.getCreatedAt())), x + half + 12, y - 67, half - 24);
+        info(content, "EMISSÃO", formatDateTime(firstNonNull(request.getIssuedAt(), request.getCreatedAt())), x + half + 12, y - 67, half - 24);
     }
 
     private void drawSignatureAndValidation(PDDocument document, PDPageContentStream content, AcademicDocumentRequest request,
@@ -163,38 +243,38 @@ public class AcademicDocumentPdfService {
         drawCentered(content, pdfSafe(request.getSignatoryName()), PDType1Font.HELVETICA_OBLIQUE, 14, x + signatureWidth / 2, y - 55, NAVY);
         drawCentered(content, pdfSafe(request.getSignatoryRole()), PDType1Font.HELVETICA_BOLD, 8.3f, x + signatureWidth / 2, y - 73, NAVY_2);
         drawCentered(content, signatureStatus(request), PDType1Font.HELVETICA, 7.2f, x + signatureWidth / 2, y - 95, MUTED);
-        drawCentered(content, "Metodo: " + firstNonBlank(request.getSignatureMethod(), "Aguardando assinatura"), PDType1Font.HELVETICA, 6.8f, x + signatureWidth / 2, y - 114, MUTED);
+        drawCentered(content, "Método: " + firstNonBlank(request.getSignatureMethod(), "Aguardando assinatura"), PDType1Font.HELVETICA, 6.8f, x + signatureWidth / 2, y - 114, MUTED);
 
         BufferedImage qrImage = qrCode(validationUrl(request), 240);
         PDImageXObject qr = LosslessFactory.createFromImage(document, qrImage);
         content.drawImage(qr, x + signatureWidth + 24, y - 88, 62, 62);
-        drawCentered(content, "VALIDACAO DIGITAL", PDType1Font.HELVETICA_BOLD, 6.8f, x + signatureWidth + validationWidth / 2, y - 103, NAVY);
+        drawCentered(content, "VALIDAÇÃO DIGITAL", PDType1Font.HELVETICA_BOLD, 6.8f, x + signatureWidth + validationWidth / 2, y - 103, NAVY);
         drawCentered(content, hashSummary(request.getDocumentHash()), PDType1Font.HELVETICA, 5.7f, x + signatureWidth + validationWidth / 2, y - 119, MUTED);
-        drawCentered(content, "Versao " + request.getVersionNumber(), PDType1Font.HELVETICA, 5.8f, x + signatureWidth + validationWidth / 2, y - 132, MUTED);
+        drawCentered(content, "Versão " + request.getVersionNumber(), PDType1Font.HELVETICA, 5.8f, x + signatureWidth + validationWidth / 2, y - 132, MUTED);
     }
 
     private void drawDemoWarning(PDPageContentStream content, float x, float y, float width) throws Exception {
         box(content, x, y - 31, width, 31, new Color(255, 244, 243), new Color(230, 163, 160));
         drawFittedText(content,
-                "DEMONSTRACAO SEM VALIDADE: documento criado para aprovacao visual e validacao do fluxo de assinatura eletronica.",
+                "DEMONSTRAÇÃO SEM VALIDADE: documento criado para aprovação visual e validação do fluxo de assinatura eletrónica.",
                 PDType1Font.HELVETICA_BOLD, 7.2f, 5.8f, x + 10, y - 19, width - 20, RED);
     }
 
     private void drawFooter(PDPageContentStream content, float pageWidth, AcademicDocumentRequest request) throws Exception {
-        drawText(content, "IMETRO - Secretaria Academica", PDType1Font.HELVETICA, 6.5f, 42, 17, Color.WHITE);
-        drawCentered(content, "Codigo: " + request.getDocumentCode(), PDType1Font.HELVETICA, 6.2f, pageWidth / 2, 17, Color.WHITE);
-        drawTextRight(content, "Powered by SecretariaPay | TRIA Company", PDType1Font.HELVETICA, 6.2f, pageWidth - 42, 17, Color.WHITE);
+        drawText(content, "IMETRO - Secretaria Académica", PDType1Font.HELVETICA, 6.5f, 42, 17, Color.WHITE);
+        drawCentered(content, "Código: " + request.getDocumentCode(), PDType1Font.HELVETICA, 6.2f, pageWidth / 2, 17, Color.WHITE);
+        drawTextRight(content, "Powered by SecretáriaPay | TRIA Company", PDType1Font.HELVETICA, 6.2f, pageWidth - 42, 17, Color.WHITE);
     }
 
     private String defaultDeclarationText(Student student, AcademicClass academicClass, Course course) {
         String studentName = student == null ? "-" : student.getFullName();
-        String document = student == null ? "-" : firstNonBlank(student.getDocumentNumber(), "nao informado");
+        String document = student == null ? "-" : firstNonBlank(student.getDocumentNumber(), "não informado");
         String studentNumber = student == null ? "-" : student.getStudentNumber();
-        String courseName = course == null ? "curso registado na instituicao" : course.getName();
+        String courseName = course == null ? "curso registado na instituição" : course.getName();
         String academicYear = academicClass == null ? String.valueOf(LocalDate.now().getYear()) : academicClass.getAcademicYear();
-        return "O Instituto Superior Politecnico Metropolitano de Angola - IMETRO, por intermedio da sua Secretaria Academica, declara, para os devidos efeitos, que "
-                + studentName + ", portador do documento de identificacao n. " + document + ", matricula n. " + studentNumber
-                + ", encontra-se regularmente matriculado no curso de " + courseName + ", no ano academico de " + academicYear + ".";
+        return "O Instituto Superior Politécnico Metropolitano de Angola - IMETRO, por intermédio da sua Secretaria Académica, declara, para os devidos efeitos, que "
+                + studentName + ", portador do documento de identificação n.º " + document + ", matrícula n.º " + studentNumber
+                + ", encontra-se regularmente matriculado no curso de " + courseName + ", no ano académico de " + academicYear + ".";
     }
 
     private float drawWrappedParagraph(PDPageContentStream content, String text, PDFont font, float fontSize,
@@ -305,7 +385,7 @@ public class AcademicDocumentPdfService {
     }
 
     private String documentTypeLabel(String value) {
-        return "SIMPLE_DECLARATION".equalsIgnoreCase(value) ? "Declaracao simples" : firstNonBlank(value, "Documento academico");
+        return "SIMPLE_DECLARATION".equalsIgnoreCase(value) ? "Declaração simples" : firstNonBlank(value, "Documento académico");
     }
 
     private String statusLabel(String value) {
@@ -314,7 +394,7 @@ public class AcademicDocumentPdfService {
             case "SIGNED" -> "Assinado eletronicamente";
             case "SENT" -> "Assinado e disponibilizado";
             case "CANCELLED" -> "Cancelado";
-            default -> "Em preparacao";
+            default -> "Em preparação";
         };
     }
 
