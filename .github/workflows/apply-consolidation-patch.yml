@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - fix/consolidar-propinas-referencia
-  pull_request:
-    branches:
-      - main
 
 permissions:
   contents: write
@@ -38,9 +35,18 @@ jobs:
           git rm .github/workflows/apply-consolidation-patch.yml
 
       - name: Validate Maven build and tests
+        shell: bash
         run: |
           chmod +x mvnw
-          ./mvnw clean test
+          set +e
+          ./mvnw clean test > /tmp/maven.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "=== Maven failure (last 160 lines) ==="
+            tail -n 160 /tmp/maven.log
+            exit "$status"
+          fi
+          tail -n 40 /tmp/maven.log
 
       - name: Commit validated changes
         run: |
