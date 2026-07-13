@@ -25,5 +25,8 @@ jobs:
           java-version: '21'
           cache: maven
 
+      - name: Run academic document tests
+        run: mvn -B -Dtest=AcademicDocumentServiceTest,AcademicDocumentPdfServiceTest,AcademicServicesWhatsappFlowAspectTest,AcademicServicesInteractiveMenuTest,WhatsappInteractiveMenuFactoryTest,SecretariaPayWhatsappWebhookServiceInteractiveTest test
+
       - name: Compile and package
         run: mvn -B -DskipTests clean package
