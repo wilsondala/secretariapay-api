@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -24,19 +25,24 @@ public class ChargeService {
 
     private final ChargeRepository chargeRepository;
     private final StudentRepository studentRepository;
+    private final TuitionChargeSettlementService tuitionChargeSettlementService;
 
     public ChargeService(
             ChargeRepository chargeRepository,
-            StudentRepository studentRepository
+            StudentRepository studentRepository,
+            TuitionChargeSettlementService tuitionChargeSettlementService
     ) {
         this.chargeRepository = chargeRepository;
         this.studentRepository = studentRepository;
+        this.tuitionChargeSettlementService = tuitionChargeSettlementService;
     }
 
     @Transactional
     public ChargeResponse create(ChargeRequest request) {
         Student student = studentRepository.findById(request.getStudentId())
                 .orElseThrow(() -> new NotFoundException("Estudante não encontrado."));
+
+        preventDuplicateTuition(student, request);
 
         BigDecimal fineAmount = valueOrZero(request.getFineAmount());
         BigDecimal interestAmount = valueOrZero(request.getInterestAmount());
@@ -125,6 +131,21 @@ public class ChargeService {
             throw new IllegalArgumentException("Não é possível confirmar uma cobrança cancelada.");
         }
 
+        if (isTuition(charge)) {
+            Charge settled = tuitionChargeSettlementService.settleTuitionPayment(
+                    charge.getStudent(),
+                    charge.getReferenceMonth(),
+                    charge.getDescription(),
+                    charge.getDueDate(),
+                    charge.getAmount(),
+                    charge.getFineAmount(),
+                    charge.getInterestAmount(),
+                    charge.getCurrency(),
+                    LocalDateTime.now()
+            );
+            return toResponse(settled);
+        }
+
         charge
                 .setStatus(ChargeStatus.PAID)
                 .setPaidAt(LocalDateTime.now());
@@ -178,6 +199,33 @@ public class ChargeService {
                 .setUpdatedAt(charge.getUpdatedAt());
     }
 
+    private void preventDuplicateTuition(Student student, ChargeRequest request) {
+        if (!isTuition(request.getDescription())) {
+            return;
+        }
+
+        LocalDate periodStart = request.getDueDate().withDayOfMonth(1);
+        LocalDate periodEnd = periodStart.plusMonths(1).minusDays(1);
+
+        if (chargeRepository.existsActiveTuitionByStudentAndPeriod(student.getId(), periodStart, periodEnd)) {
+            throw new IllegalArgumentException(
+                    "Já existe uma propina registada para este estudante no período "
+                            + periodStart.getMonthValue() + "/" + periodStart.getYear() + "."
+            );
+        }
+    }
+
+    private boolean isTuition(Charge charge) {
+        return charge != null && (
+                isTuition(charge.getDescription())
+                        || isTuition(charge.getChargeCode())
+        );
+    }
+
+    private boolean isTuition(String value) {
+        return value != null && value.toLowerCase(Locale.ROOT).contains("propina");
+    }
+
     private Charge findEntityById(UUID id) {
         return chargeRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Cobrança não encontrada."));
@@ -198,6 +246,6 @@ public class ChargeService {
     }
 
     private String normalizeCurrency(String currency) {
-        return currency == null || currency.isBlank() ? "AOA" : currency.trim().toUpperCase();
+        return currency == null || currency.isBlank() ? "AOA" : currency.trim().toUpperCase(Locale.ROOT);
     }
 }
