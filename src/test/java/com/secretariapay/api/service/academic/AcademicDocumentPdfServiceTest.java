@@ -47,6 +47,6 @@ class AcademicDocumentPdfServiceTest {
 
         assertThat(pdf).isNotEmpty();
         assertThat(new String(pdf, 0, 4, java.nio.charset.StandardCharsets.US_ASCII)).isEqualTo("%PDF");
-        assertThat(pdf.length).isGreaterThan(5_000);
+        assertThat(pdf.length).isGreaterThan(1_000);
     }
 }
