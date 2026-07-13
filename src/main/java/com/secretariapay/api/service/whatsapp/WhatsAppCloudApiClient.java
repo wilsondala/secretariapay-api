@@ -12,6 +12,7 @@ import org.springframework.web.client.RestClientResponseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -210,13 +211,26 @@ public class WhatsAppCloudApiClient {
 
     private String sanitizeInstitutionalLanguage(String value) {
         if (value == null || value.isBlank()) return value == null ? "" : value;
-        return value
+
+        String sanitized = value
                 .replaceAll("(?iu)PDF da guia oficial", "PDF da guia de pagamento")
                 .replaceAll("(?iu)guia oficial", "guia de pagamento")
                 .replaceAll("(?iu)comprovativos oficiais", "comprovativos de pagamento")
                 .replaceAll("(?iu)comprovativo oficial", "comprovativo de pagamento")
                 .replaceAll("(?iu)recibo oficial", "recibo de pagamento")
                 .replaceAll("(?iu)documento oficial", "documento financeiro");
+
+        String normalized = sanitized.toLowerCase(Locale.ROOT);
+        if (normalized.contains("comprovativo de pagamento emitido")) {
+            sanitized = sanitized
+                    .replaceAll("(?iu)SecretáriaPay Académico: comprovativo de pagamento emitido\\.", "SecretáriaPay Académico: borderô financeiro consolidado emitido.")
+                    .replaceAll("(?m)^Comprovativo:\\s*", "Código do último registo: ")
+                    .replaceAll("(?m)^Referência:\\s*", "Última referência atualizada: ")
+                    .replaceAll("(?m)^Valor:\\s*", "Valor do último pagamento: ")
+                    .replaceAll("(?m)^Link público:\\s*", "Consultar borderô: ");
+        }
+
+        return sanitized;
     }
 
     private String normalizePhone(String phone) { if (phone == null) return ""; String digits = phone.replaceAll("[^0-9]", ""); return digits.startsWith("00") ? digits.substring(2) : digits; }
