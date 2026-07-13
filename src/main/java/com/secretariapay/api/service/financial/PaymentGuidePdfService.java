@@ -140,8 +140,8 @@ public class PaymentGuidePdfService {
         drawHeader(document, content, institution, margin, 790, width);
         drawTitle(content, pageWidth, 708);
         drawIdentity(content, charge, margin, 655, width);
-        drawStudent(content, student, academicClass, course, margin, 574, width);
-        drawCharge(content, charge, margin, 463, width);
+        drawStudent(content, student, academicClass, course, margin, 546, width);
+        drawCharge(content, charge, margin, 445, width);
         drawPayment(content, document, charge, margin, 332, width);
         drawInstructions(content, margin, 208, width);
         drawValidation(content, document, charge, issuedAt, hash, margin, 115, width);
