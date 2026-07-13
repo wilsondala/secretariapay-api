@@ -25,5 +25,8 @@ jobs:
           java-version: '21'
           cache: maven
 
+      - name: Run academic document PDF tests
+        run: mvn -B -Dtest=AcademicDocumentPdfServiceTest,AcademicDocumentServiceTest test
+
       - name: Compile and package
         run: mvn -B -DskipTests clean package
