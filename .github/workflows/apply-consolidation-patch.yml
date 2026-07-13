@@ -30,11 +30,11 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Apply consolidation patch
+      - name: Apply consolidation changes
         run: |
-          git apply --check .github/patches/consolidate-tuition-reference.patch
-          git apply .github/patches/consolidate-tuition-reference.patch
+          python3 .github/scripts/apply_tuition_consolidation.py
           git rm .github/patches/consolidate-tuition-reference.patch
+          git rm .github/scripts/apply_tuition_consolidation.py
           git rm .github/workflows/apply-consolidation-patch.yml
 
       - name: Validate Maven build and tests
