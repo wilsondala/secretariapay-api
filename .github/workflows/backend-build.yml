@@ -28,7 +28,7 @@ jobs:
       - name: Run critical financial and document tests
         run: >-
           mvn -B
-          -Dtest=AcademicDocumentPdfServiceTest,AcademicDocumentServiceTest,AcademicServicesWhatsappFlowAspectTest,SecretariaPayFinancialProductionGuardAspectTest
+          -Dtest=AcademicDocumentPdfServiceTest,AcademicDocumentServiceTest,AcademicServicesWhatsappFlowAspectTest,ChargeClassificationServiceTest,SecretariaPayFinancialProductionGuardAspectTest
           test
 
       - name: Compile and package
