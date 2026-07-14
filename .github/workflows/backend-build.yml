@@ -31,22 +31,27 @@ jobs:
           set -o pipefail
           mvn -B -Dstyle.color=never \
             -Dtest=AcademicDocumentPdfServiceTest,AcademicDocumentServiceTest,AcademicServicesWhatsappFlowAspectTest,ChargeClassificationServiceTest,SecretariaPayFinancialProductionGuardAspectTest \
-            test > /tmp/critical-tests.log 2>&1 || {
-              echo "=== CRITICAL TEST FAILURE ==="
-              grep -E "\[ERROR\]|Tests run:|Failures:|Errors:|COMPILATION ERROR|cannot find symbol|constructor .* cannot be applied" /tmp/critical-tests.log | tail -n 160 || true
-              echo "=== LAST 120 LINES ==="
-              tail -n 120 /tmp/critical-tests.log
-              exit 1
-            }
-          tail -n 40 /tmp/critical-tests.log
+            test > /tmp/critical-tests.log 2>&1
+
+      - name: Upload critical test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: critical-test-log
+          path: /tmp/critical-tests.log
+          if-no-files-found: ignore
+          retention-days: 2
 
       - name: Compile and package
         shell: bash
         run: |
-          mvn -B -Dstyle.color=never -DskipTests clean package > /tmp/package.log 2>&1 || {
-            echo "=== PACKAGE FAILURE ==="
-            grep -E "\[ERROR\]|COMPILATION ERROR|cannot find symbol|constructor .* cannot be applied" /tmp/package.log | tail -n 160 || true
-            tail -n 120 /tmp/package.log
-            exit 1
-          }
-          tail -n 40 /tmp/package.log
+          mvn -B -Dstyle.color=never -DskipTests clean package > /tmp/package.log 2>&1
+
+      - name: Upload package log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-log
+          path: /tmp/package.log
+          if-no-files-found: ignore
+          retention-days: 2
