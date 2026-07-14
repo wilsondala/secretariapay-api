@@ -78,4 +78,40 @@ class AcademicServicesWhatsappFlowAspectTest {
         assertThat(result).isEqualTo(Optional.of("LISTA DE SERVIÇOS"));
         verify(optionJoinPoint, never()).proceed();
     }
+
+    @Test
+    void deveEncaminharPedidoDiretoDeMatriculaParaCatalogoOficial() throws Throwable {
+        AcademicServicesWhatsappFlowService flow = mock(AcademicServicesWhatsappFlowService.class);
+        AcademicServicesWhatsappFlowAspect aspect = new AcademicServicesWhatsappFlowAspect(flow);
+        ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
+
+        when(joinPoint.getArgs()).thenReturn(new Object[]{"244923000000", "text", "quero pagar matrícula"});
+        when(flow.handleIfActive("244923000000", "text", "quero pagar matrícula")).thenReturn(Optional.empty());
+        when(flow.isServiceIntent("quero pagar matrícula")).thenReturn(false);
+        when(flow.start("244923000000")).thenReturn("CATÁLOGO OFICIAL IMETRO");
+
+        Object result = aspect.routeAcademicServices(joinPoint);
+
+        assertThat(result).isEqualTo(Optional.of("CATÁLOGO OFICIAL IMETRO"));
+        verify(joinPoint, never()).proceed();
+    }
+
+    @Test
+    void deveEncaminharDeclaracaoCertificadoERecursoParaCatalogoOficial() throws Throwable {
+        AcademicServicesWhatsappFlowService flow = mock(AcademicServicesWhatsappFlowService.class);
+        AcademicServicesWhatsappFlowAspect aspect = new AcademicServicesWhatsappFlowAspect(flow);
+
+        for (String intent : new String[]{"preciso de declaração", "solicitar certificado", "pagar recurso"}) {
+            ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
+            when(joinPoint.getArgs()).thenReturn(new Object[]{"244923000000", "text", intent});
+            when(flow.handleIfActive("244923000000", "text", intent)).thenReturn(Optional.empty());
+            when(flow.isServiceIntent(intent)).thenReturn(false);
+            when(flow.start("244923000000")).thenReturn("CATÁLOGO OFICIAL IMETRO");
+
+            Object result = aspect.routeAcademicServices(joinPoint);
+
+            assertThat(result).isEqualTo(Optional.of("CATÁLOGO OFICIAL IMETRO"));
+            verify(joinPoint, never()).proceed();
+        }
+    }
 }
