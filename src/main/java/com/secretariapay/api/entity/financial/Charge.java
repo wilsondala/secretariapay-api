@@ -7,8 +7,10 @@ import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.UUID;
 
 @Entity
@@ -102,17 +104,50 @@ public class Charge {
 
     private void normalizeDefaults() {
         if (status == null) status = ChargeStatus.PENDING;
-        if (chargeCategory == null) chargeCategory = ChargeCategory.OTHER;
         if (currency == null || currency.isBlank()) currency = "AOA";
         if (serviceCode != null) {
-            serviceCode = serviceCode.trim().toUpperCase();
+            serviceCode = serviceCode.trim().toUpperCase(Locale.ROOT);
             if (serviceCode.isBlank()) serviceCode = null;
         }
+        inferClassificationWhenMissing();
         amount = money(amount);
         fineAmount = money(fineAmount);
         interestAmount = money(interestAmount);
         discountAmount = money(discountAmount);
     }
+
+    private void inferClassificationWhenMissing() {
+        String text = normalize(String.join(" ", safe(description), safe(referenceMonth), safe(chargeCode), safe(serviceCode)));
+        if (serviceCode == null) {
+            if (text.contains("propina")) serviceCode = "TUITION";
+            else if ((text.contains("confirmacao") || text.contains("confirmar")) && text.contains("matricula")) serviceCode = "ENROLLMENT_CONFIRMATION";
+            else if (text.contains("matricula")) serviceCode = "ENROLLMENT";
+            else if (text.contains("inscricao")) serviceCode = "REGISTRATION";
+            else if (text.contains("recurso")) serviceCode = "RESIT_EXAM";
+            else if (text.contains("exame especial")) serviceCode = "SPECIAL_EXAM";
+            else if (text.contains("declaracao") && text.contains("com nota")) serviceCode = "DECLARATION_WITH_GRADES";
+            else if (text.contains("declaracao")) serviceCode = "DECLARATION_WITHOUT_GRADES";
+            else if (text.contains("certificado")) serviceCode = "CERTIFICATE";
+            else if (text.contains("diploma")) serviceCode = "DIPLOMA";
+            else serviceCode = "OTHER";
+        }
+        if (chargeCategory == null || chargeCategory == ChargeCategory.OTHER) {
+            if ("TUITION".equals(serviceCode) || text.contains("propina")) chargeCategory = ChargeCategory.TUITION;
+            else if (!"OTHER".equals(serviceCode)) chargeCategory = ChargeCategory.ACADEMIC_SERVICE;
+            else chargeCategory = ChargeCategory.OTHER;
+        }
+    }
+
+    private String normalize(String value) {
+        return Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", " ")
+                .trim()
+                .replaceAll("\\s+", " ");
+    }
+
+    private String safe(String value) { return value == null ? "" : value; }
 
     private BigDecimal money(BigDecimal value) {
         return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
