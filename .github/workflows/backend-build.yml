@@ -25,8 +25,33 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Run academic document PDF tests
-        run: mvn -B -Dtest=AcademicDocumentPdfServiceTest,AcademicDocumentServiceTest test
+      - name: Run critical financial and document tests
+        shell: bash
+        run: |
+          set -o pipefail
+          mvn -B -Dstyle.color=never \
+            -Dtest=AcademicDocumentPdfServiceTest,AcademicDocumentServiceTest,AcademicServicesWhatsappFlowAspectTest,ChargeClassificationServiceTest,SecretariaPayFinancialProductionGuardAspectTest \
+            test > /tmp/critical-tests.log 2>&1
+
+      - name: Upload critical test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: critical-test-log
+          path: /tmp/critical-tests.log
+          if-no-files-found: ignore
+          retention-days: 2
 
       - name: Compile and package
-        run: mvn -B -DskipTests clean package
+        shell: bash
+        run: |
+          mvn -B -Dstyle.color=never -DskipTests clean package > /tmp/package.log 2>&1
+
+      - name: Upload package log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-log
+          path: /tmp/package.log
+          if-no-files-found: ignore
+          retention-days: 2

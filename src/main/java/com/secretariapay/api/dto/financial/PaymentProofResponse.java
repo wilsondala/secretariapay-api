@@ -1,7 +1,9 @@
 package com.secretariapay.api.dto.financial;
 
+import com.secretariapay.api.entity.enums.financial.ChargeCategory;
 import com.secretariapay.api.entity.enums.financial.PaymentProofStatus;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -10,7 +12,14 @@ public class PaymentProofResponse {
     private UUID id;
     private UUID chargeId;
     private String chargeCode;
+    private ChargeCategory chargeCategory;
+    private String serviceCode;
+    private String chargeDescription;
+    private String referenceMonth;
+    private BigDecimal amount;
+    private String currency;
     private String studentName;
+    private String studentNumber;
     private String fileUrl;
     private String fileName;
     private String mimeType;
@@ -27,174 +36,56 @@ public class PaymentProofResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public UUID getId() {
-        return id;
-    }
-
-    public PaymentProofResponse setId(UUID id) {
-        this.id = id;
-        return this;
-    }
-
-    public UUID getChargeId() {
-        return chargeId;
-    }
-
-    public PaymentProofResponse setChargeId(UUID chargeId) {
-        this.chargeId = chargeId;
-        return this;
-    }
-
-    public String getChargeCode() {
-        return chargeCode;
-    }
-
-    public PaymentProofResponse setChargeCode(String chargeCode) {
-        this.chargeCode = chargeCode;
-        return this;
-    }
-
-    public String getStudentName() {
-        return studentName;
-    }
-
-    public PaymentProofResponse setStudentName(String studentName) {
-        this.studentName = studentName;
-        return this;
-    }
-
-    public String getFileUrl() {
-        return fileUrl;
-    }
-
-    public PaymentProofResponse setFileUrl(String fileUrl) {
-        this.fileUrl = fileUrl;
-        return this;
-    }
-
-    public String getFileName() {
-        return fileName;
-    }
-
-    public PaymentProofResponse setFileName(String fileName) {
-        this.fileName = fileName;
-        return this;
-    }
-
-    public String getMimeType() {
-        return mimeType;
-    }
-
-    public PaymentProofResponse setMimeType(String mimeType) {
-        this.mimeType = mimeType;
-        return this;
-    }
-
-    public String getSubmittedByPhone() {
-        return submittedByPhone;
-    }
-
-    public PaymentProofResponse setSubmittedByPhone(String submittedByPhone) {
-        this.submittedByPhone = submittedByPhone;
-        return this;
-    }
-
-    public LocalDateTime getSubmittedAt() {
-        return submittedAt;
-    }
-
-    public PaymentProofResponse setSubmittedAt(LocalDateTime submittedAt) {
-        this.submittedAt = submittedAt;
-        return this;
-    }
-
-    public PaymentProofStatus getStatus() {
-        return status;
-    }
-
-    public PaymentProofResponse setStatus(PaymentProofStatus status) {
-        this.status = status;
-        return this;
-    }
-
-    public UUID getReviewedByUserId() {
-        return reviewedByUserId;
-    }
-
-    public PaymentProofResponse setReviewedByUserId(UUID reviewedByUserId) {
-        this.reviewedByUserId = reviewedByUserId;
-        return this;
-    }
-
-    public String getReviewedByName() {
-        return reviewedByName;
-    }
-
-    public PaymentProofResponse setReviewedByName(String reviewedByName) {
-        this.reviewedByName = reviewedByName;
-        return this;
-    }
-
-    public String getReviewNote() {
-        return reviewNote;
-    }
-
-    public PaymentProofResponse setReviewNote(String reviewNote) {
-        this.reviewNote = reviewNote;
-        return this;
-    }
-
-    public String getReceiptCode() {
-        return receiptCode;
-    }
-
-    public PaymentProofResponse setReceiptCode(String receiptCode) {
-        this.receiptCode = receiptCode;
-        return this;
-    }
-
-    public String getReceiptPdfUrl() {
-        return receiptPdfUrl;
-    }
-
-    public PaymentProofResponse setReceiptPdfUrl(String receiptPdfUrl) {
-        this.receiptPdfUrl = receiptPdfUrl;
-        return this;
-    }
-
-    public String getReceiptValidationUrl() {
-        return receiptValidationUrl;
-    }
-
-    public PaymentProofResponse setReceiptValidationUrl(String receiptValidationUrl) {
-        this.receiptValidationUrl = receiptValidationUrl;
-        return this;
-    }
-
-    public LocalDateTime getReviewedAt() {
-        return reviewedAt;
-    }
-
-    public PaymentProofResponse setReviewedAt(LocalDateTime reviewedAt) {
-        this.reviewedAt = reviewedAt;
-        return this;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public PaymentProofResponse setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-        return this;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public PaymentProofResponse setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-        return this;
-    }
+    public UUID getId() { return id; }
+    public PaymentProofResponse setId(UUID id) { this.id = id; return this; }
+    public UUID getChargeId() { return chargeId; }
+    public PaymentProofResponse setChargeId(UUID chargeId) { this.chargeId = chargeId; return this; }
+    public String getChargeCode() { return chargeCode; }
+    public PaymentProofResponse setChargeCode(String chargeCode) { this.chargeCode = chargeCode; return this; }
+    public ChargeCategory getChargeCategory() { return chargeCategory; }
+    public PaymentProofResponse setChargeCategory(ChargeCategory chargeCategory) { this.chargeCategory = chargeCategory; return this; }
+    public String getServiceCode() { return serviceCode; }
+    public PaymentProofResponse setServiceCode(String serviceCode) { this.serviceCode = serviceCode; return this; }
+    public String getChargeDescription() { return chargeDescription; }
+    public PaymentProofResponse setChargeDescription(String chargeDescription) { this.chargeDescription = chargeDescription; return this; }
+    public String getReferenceMonth() { return referenceMonth; }
+    public PaymentProofResponse setReferenceMonth(String referenceMonth) { this.referenceMonth = referenceMonth; return this; }
+    public BigDecimal getAmount() { return amount; }
+    public PaymentProofResponse setAmount(BigDecimal amount) { this.amount = amount; return this; }
+    public String getCurrency() { return currency; }
+    public PaymentProofResponse setCurrency(String currency) { this.currency = currency; return this; }
+    public String getStudentName() { return studentName; }
+    public PaymentProofResponse setStudentName(String studentName) { this.studentName = studentName; return this; }
+    public String getStudentNumber() { return studentNumber; }
+    public PaymentProofResponse setStudentNumber(String studentNumber) { this.studentNumber = studentNumber; return this; }
+    public String getFileUrl() { return fileUrl; }
+    public PaymentProofResponse setFileUrl(String fileUrl) { this.fileUrl = fileUrl; return this; }
+    public String getFileName() { return fileName; }
+    public PaymentProofResponse setFileName(String fileName) { this.fileName = fileName; return this; }
+    public String getMimeType() { return mimeType; }
+    public PaymentProofResponse setMimeType(String mimeType) { this.mimeType = mimeType; return this; }
+    public String getSubmittedByPhone() { return submittedByPhone; }
+    public PaymentProofResponse setSubmittedByPhone(String submittedByPhone) { this.submittedByPhone = submittedByPhone; return this; }
+    public LocalDateTime getSubmittedAt() { return submittedAt; }
+    public PaymentProofResponse setSubmittedAt(LocalDateTime submittedAt) { this.submittedAt = submittedAt; return this; }
+    public PaymentProofStatus getStatus() { return status; }
+    public PaymentProofResponse setStatus(PaymentProofStatus status) { this.status = status; return this; }
+    public UUID getReviewedByUserId() { return reviewedByUserId; }
+    public PaymentProofResponse setReviewedByUserId(UUID reviewedByUserId) { this.reviewedByUserId = reviewedByUserId; return this; }
+    public String getReviewedByName() { return reviewedByName; }
+    public PaymentProofResponse setReviewedByName(String reviewedByName) { this.reviewedByName = reviewedByName; return this; }
+    public String getReviewNote() { return reviewNote; }
+    public PaymentProofResponse setReviewNote(String reviewNote) { this.reviewNote = reviewNote; return this; }
+    public String getReceiptCode() { return receiptCode; }
+    public PaymentProofResponse setReceiptCode(String receiptCode) { this.receiptCode = receiptCode; return this; }
+    public String getReceiptPdfUrl() { return receiptPdfUrl; }
+    public PaymentProofResponse setReceiptPdfUrl(String receiptPdfUrl) { this.receiptPdfUrl = receiptPdfUrl; return this; }
+    public String getReceiptValidationUrl() { return receiptValidationUrl; }
+    public PaymentProofResponse setReceiptValidationUrl(String receiptValidationUrl) { this.receiptValidationUrl = receiptValidationUrl; return this; }
+    public LocalDateTime getReviewedAt() { return reviewedAt; }
+    public PaymentProofResponse setReviewedAt(LocalDateTime reviewedAt) { this.reviewedAt = reviewedAt; return this; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public PaymentProofResponse setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; return this; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public PaymentProofResponse setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; return this; }
 }

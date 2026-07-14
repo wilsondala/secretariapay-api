@@ -5,6 +5,7 @@ import com.secretariapay.api.dto.financial.ChargeResponse;
 import com.secretariapay.api.entity.academic.AcademicClass;
 import com.secretariapay.api.entity.academic.Course;
 import com.secretariapay.api.entity.academic.Student;
+import com.secretariapay.api.entity.enums.financial.ChargeCategory;
 import com.secretariapay.api.entity.enums.financial.ChargeStatus;
 import com.secretariapay.api.entity.financial.Charge;
 import com.secretariapay.api.exception.NotFoundException;
@@ -26,15 +27,18 @@ public class ChargeService {
     private final ChargeRepository chargeRepository;
     private final StudentRepository studentRepository;
     private final TuitionChargeSettlementService tuitionChargeSettlementService;
+    private final ChargeClassificationService classificationService;
 
     public ChargeService(
             ChargeRepository chargeRepository,
             StudentRepository studentRepository,
-            TuitionChargeSettlementService tuitionChargeSettlementService
+            TuitionChargeSettlementService tuitionChargeSettlementService,
+            ChargeClassificationService classificationService
     ) {
         this.chargeRepository = chargeRepository;
         this.studentRepository = studentRepository;
         this.tuitionChargeSettlementService = tuitionChargeSettlementService;
+        this.classificationService = classificationService;
     }
 
     @Transactional
@@ -42,7 +46,14 @@ public class ChargeService {
         Student student = studentRepository.findById(request.getStudentId())
                 .orElseThrow(() -> new NotFoundException("Estudante não encontrado."));
 
-        preventDuplicateTuition(student, request);
+        ChargeCategory category = request.getChargeCategory() != null
+                ? request.getChargeCategory()
+                : classificationService.resolveCategory(request.getServiceCode(), request.getDescription(), request.getReferenceMonth(), null);
+        String serviceCode = request.getServiceCode() == null || request.getServiceCode().isBlank()
+                ? classificationService.resolveServiceCode(request.getDescription(), request.getReferenceMonth(), null)
+                : request.getServiceCode().trim().toUpperCase(Locale.ROOT);
+
+        preventDuplicateTuition(student, request, category);
 
         BigDecimal fineAmount = valueOrZero(request.getFineAmount());
         BigDecimal interestAmount = valueOrZero(request.getInterestAmount());
@@ -54,9 +65,11 @@ public class ChargeService {
 
         Charge charge = new Charge()
                 .setStudent(student)
-                .setChargeCode(generateChargeCode())
+                .setChargeCode(generateChargeCode(category, serviceCode))
                 .setDescription(request.getDescription())
                 .setReferenceMonth(request.getReferenceMonth())
+                .setChargeCategory(category)
+                .setServiceCode(serviceCode)
                 .setDueDate(request.getDueDate())
                 .setAmount(request.getAmount())
                 .setFineAmount(fineAmount)
@@ -71,10 +84,7 @@ public class ChargeService {
 
     @Transactional(readOnly = true)
     public List<ChargeResponse> findAll() {
-        return chargeRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        return chargeRepository.findAll().stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -84,54 +94,36 @@ public class ChargeService {
 
     @Transactional(readOnly = true)
     public ChargeResponse findByCode(String chargeCode) {
-        Charge charge = chargeRepository.findByChargeCode(chargeCode)
-                .orElseThrow(() -> new NotFoundException("Cobrança não encontrada."));
-
-        return toResponse(charge);
+        return toResponse(chargeRepository.findByChargeCode(chargeCode)
+                .orElseThrow(() -> new NotFoundException("Cobrança não encontrada.")));
     }
 
     @Transactional(readOnly = true)
     public List<ChargeResponse> findByStudent(UUID studentId) {
-        return chargeRepository.findByStudentIdOrderByDueDateDesc(studentId)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        return chargeRepository.findByStudentIdOrderByDueDateDesc(studentId).stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public List<ChargeResponse> findByStatus(ChargeStatus status) {
-        return chargeRepository.findByStatusOrderByDueDateAsc(status)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        return chargeRepository.findByStatusOrderByDueDateAsc(status).stream().map(this::toResponse).toList();
     }
 
     @Transactional
     public List<ChargeResponse> markOverdueCharges() {
-        List<Charge> overdueCharges = chargeRepository
-                .findByDueDateBeforeAndStatusOrderByDueDateAsc(LocalDate.now(), ChargeStatus.PENDING);
-
+        List<Charge> overdueCharges = chargeRepository.findByDueDateBeforeAndStatusOrderByDueDateAsc(LocalDate.now(), ChargeStatus.PENDING);
         overdueCharges.forEach(charge -> charge.setStatus(ChargeStatus.OVERDUE));
-
-        return chargeRepository.saveAll(overdueCharges)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        return chargeRepository.saveAll(overdueCharges).stream().map(this::toResponse).toList();
     }
 
     @Transactional
     public ChargeResponse confirmPayment(UUID id) {
         Charge charge = findEntityById(id);
-
-        if (charge.getStatus() == ChargeStatus.PAID) {
-            return toResponse(charge);
-        }
-
+        if (charge.getStatus() == ChargeStatus.PAID) return toResponse(charge);
         if (charge.getStatus() == ChargeStatus.CANCELLED) {
             throw new IllegalArgumentException("Não é possível confirmar uma cobrança cancelada.");
         }
 
-        if (isTuition(charge)) {
+        if (classificationService.isTuition(charge)) {
             Charge settled = tuitionChargeSettlementService.settleTuitionPayment(
                     charge.getStudent(),
                     charge.getReferenceMonth(),
@@ -143,28 +135,22 @@ public class ChargeService {
                     charge.getCurrency(),
                     LocalDateTime.now()
             );
-            return toResponse(settled);
+            settled.setChargeCategory(ChargeCategory.TUITION).setServiceCode("TUITION");
+            return toResponse(chargeRepository.save(settled));
         }
 
-        charge
-                .setStatus(ChargeStatus.PAID)
-                .setPaidAt(LocalDateTime.now());
-
+        charge.setStatus(ChargeStatus.PAID).setPaidAt(LocalDateTime.now());
+        classificationService.classify(charge);
         return toResponse(chargeRepository.save(charge));
     }
 
     @Transactional
     public ChargeResponse cancel(UUID id) {
         Charge charge = findEntityById(id);
-
         if (charge.getStatus() == ChargeStatus.PAID) {
             throw new IllegalArgumentException("Não é possível cancelar uma cobrança já paga.");
         }
-
-        charge
-                .setStatus(ChargeStatus.CANCELLED)
-                .setCancelledAt(LocalDateTime.now());
-
+        charge.setStatus(ChargeStatus.CANCELLED).setCancelledAt(LocalDateTime.now());
         return toResponse(chargeRepository.save(charge));
     }
 
@@ -172,6 +158,8 @@ public class ChargeService {
         Student student = charge.getStudent();
         AcademicClass academicClass = student != null ? student.getAcademicClass() : null;
         Course course = academicClass != null ? academicClass.getCourse() : null;
+        ChargeCategory category = classificationService.resolveCategory(charge);
+        String serviceCode = classificationService.resolveServiceCode(charge);
 
         return new ChargeResponse()
                 .setId(charge.getId())
@@ -185,6 +173,8 @@ public class ChargeService {
                 .setCourseName(course != null ? course.getName() : null)
                 .setDescription(charge.getDescription())
                 .setReferenceMonth(charge.getReferenceMonth())
+                .setChargeCategory(category)
+                .setServiceCode(serviceCode)
                 .setDueDate(charge.getDueDate())
                 .setAmount(charge.getAmount())
                 .setFineAmount(charge.getFineAmount())
@@ -199,46 +189,28 @@ public class ChargeService {
                 .setUpdatedAt(charge.getUpdatedAt());
     }
 
-    private void preventDuplicateTuition(Student student, ChargeRequest request) {
-        if (!isTuition(request.getDescription())) {
-            return;
-        }
-
+    private void preventDuplicateTuition(Student student, ChargeRequest request, ChargeCategory category) {
+        if (category != ChargeCategory.TUITION) return;
         LocalDate periodStart = request.getDueDate().withDayOfMonth(1);
         LocalDate periodEnd = periodStart.plusMonths(1).minusDays(1);
-
         if (chargeRepository.existsActiveTuitionByStudentAndPeriod(student.getId(), periodStart, periodEnd)) {
-            throw new IllegalArgumentException(
-                    "Já existe uma propina registada para este estudante no período "
-                            + periodStart.getMonthValue() + "/" + periodStart.getYear() + "."
-            );
+            throw new IllegalArgumentException("Já existe uma propina registada para este estudante no período "
+                    + periodStart.getMonthValue() + "/" + periodStart.getYear() + ".");
         }
-    }
-
-    private boolean isTuition(Charge charge) {
-        return charge != null && (
-                isTuition(charge.getDescription())
-                        || isTuition(charge.getChargeCode())
-        );
-    }
-
-    private boolean isTuition(String value) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains("propina");
     }
 
     private Charge findEntityById(UUID id) {
-        return chargeRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Cobrança não encontrada."));
+        return chargeRepository.findById(id).orElseThrow(() -> new NotFoundException("Cobrança não encontrada."));
     }
 
-    private String generateChargeCode() {
+    private String generateChargeCode(ChargeCategory category, String serviceCode) {
+        String prefix = category == ChargeCategory.TUITION ? "IMT-PROPINA" : "IMT-SERVICO";
+        String safeService = serviceCode == null ? "OTHER" : serviceCode.replaceAll("[^A-Z0-9]+", "-");
         String code;
-
         do {
-            code = "CHG" + System.currentTimeMillis();
+            code = prefix + "-" + safeService + "-" + System.currentTimeMillis();
         } while (chargeRepository.existsByChargeCode(code));
-
-        return code;
+        return code.length() <= 60 ? code : code.substring(0, 60);
     }
 
     private BigDecimal valueOrZero(BigDecimal value) {

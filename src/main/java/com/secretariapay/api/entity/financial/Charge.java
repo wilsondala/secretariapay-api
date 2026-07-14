@@ -1,13 +1,16 @@
 package com.secretariapay.api.entity.financial;
 
 import com.secretariapay.api.entity.academic.Student;
+import com.secretariapay.api.entity.enums.financial.ChargeCategory;
 import com.secretariapay.api.entity.enums.financial.ChargeStatus;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.UUID;
 
 @Entity
@@ -30,6 +33,13 @@ public class Charge {
 
     @Column(name = "reference_month", length = 20)
     private String referenceMonth;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "charge_category", nullable = false, length = 40)
+    private ChargeCategory chargeCategory = ChargeCategory.OTHER;
+
+    @Column(name = "service_code", length = 80)
+    private String serviceCode;
 
     @Column(name = "due_date", nullable = false)
     private LocalDate dueDate;
@@ -93,163 +103,89 @@ public class Charge {
     }
 
     private void normalizeDefaults() {
-        if (status == null) {
-            status = ChargeStatus.PENDING;
+        if (status == null) status = ChargeStatus.PENDING;
+        if (currency == null || currency.isBlank()) currency = "AOA";
+        if (serviceCode != null) {
+            serviceCode = serviceCode.trim().toUpperCase(Locale.ROOT);
+            if (serviceCode.isBlank()) serviceCode = null;
         }
-
-        if (currency == null || currency.isBlank()) {
-            currency = "AOA";
-        }
-
+        inferClassificationWhenMissing();
         amount = money(amount);
         fineAmount = money(fineAmount);
         interestAmount = money(interestAmount);
         discountAmount = money(discountAmount);
     }
 
+    private void inferClassificationWhenMissing() {
+        String text = normalize(String.join(" ", safe(description), safe(referenceMonth), safe(chargeCode), safe(serviceCode)));
+        if (serviceCode == null) {
+            if (text.contains("propina")) serviceCode = "TUITION";
+            else if ((text.contains("confirmacao") || text.contains("confirmar")) && text.contains("matricula")) serviceCode = "ENROLLMENT_CONFIRMATION";
+            else if (text.contains("matricula")) serviceCode = "ENROLLMENT";
+            else if (text.contains("inscricao")) serviceCode = "REGISTRATION";
+            else if (text.contains("recurso")) serviceCode = "RESIT_EXAM";
+            else if (text.contains("exame especial")) serviceCode = "SPECIAL_EXAM";
+            else if (text.contains("declaracao") && text.contains("com nota")) serviceCode = "DECLARATION_WITH_GRADES";
+            else if (text.contains("declaracao")) serviceCode = "DECLARATION_WITHOUT_GRADES";
+            else if (text.contains("certificado")) serviceCode = "CERTIFICATE";
+            else if (text.contains("diploma")) serviceCode = "DIPLOMA";
+            else serviceCode = "OTHER";
+        }
+        if (chargeCategory == null || chargeCategory == ChargeCategory.OTHER) {
+            if ("TUITION".equals(serviceCode) || text.contains("propina")) chargeCategory = ChargeCategory.TUITION;
+            else if (!"OTHER".equals(serviceCode)) chargeCategory = ChargeCategory.ACADEMIC_SERVICE;
+            else chargeCategory = ChargeCategory.OTHER;
+        }
+    }
+
+    private String normalize(String value) {
+        return Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", " ")
+                .trim()
+                .replaceAll("\\s+", " ");
+    }
+
+    private String safe(String value) { return value == null ? "" : value; }
+
     private BigDecimal money(BigDecimal value) {
         return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
     }
 
-    public UUID getId() {
-        return id;
-    }
-
-    public Student getStudent() {
-        return student;
-    }
-
-    public Charge setStudent(Student student) {
-        this.student = student;
-        return this;
-    }
-
-    public String getChargeCode() {
-        return chargeCode;
-    }
-
-    public Charge setChargeCode(String chargeCode) {
-        this.chargeCode = chargeCode;
-        return this;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public Charge setDescription(String description) {
-        this.description = description;
-        return this;
-    }
-
-    public String getReferenceMonth() {
-        return referenceMonth;
-    }
-
-    public Charge setReferenceMonth(String referenceMonth) {
-        this.referenceMonth = referenceMonth;
-        return this;
-    }
-
-    public LocalDate getDueDate() {
-        return dueDate;
-    }
-
-    public Charge setDueDate(LocalDate dueDate) {
-        this.dueDate = dueDate;
-        return this;
-    }
-
-    public BigDecimal getAmount() {
-        return amount;
-    }
-
-    public Charge setAmount(BigDecimal amount) {
-        this.amount = amount;
-        recalculateTotalAmount();
-        return this;
-    }
-
-    public BigDecimal getFineAmount() {
-        return fineAmount;
-    }
-
-    public Charge setFineAmount(BigDecimal fineAmount) {
-        this.fineAmount = fineAmount;
-        recalculateTotalAmount();
-        return this;
-    }
-
-    public BigDecimal getInterestAmount() {
-        return interestAmount;
-    }
-
-    public Charge setInterestAmount(BigDecimal interestAmount) {
-        this.interestAmount = interestAmount;
-        recalculateTotalAmount();
-        return this;
-    }
-
-    public BigDecimal getDiscountAmount() {
-        return discountAmount;
-    }
-
-    public Charge setDiscountAmount(BigDecimal discountAmount) {
-        this.discountAmount = discountAmount;
-        recalculateTotalAmount();
-        return this;
-    }
-
-    public BigDecimal getTotalAmount() {
-        return totalAmount;
-    }
-
-    public Charge setTotalAmount(BigDecimal totalAmount) {
-        this.totalAmount = money(totalAmount);
-        return this;
-    }
-
-    public String getCurrency() {
-        return currency;
-    }
-
-    public Charge setCurrency(String currency) {
-        this.currency = currency;
-        return this;
-    }
-
-    public ChargeStatus getStatus() {
-        return status;
-    }
-
-    public Charge setStatus(ChargeStatus status) {
-        this.status = status;
-        return this;
-    }
-
-    public LocalDateTime getPaidAt() {
-        return paidAt;
-    }
-
-    public Charge setPaidAt(LocalDateTime paidAt) {
-        this.paidAt = paidAt;
-        return this;
-    }
-
-    public LocalDateTime getCancelledAt() {
-        return cancelledAt;
-    }
-
-    public Charge setCancelledAt(LocalDateTime cancelledAt) {
-        this.cancelledAt = cancelledAt;
-        return this;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
+    public UUID getId() { return id; }
+    public Student getStudent() { return student; }
+    public Charge setStudent(Student student) { this.student = student; return this; }
+    public String getChargeCode() { return chargeCode; }
+    public Charge setChargeCode(String chargeCode) { this.chargeCode = chargeCode; return this; }
+    public String getDescription() { return description; }
+    public Charge setDescription(String description) { this.description = description; return this; }
+    public String getReferenceMonth() { return referenceMonth; }
+    public Charge setReferenceMonth(String referenceMonth) { this.referenceMonth = referenceMonth; return this; }
+    public ChargeCategory getChargeCategory() { return chargeCategory; }
+    public Charge setChargeCategory(ChargeCategory chargeCategory) { this.chargeCategory = chargeCategory; return this; }
+    public String getServiceCode() { return serviceCode; }
+    public Charge setServiceCode(String serviceCode) { this.serviceCode = serviceCode; return this; }
+    public LocalDate getDueDate() { return dueDate; }
+    public Charge setDueDate(LocalDate dueDate) { this.dueDate = dueDate; return this; }
+    public BigDecimal getAmount() { return amount; }
+    public Charge setAmount(BigDecimal amount) { this.amount = amount; recalculateTotalAmount(); return this; }
+    public BigDecimal getFineAmount() { return fineAmount; }
+    public Charge setFineAmount(BigDecimal fineAmount) { this.fineAmount = fineAmount; recalculateTotalAmount(); return this; }
+    public BigDecimal getInterestAmount() { return interestAmount; }
+    public Charge setInterestAmount(BigDecimal interestAmount) { this.interestAmount = interestAmount; recalculateTotalAmount(); return this; }
+    public BigDecimal getDiscountAmount() { return discountAmount; }
+    public Charge setDiscountAmount(BigDecimal discountAmount) { this.discountAmount = discountAmount; recalculateTotalAmount(); return this; }
+    public BigDecimal getTotalAmount() { return totalAmount; }
+    public Charge setTotalAmount(BigDecimal totalAmount) { this.totalAmount = money(totalAmount); return this; }
+    public String getCurrency() { return currency; }
+    public Charge setCurrency(String currency) { this.currency = currency; return this; }
+    public ChargeStatus getStatus() { return status; }
+    public Charge setStatus(ChargeStatus status) { this.status = status; return this; }
+    public LocalDateTime getPaidAt() { return paidAt; }
+    public Charge setPaidAt(LocalDateTime paidAt) { this.paidAt = paidAt; return this; }
+    public LocalDateTime getCancelledAt() { return cancelledAt; }
+    public Charge setCancelledAt(LocalDateTime cancelledAt) { this.cancelledAt = cancelledAt; return this; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
 }
