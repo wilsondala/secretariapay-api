@@ -27,33 +27,32 @@ public class ReceiptService {
     private final ChargeRepository chargeRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final ReceiptAuthenticityService authenticityService;
+    private final ChargeClassificationService classificationService;
 
     public ReceiptService(
             ReceiptRepository receiptRepository,
             ChargeRepository chargeRepository,
             PaymentTransactionRepository paymentTransactionRepository,
-            ReceiptAuthenticityService authenticityService
+            ReceiptAuthenticityService authenticityService,
+            ChargeClassificationService classificationService
     ) {
         this.receiptRepository = receiptRepository;
         this.chargeRepository = chargeRepository;
         this.paymentTransactionRepository = paymentTransactionRepository;
         this.authenticityService = authenticityService;
+        this.classificationService = classificationService;
     }
 
     @Transactional
     public ReceiptResponse issueForCharge(UUID chargeId) {
         Charge charge = chargeRepository.findById(chargeId)
                 .orElseThrow(() -> new NotFoundException("Cobrança não encontrada."));
-
         if (charge.getStatus() != ChargeStatus.PAID) {
             throw new IllegalArgumentException("Só é possível emitir recibo para cobrança paga.");
         }
-
-        receiptRepository.findByChargeId(chargeId)
-                .ifPresent(receipt -> {
-                    throw new IllegalArgumentException("Já existe recibo emitido para esta cobrança.");
-                });
-
+        receiptRepository.findByChargeId(chargeId).ifPresent(receipt -> {
+            throw new IllegalArgumentException("Já existe recibo emitido para esta cobrança.");
+        });
         return issueNewReceipt(charge);
     }
 
@@ -61,11 +60,9 @@ public class ReceiptService {
     public ReceiptResponse issueOrFindForCharge(UUID chargeId) {
         Charge charge = chargeRepository.findById(chargeId)
                 .orElseThrow(() -> new NotFoundException("Cobrança não encontrada."));
-
         if (charge.getStatus() != ChargeStatus.PAID) {
             throw new IllegalArgumentException("Só é possível emitir recibo para cobrança paga.");
         }
-
         return receiptRepository.findByChargeId(chargeId)
                 .map(this::toResponse)
                 .orElseGet(() -> issueNewReceipt(charge));
@@ -73,10 +70,7 @@ public class ReceiptService {
 
     @Transactional(readOnly = true)
     public List<ReceiptResponse> findAll() {
-        return receiptRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        return receiptRepository.findAll().stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -86,10 +80,8 @@ public class ReceiptService {
 
     @Transactional(readOnly = true)
     public ReceiptResponse findByCode(String receiptCode) {
-        Receipt receipt = receiptRepository.findByReceiptCode(receiptCode)
-                .orElseThrow(() -> new NotFoundException("Recibo não encontrado."));
-
-        return toResponse(receipt);
+        return toResponse(receiptRepository.findByReceiptCode(receiptCode)
+                .orElseThrow(() -> new NotFoundException("Recibo não encontrado.")));
     }
 
     @Transactional(readOnly = true)
@@ -105,11 +97,7 @@ public class ReceiptService {
     @Transactional
     public ReceiptResponse cancel(UUID id) {
         Receipt receipt = findEntityById(id);
-
-        receipt
-                .setStatus(ReceiptStatus.CANCELLED)
-                .setCancelledAt(LocalDateTime.now());
-
+        receipt.setStatus(ReceiptStatus.CANCELLED).setCancelledAt(LocalDateTime.now());
         return toResponse(receiptRepository.save(receipt));
     }
 
@@ -123,7 +111,6 @@ public class ReceiptService {
         if (receipt.getReceiptCode() != null && !receipt.getReceiptCode().isBlank()) {
             pdfUrl = buildPdfUrl(receipt.getReceiptCode());
         }
-
         String validationUrl = receipt.getReceiptCode() == null ? receipt.getValidationUrl()
                 : buildValidationUrl(receipt.getReceiptCode()) + "/authentic?hash=" + authenticityService.hash(receipt);
 
@@ -131,6 +118,9 @@ public class ReceiptService {
                 .setId(receipt.getId())
                 .setChargeId(charge != null ? charge.getId() : null)
                 .setChargeCode(charge != null ? charge.getChargeCode() : null)
+                .setChargeCategory(charge != null ? classificationService.resolveCategory(charge) : null)
+                .setServiceCode(charge != null ? classificationService.resolveServiceCode(charge) : null)
+                .setChargeDescription(charge != null ? charge.getDescription() : null)
                 .setStudentName(charge != null && charge.getStudent() != null ? charge.getStudent().getFullName() : null)
                 .setStudentNumber(charge != null && charge.getStudent() != null ? charge.getStudent().getStudentNumber() : null)
                 .setReferenceMonth(charge != null ? charge.getReferenceMonth() : null)
@@ -141,7 +131,7 @@ public class ReceiptService {
                 .setInterestAmount(charge != null ? safeMoney(charge.getInterestAmount()) : BigDecimal.ZERO)
                 .setDiscountAmount(charge != null ? safeMoney(charge.getDiscountAmount()) : BigDecimal.ZERO)
                 .setCurrency(charge != null && charge.getCurrency() != null ? charge.getCurrency() : "AOA")
-                .setPaymentMethod(resolvePaymentMethod(transaction, charge))
+                .setPaymentMethod(resolvePaymentMethod(transaction))
                 .setPaidAt(charge != null ? charge.getPaidAt() : null)
                 .setReceiptCode(receipt.getReceiptCode())
                 .setPdfUrl(pdfUrl)
@@ -157,24 +147,22 @@ public class ReceiptService {
     }
 
     private ReceiptResponse issueNewReceipt(Charge charge) {
+        classificationService.classify(charge);
+        chargeRepository.save(charge);
         String receiptCode = generateReceiptCode();
-        Receipt receipt = new Receipt()
+        Receipt savedReceipt = receiptRepository.save(new Receipt()
                 .setCharge(charge)
                 .setReceiptCode(receiptCode)
-                .setStatus(ReceiptStatus.VALID);
-
-        Receipt savedReceipt = receiptRepository.save(receipt);
+                .setStatus(ReceiptStatus.VALID));
         String validationUrl = buildValidationUrl(savedReceipt.getReceiptCode()) + "/authentic?hash=" + authenticityService.hash(savedReceipt);
         savedReceipt.setValidationUrl(validationUrl);
         savedReceipt.setQrCodeUrl(validationUrl);
         savedReceipt.setPdfUrl(buildPdfUrl(savedReceipt.getReceiptCode()));
-
         return toResponse(receiptRepository.save(savedReceipt));
     }
 
     private Receipt findEntityById(UUID id) {
-        return receiptRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Recibo não encontrado."));
+        return receiptRepository.findById(id).orElseThrow(() -> new NotFoundException("Recibo não encontrado."));
     }
 
     private String generateReceiptCode() {
@@ -197,18 +185,14 @@ public class ReceiptService {
         return value == null ? BigDecimal.ZERO : value;
     }
 
-    private String resolvePaymentMethod(PaymentTransaction transaction, Charge charge) {
+    private String resolvePaymentMethod(PaymentTransaction transaction) {
         if (transaction != null && transaction.getPaymentMethod() != null && !transaction.getPaymentMethod().isBlank()) {
-            if ("INFINITEPAY_LINK".equalsIgnoreCase(transaction.getPaymentMethod())) {
-                return "Pix/link InfinitePay";
-            }
-            return transaction.getPaymentMethod();
+            return "INFINITEPAY_LINK".equalsIgnoreCase(transaction.getPaymentMethod())
+                    ? "Pagamento de teste — histórico"
+                    : transaction.getPaymentMethod();
         }
         if (transaction != null && transaction.getProvider() != null && !transaction.getProvider().isBlank()) {
             return transaction.getProvider();
-        }
-        if (charge != null && charge.getDescription() != null && charge.getDescription().toLowerCase().contains("infinitepay")) {
-            return "Pix/link InfinitePay";
         }
         return "Pagamento confirmado";
     }
