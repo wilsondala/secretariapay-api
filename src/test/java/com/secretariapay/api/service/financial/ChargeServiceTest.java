@@ -3,6 +3,7 @@ package com.secretariapay.api.service.financial;
 import com.secretariapay.api.dto.financial.ChargeRequest;
 import com.secretariapay.api.dto.financial.ChargeResponse;
 import com.secretariapay.api.entity.academic.Student;
+import com.secretariapay.api.entity.enums.financial.ChargeCategory;
 import com.secretariapay.api.entity.enums.financial.ChargeStatus;
 import com.secretariapay.api.entity.financial.Charge;
 import com.secretariapay.api.repository.academic.StudentRepository;
@@ -31,14 +32,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ChargeServiceTest {
 
-    @Mock
-    private ChargeRepository chargeRepository;
-
-    @Mock
-    private StudentRepository studentRepository;
-
-    @Mock
-    private TuitionChargeSettlementService tuitionChargeSettlementService;
+    @Mock private ChargeRepository chargeRepository;
+    @Mock private StudentRepository studentRepository;
+    @Mock private TuitionChargeSettlementService tuitionChargeSettlementService;
 
     private ChargeService service;
     private Student student;
@@ -49,9 +45,9 @@ class ChargeServiceTest {
         service = new ChargeService(
                 chargeRepository,
                 studentRepository,
-                tuitionChargeSettlementService
+                tuitionChargeSettlementService,
+                new ChargeClassificationService()
         );
-
         studentId = UUID.randomUUID();
         student = new Student();
         ReflectionTestUtils.setField(student, "id", studentId);
@@ -92,50 +88,32 @@ class ChargeServiceTest {
 
         when(chargeRepository.findById(chargeId)).thenReturn(Optional.of(pending));
         when(tuitionChargeSettlementService.settleTuitionPayment(
-                eq(student),
-                eq("Julho/2026"),
-                eq("Propina Julho/2026"),
-                eq(LocalDate.of(2026, 7, 10)),
-                eq(new BigDecimal("45000.00")),
-                eq(BigDecimal.ZERO),
-                eq(BigDecimal.ZERO),
-                eq("AOA"),
-                any(LocalDateTime.class)
+                eq(student), eq("Julho/2026"), eq("Propina Julho/2026"),
+                eq(LocalDate.of(2026, 7, 10)), eq(new BigDecimal("45000.00")),
+                eq(BigDecimal.ZERO), eq(BigDecimal.ZERO), eq("AOA"), any(LocalDateTime.class)
         )).thenReturn(paid);
+        when(chargeRepository.save(paid)).thenReturn(paid);
 
         ChargeResponse response = service.confirmPayment(chargeId);
 
         assertThat(response.getId()).isEqualTo(chargeId);
         assertThat(response.getStatus()).isEqualTo(ChargeStatus.PAID);
+        assertThat(response.getChargeCategory()).isEqualTo(ChargeCategory.TUITION);
+        assertThat(response.getServiceCode()).isEqualTo("TUITION");
         assertThat(response.getPaidAt()).isEqualTo(LocalDateTime.of(2026, 7, 12, 16, 0));
-
-        verify(chargeRepository, never()).save(any(Charge.class));
-        verify(tuitionChargeSettlementService).settleTuitionPayment(
-                eq(student),
-                eq("Julho/2026"),
-                eq("Propina Julho/2026"),
-                eq(LocalDate.of(2026, 7, 10)),
-                eq(new BigDecimal("45000.00")),
-                eq(BigDecimal.ZERO),
-                eq(BigDecimal.ZERO),
-                eq("AOA"),
-                any(LocalDateTime.class)
-        );
+        verify(chargeRepository).save(paid);
     }
 
     @Test
-    void shouldKeepExistingConfirmationFlowForNonTuitionCharge() {
+    void shouldKeepExistingConfirmationFlowForAcademicService() {
         UUID chargeId = UUID.randomUUID();
         Charge declaration = new Charge()
                 .setStudent(student)
-                .setChargeCode("CHG-DECLARACAO-2026")
+                .setChargeCode("IMT-SERVICO-DECLARACAO-2026")
                 .setDescription("Declaração de frequência")
-                .setReferenceMonth("Julho/2026")
+                .setReferenceMonth("Declaração 2026")
                 .setDueDate(LocalDate.of(2026, 7, 15))
-                .setAmount(new BigDecimal("5000.00"))
-                .setFineAmount(BigDecimal.ZERO)
-                .setInterestAmount(BigDecimal.ZERO)
-                .setDiscountAmount(BigDecimal.ZERO)
+                .setAmount(new BigDecimal("4400.00"))
                 .setCurrency("AOA")
                 .setStatus(ChargeStatus.PENDING);
         ReflectionTestUtils.setField(declaration, "id", chargeId);
@@ -147,6 +125,8 @@ class ChargeServiceTest {
 
         assertThat(response.getStatus()).isEqualTo(ChargeStatus.PAID);
         assertThat(response.getPaidAt()).isNotNull();
+        assertThat(response.getChargeCategory()).isEqualTo(ChargeCategory.ACADEMIC_SERVICE);
+        assertThat(response.getServiceCode()).isEqualTo("DECLARATION_WITHOUT_GRADES");
         verify(chargeRepository).save(declaration);
         verify(tuitionChargeSettlementService, never()).settleTuitionPayment(
                 any(), any(), any(), any(), any(), any(), any(), any(), any()
@@ -161,9 +141,6 @@ class ChargeServiceTest {
                 .setReferenceMonth("Julho/2026")
                 .setDueDate(LocalDate.of(2026, 7, 10))
                 .setAmount(new BigDecimal("45000.00"))
-                .setFineAmount(BigDecimal.ZERO)
-                .setInterestAmount(BigDecimal.ZERO)
-                .setDiscountAmount(BigDecimal.ZERO)
                 .setCurrency("AOA")
                 .setStatus(status);
         ReflectionTestUtils.setField(charge, "id", id);
