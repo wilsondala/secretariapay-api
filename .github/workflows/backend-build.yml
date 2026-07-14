@@ -26,10 +26,27 @@ jobs:
           cache: maven
 
       - name: Run critical financial and document tests
-        run: >-
-          mvn -B
-          -Dtest=AcademicDocumentPdfServiceTest,AcademicDocumentServiceTest,AcademicServicesWhatsappFlowAspectTest,ChargeClassificationServiceTest,SecretariaPayFinancialProductionGuardAspectTest
-          test
+        shell: bash
+        run: |
+          set -o pipefail
+          mvn -B -Dstyle.color=never \
+            -Dtest=AcademicDocumentPdfServiceTest,AcademicDocumentServiceTest,AcademicServicesWhatsappFlowAspectTest,ChargeClassificationServiceTest,SecretariaPayFinancialProductionGuardAspectTest \
+            test > /tmp/critical-tests.log 2>&1 || {
+              echo "=== CRITICAL TEST FAILURE ==="
+              grep -E "\[ERROR\]|Tests run:|Failures:|Errors:|COMPILATION ERROR|cannot find symbol|constructor .* cannot be applied" /tmp/critical-tests.log | tail -n 160 || true
+              echo "=== LAST 120 LINES ==="
+              tail -n 120 /tmp/critical-tests.log
+              exit 1
+            }
+          tail -n 40 /tmp/critical-tests.log
 
       - name: Compile and package
-        run: mvn -B -DskipTests clean package
+        shell: bash
+        run: |
+          mvn -B -Dstyle.color=never -DskipTests clean package > /tmp/package.log 2>&1 || {
+            echo "=== PACKAGE FAILURE ==="
+            grep -E "\[ERROR\]|COMPILATION ERROR|cannot find symbol|constructor .* cannot be applied" /tmp/package.log | tail -n 160 || true
+            tail -n 120 /tmp/package.log
+            exit 1
+          }
+          tail -n 40 /tmp/package.log
