@@ -88,11 +88,13 @@ $loginBody = @{
     email    = $Email
     password = $Password
 }
-$login = Invoke-RestMethod \
-    -Method POST \
-    -Uri "$BaseUrl/api/v1/auth/login" \
-    -ContentType "application/json; charset=utf-8" \
-    -Body ($loginBody | ConvertTo-Json)
+$loginParameters = @{
+    Method      = "POST"
+    Uri         = "$BaseUrl/api/v1/auth/login"
+    ContentType = "application/json; charset=utf-8"
+    Body        = ($loginBody | ConvertTo-Json)
+}
+$login = Invoke-RestMethod @loginParameters
 
 if ([string]::IsNullOrWhiteSpace($login.token)) {
     throw "A autenticação não devolveu um token JWT."
@@ -154,11 +156,11 @@ $academicClass = $classes | Where-Object {
 
 if ($null -eq $academicClass) {
     $academicClass = Invoke-JsonApi -Method POST -Path "/api/v1/academic-classes" -Body @{
-        courseId    = $course.id
-        name        = "GFB-1A-2026"
+        courseId     = $course.id
+        name         = "GFB-1A-2026"
         academicYear = "2026"
-        yearLevel   = 1
-        active      = $true
+        yearLevel    = 1
+        active       = $true
     }
     Write-Host "Turma criada: $($academicClass.id)" -ForegroundColor Green
 }
@@ -172,16 +174,16 @@ $student = Invoke-JsonApi -Method GET -Path "/api/v1/students/number/$studentNum
 
 if ($null -eq $student) {
     $student = Invoke-JsonApi -Method POST -Path "/api/v1/students" -Body @{
-        academicClassId   = $academicClass.id
-        studentNumber     = $studentNumber
-        fullName          = "Wilson dos Santos Kahango Dala"
-        documentType      = "BI"
-        documentNumber    = "006123456LA042"
-        email             = "wilson.dala.teste@imetroangola.com"
-        phone             = "+244 923 168 085"
-        whatsapp          = "+244 923 168 085"
-        birthDate         = "1990-01-01"
-        status            = "ACTIVE"
+        academicClassId    = $academicClass.id
+        studentNumber      = $studentNumber
+        fullName           = "Wilson dos Santos Kahango Dala"
+        documentType       = "BI"
+        documentNumber     = "006123456LA042"
+        email              = "wilson.dala.teste@imetroangola.com"
+        phone              = "+244 923 168 085"
+        whatsapp           = "+244 923 168 085"
+        birthDate          = "1990-01-01"
+        status             = "ACTIVE"
         financiallyBlocked = $false
     }
     Write-Host "Estudante criado: $($student.id)" -ForegroundColor Green
@@ -220,10 +222,7 @@ else {
 Write-Step "Gerar a Guia de Pagamento Académico com as novas marcas"
 $guideFilename = "Guia_Pagamento_Academico_${studentNumber}_Julho_2026_$($charge.chargeCode).pdf"
 $guidePath = Join-Path $OutputDirectory $guideFilename
-Download-Pdf \
-    -Path "/api/v1/public/payment-guides/$($charge.chargeCode)/pdf" \
-    -Destination $guidePath \
-    -Public
+Download-Pdf -Path "/api/v1/public/payment-guides/$($charge.chargeCode)/pdf" -Destination $guidePath -Public
 
 Write-Step "Simular confirmação DCR local para emitir o borderô"
 if ($charge.status -ne "PAID") {
@@ -247,9 +246,7 @@ else {
 Write-Step "Gerar o borderô/comprovativo com as novas marcas"
 $receiptFilename = "Comprovativo_Pagamentos_${studentNumber}_$($receipt.receiptCode).pdf"
 $receiptPath = Join-Path $OutputDirectory $receiptFilename
-Download-Pdf \
-    -Path "/api/v1/receipts/$($receipt.id)/pdf" \
-    -Destination $receiptPath
+Download-Pdf -Path "/api/v1/receipts/$($receipt.id)/pdf" -Destination $receiptPath
 
 Write-Step "Criar ou reutilizar a declaração académica de demonstração"
 $purpose = "Validação visual das novas marcas institucionais"
@@ -260,8 +257,8 @@ $academicDocument = $documents | Where-Object {
 
 if ($null -eq $academicDocument) {
     $academicDocument = Invoke-JsonApi -Method POST -Path "/api/v1/academic-documents/demo/simple-declaration" -Body @{
-        studentNumber  = $studentNumber
-        purpose        = $purpose
+        studentNumber   = $studentNumber
+        purpose         = $purpose
         declarationText = "Para os devidos efeitos, declara-se que Wilson dos Santos Kahango Dala, titular da matrícula 202301404, encontra-se regularmente matriculado no curso de Gestão Financeira e Bancária no ano académico de 2026."
     }
     Write-Host "Declaração criada: $($academicDocument.documentCode)" -ForegroundColor Green
@@ -280,9 +277,7 @@ if ($academicDocument.status -eq "READY_FOR_SIGNATURE") {
 Write-Step "Gerar a declaração académica com as novas marcas"
 $declarationFilename = "Declaracao_IMETRO_${studentNumber}_$($academicDocument.documentCode).pdf"
 $declarationPath = Join-Path $OutputDirectory $declarationFilename
-Download-Pdf \
-    -Path "/api/v1/academic-documents/$($academicDocument.id)/pdf" \
-    -Destination $declarationPath
+Download-Pdf -Path "/api/v1/academic-documents/$($academicDocument.id)/pdf" -Destination $declarationPath
 
 Write-Host "`nValidação local preparada com sucesso." -ForegroundColor Green
 Write-Host "Estudante: Wilson dos Santos Kahango Dala ($studentNumber)"
