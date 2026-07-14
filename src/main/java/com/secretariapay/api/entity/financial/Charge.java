@@ -1,6 +1,7 @@
 package com.secretariapay.api.entity.financial;
 
 import com.secretariapay.api.entity.academic.Student;
+import com.secretariapay.api.entity.enums.financial.ChargeCategory;
 import com.secretariapay.api.entity.enums.financial.ChargeStatus;
 import jakarta.persistence.*;
 
@@ -30,6 +31,13 @@ public class Charge {
 
     @Column(name = "reference_month", length = 20)
     private String referenceMonth;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "charge_category", nullable = false, length = 40)
+    private ChargeCategory chargeCategory = ChargeCategory.OTHER;
+
+    @Column(name = "service_code", length = 80)
+    private String serviceCode;
 
     @Column(name = "due_date", nullable = false)
     private LocalDate dueDate;
@@ -93,14 +101,13 @@ public class Charge {
     }
 
     private void normalizeDefaults() {
-        if (status == null) {
-            status = ChargeStatus.PENDING;
+        if (status == null) status = ChargeStatus.PENDING;
+        if (chargeCategory == null) chargeCategory = ChargeCategory.OTHER;
+        if (currency == null || currency.isBlank()) currency = "AOA";
+        if (serviceCode != null) {
+            serviceCode = serviceCode.trim().toUpperCase();
+            if (serviceCode.isBlank()) serviceCode = null;
         }
-
-        if (currency == null || currency.isBlank()) {
-            currency = "AOA";
-        }
-
         amount = money(amount);
         fineAmount = money(fineAmount);
         interestAmount = money(interestAmount);
@@ -111,145 +118,39 @@ public class Charge {
         return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
     }
 
-    public UUID getId() {
-        return id;
-    }
-
-    public Student getStudent() {
-        return student;
-    }
-
-    public Charge setStudent(Student student) {
-        this.student = student;
-        return this;
-    }
-
-    public String getChargeCode() {
-        return chargeCode;
-    }
-
-    public Charge setChargeCode(String chargeCode) {
-        this.chargeCode = chargeCode;
-        return this;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public Charge setDescription(String description) {
-        this.description = description;
-        return this;
-    }
-
-    public String getReferenceMonth() {
-        return referenceMonth;
-    }
-
-    public Charge setReferenceMonth(String referenceMonth) {
-        this.referenceMonth = referenceMonth;
-        return this;
-    }
-
-    public LocalDate getDueDate() {
-        return dueDate;
-    }
-
-    public Charge setDueDate(LocalDate dueDate) {
-        this.dueDate = dueDate;
-        return this;
-    }
-
-    public BigDecimal getAmount() {
-        return amount;
-    }
-
-    public Charge setAmount(BigDecimal amount) {
-        this.amount = amount;
-        recalculateTotalAmount();
-        return this;
-    }
-
-    public BigDecimal getFineAmount() {
-        return fineAmount;
-    }
-
-    public Charge setFineAmount(BigDecimal fineAmount) {
-        this.fineAmount = fineAmount;
-        recalculateTotalAmount();
-        return this;
-    }
-
-    public BigDecimal getInterestAmount() {
-        return interestAmount;
-    }
-
-    public Charge setInterestAmount(BigDecimal interestAmount) {
-        this.interestAmount = interestAmount;
-        recalculateTotalAmount();
-        return this;
-    }
-
-    public BigDecimal getDiscountAmount() {
-        return discountAmount;
-    }
-
-    public Charge setDiscountAmount(BigDecimal discountAmount) {
-        this.discountAmount = discountAmount;
-        recalculateTotalAmount();
-        return this;
-    }
-
-    public BigDecimal getTotalAmount() {
-        return totalAmount;
-    }
-
-    public Charge setTotalAmount(BigDecimal totalAmount) {
-        this.totalAmount = money(totalAmount);
-        return this;
-    }
-
-    public String getCurrency() {
-        return currency;
-    }
-
-    public Charge setCurrency(String currency) {
-        this.currency = currency;
-        return this;
-    }
-
-    public ChargeStatus getStatus() {
-        return status;
-    }
-
-    public Charge setStatus(ChargeStatus status) {
-        this.status = status;
-        return this;
-    }
-
-    public LocalDateTime getPaidAt() {
-        return paidAt;
-    }
-
-    public Charge setPaidAt(LocalDateTime paidAt) {
-        this.paidAt = paidAt;
-        return this;
-    }
-
-    public LocalDateTime getCancelledAt() {
-        return cancelledAt;
-    }
-
-    public Charge setCancelledAt(LocalDateTime cancelledAt) {
-        this.cancelledAt = cancelledAt;
-        return this;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
+    public UUID getId() { return id; }
+    public Student getStudent() { return student; }
+    public Charge setStudent(Student student) { this.student = student; return this; }
+    public String getChargeCode() { return chargeCode; }
+    public Charge setChargeCode(String chargeCode) { this.chargeCode = chargeCode; return this; }
+    public String getDescription() { return description; }
+    public Charge setDescription(String description) { this.description = description; return this; }
+    public String getReferenceMonth() { return referenceMonth; }
+    public Charge setReferenceMonth(String referenceMonth) { this.referenceMonth = referenceMonth; return this; }
+    public ChargeCategory getChargeCategory() { return chargeCategory; }
+    public Charge setChargeCategory(ChargeCategory chargeCategory) { this.chargeCategory = chargeCategory; return this; }
+    public String getServiceCode() { return serviceCode; }
+    public Charge setServiceCode(String serviceCode) { this.serviceCode = serviceCode; return this; }
+    public LocalDate getDueDate() { return dueDate; }
+    public Charge setDueDate(LocalDate dueDate) { this.dueDate = dueDate; return this; }
+    public BigDecimal getAmount() { return amount; }
+    public Charge setAmount(BigDecimal amount) { this.amount = amount; recalculateTotalAmount(); return this; }
+    public BigDecimal getFineAmount() { return fineAmount; }
+    public Charge setFineAmount(BigDecimal fineAmount) { this.fineAmount = fineAmount; recalculateTotalAmount(); return this; }
+    public BigDecimal getInterestAmount() { return interestAmount; }
+    public Charge setInterestAmount(BigDecimal interestAmount) { this.interestAmount = interestAmount; recalculateTotalAmount(); return this; }
+    public BigDecimal getDiscountAmount() { return discountAmount; }
+    public Charge setDiscountAmount(BigDecimal discountAmount) { this.discountAmount = discountAmount; recalculateTotalAmount(); return this; }
+    public BigDecimal getTotalAmount() { return totalAmount; }
+    public Charge setTotalAmount(BigDecimal totalAmount) { this.totalAmount = money(totalAmount); return this; }
+    public String getCurrency() { return currency; }
+    public Charge setCurrency(String currency) { this.currency = currency; return this; }
+    public ChargeStatus getStatus() { return status; }
+    public Charge setStatus(ChargeStatus status) { this.status = status; return this; }
+    public LocalDateTime getPaidAt() { return paidAt; }
+    public Charge setPaidAt(LocalDateTime paidAt) { this.paidAt = paidAt; return this; }
+    public LocalDateTime getCancelledAt() { return cancelledAt; }
+    public Charge setCancelledAt(LocalDateTime cancelledAt) { this.cancelledAt = cancelledAt; return this; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
 }
