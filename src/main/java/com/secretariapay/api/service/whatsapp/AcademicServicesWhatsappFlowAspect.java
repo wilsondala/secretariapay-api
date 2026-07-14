@@ -39,7 +39,7 @@ public class AcademicServicesWhatsappFlowAspect {
             return activeFlowReply;
         }
 
-        if (academicServicesFlow.isServiceIntent(message)) {
+        if (academicServicesFlow.isServiceIntent(message) || isOfficialAcademicServiceIntent(normalized)) {
             awaitingMainMenuSelection.remove(phone);
             return Optional.of(academicServicesFlow.start(phone));
         }
@@ -50,7 +50,7 @@ public class AcademicServicesWhatsappFlowAspect {
                 return Optional.of(academicServicesFlow.start(phone));
             }
             if ("5".equals(normalized)) {
-                return Optional.of("Certo. Vou encaminhar o seu atendimento para a DCR.\n\nInforme o motivo da solicitação.");
+                return Optional.of("Certo. A sua solicitação será encaminhada para a DCR.\n\nInforme o motivo do atendimento.");
             }
         }
 
@@ -65,11 +65,44 @@ public class AcademicServicesWhatsappFlowAspect {
         return result;
     }
 
+    private boolean isOfficialAcademicServiceIntent(String normalized) {
+        return containsAny(normalized,
+                "servicos academicos",
+                "servico academico",
+                "pagar matricula",
+                "matricula",
+                "confirmacao de matricula",
+                "confirmar matricula",
+                "inscricao",
+                "pagar recurso",
+                "recurso",
+                "exame de recurso",
+                "exame especial",
+                "declaracao com nota",
+                "declaracao sem nota",
+                "pagar declaracao",
+                "declaracao",
+                "certificado",
+                "diploma");
+    }
+
     private boolean isLegacyMainMenu(String reply) {
         String normalized = normalize(reply);
         return normalized.contains("como posso ajudar")
                 && normalized.contains("[1] propinas")
                 && normalized.contains("falar com a dcr");
+    }
+
+    private boolean containsAny(String value, String... terms) {
+        if (value == null || value.isBlank() || terms == null) {
+            return false;
+        }
+        for (String term : terms) {
+            if (value.contains(normalize(term))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String normalize(String value) {
