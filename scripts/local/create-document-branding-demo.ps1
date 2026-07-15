@@ -1,6 +1,7 @@
 param(
     [string]$BaseUrl = "http://localhost:8080",
-    [string]$Email = "teste.local@secretariapay.com",
+    [string]$Email = "admin@secretariapay.com",
+    [string]$FinancialEmail = "financeiro@secretariapay.com",
     [string]$Password = $env:SECRETARIAPAY_LOCAL_ADMIN_PASSWORD,
     [string]$OutputDirectory = "artifacts/local-branding-demo"
 )
@@ -16,6 +17,36 @@ function Convert-ToItemArray([AllowNull()][object]$Value) {
     if ($null -eq $Value) { return @() }
     if ($Value -is [System.Array]) { return @($Value | Where-Object { $null -ne $_ }) }
     return @($Value)
+}
+
+function Connect-LocalUser {
+    param(
+        [Parameter(Mandatory = $true)][string]$UserEmail,
+        [Parameter(Mandatory = $true)][string]$UserPassword
+    )
+
+    $login = Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/auth/login" -ContentType "application/json; charset=utf-8" -Body (@{
+        email = $UserEmail
+        password = $UserPassword
+    } | ConvertTo-Json)
+
+    if ([string]::IsNullOrWhiteSpace($login.token)) {
+        throw "A autenticação de $UserEmail não devolveu um token JWT."
+    }
+
+    return @{
+        Email = $login.user.email
+        Headers = @{
+            Authorization = "Bearer $($login.token)"
+            Accept = "application/json"
+        }
+    }
+}
+
+function Use-AuthenticatedProfile {
+    param([Parameter(Mandatory = $true)][hashtable]$Profile)
+    $script:Headers = $Profile.Headers
+    Write-Host "Perfil ativo: $($Profile.Email)" -ForegroundColor DarkGreen
 }
 
 function Invoke-JsonApi {
@@ -71,7 +102,7 @@ function Download-Pdf {
 }
 
 if ([string]::IsNullOrWhiteSpace($Password)) {
-    $securePassword = Read-Host "Senha do utilizador administrativo local" -AsSecureString
+    $securePassword = Read-Host "Senha dos utilizadores de teste locais" -AsSecureString
     $Password = [System.Net.NetworkCredential]::new("", $securePassword).Password
 }
 
@@ -79,15 +110,12 @@ $BaseUrl = $BaseUrl.TrimEnd('/')
 $OutputDirectory = [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $OutputDirectory))
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 
-Write-Step "Autenticar na API local"
-$login = Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/auth/login" -ContentType "application/json; charset=utf-8" -Body (@{
-    email = $Email
-    password = $Password
-} | ConvertTo-Json)
-if ([string]::IsNullOrWhiteSpace($login.token)) { throw "A autenticação não devolveu um token JWT." }
-
-$script:Headers = @{ Authorization = "Bearer $($login.token)"; Accept = "application/json" }
-Write-Host "Autenticado como $($login.user.email)." -ForegroundColor Green
+Write-Step "Autenticar os perfis locais necessários"
+$adminProfile = Connect-LocalUser -UserEmail $Email -UserPassword $Password
+$financialProfile = Connect-LocalUser -UserEmail $FinancialEmail -UserPassword $Password
+Write-Host "Autenticado como $($adminProfile.Email) para dados académicos e documentos." -ForegroundColor Green
+Write-Host "Autenticado como $($financialProfile.Email) para cobranças e recibos." -ForegroundColor Green
+Use-AuthenticatedProfile $adminProfile
 
 Write-Step "Criar ou reutilizar a instituição local"
 $institution = @(Convert-ToItemArray (Invoke-JsonApi GET "/api/v1/institutions")) |
@@ -167,6 +195,7 @@ if ($null -eq $student) {
 }
 
 Write-Step "Criar ou reutilizar a propina usada na validação visual"
+Use-AuthenticatedProfile $financialProfile
 # A coluna reference_month possui limite de 20 caracteres.
 $referenceMonth = "Julho/2026"
 $description = "Propina referente ao mês de Julho de 2026 - validação visual"
@@ -216,6 +245,7 @@ $receiptPath = Join-Path $OutputDirectory "Comprovativo_Pagamentos_${studentNumb
 Download-Pdf "/api/v1/receipts/$($receipt.id)/pdf" $receiptPath
 
 Write-Step "Criar ou reutilizar a declaração académica de demonstração"
+Use-AuthenticatedProfile $adminProfile
 $purpose = "Validação visual das novas marcas institucionais"
 $academicDocument = @(Convert-ToItemArray (Invoke-JsonApi GET "/api/v1/academic-documents")) |
     Where-Object { $_.studentNumber -eq $studentNumber -and $_.purpose -eq $purpose } |
