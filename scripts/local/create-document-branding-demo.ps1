@@ -1,6 +1,6 @@
 param(
     [string]$BaseUrl = "http://localhost:8080",
-    [string]$Email = "admin@secretariapay.com",
+    [string]$Email = "teste.local@secretariapay.com",
     [string]$Password = $env:SECRETARIAPAY_LOCAL_ADMIN_PASSWORD,
     [string]$OutputDirectory = "artifacts/local-branding-demo"
 )
@@ -11,6 +11,20 @@ Set-StrictMode -Version Latest
 function Write-Step {
     param([string]$Message)
     Write-Host "`n==> $Message" -ForegroundColor Cyan
+}
+
+function Convert-ToItemArray {
+    param([AllowNull()][object]$Value)
+
+    if ($null -eq $Value) {
+        return @()
+    }
+
+    if ($Value -is [System.Array]) {
+        return @($Value | Where-Object { $null -ne $_ })
+    }
+
+    return @($Value)
 }
 
 function Invoke-JsonApi {
@@ -107,7 +121,7 @@ $script:Headers = @{
 Write-Host "Autenticado como $($login.user.email)." -ForegroundColor Green
 
 Write-Step "Criar ou reutilizar a instituição local"
-$institutions = @(Invoke-JsonApi -Method GET -Path "/api/v1/institutions")
+$institutions = @(Convert-ToItemArray (Invoke-JsonApi -Method GET -Path "/api/v1/institutions"))
 $institution = $institutions | Where-Object {
     $_.name -eq "Instituto Superior Politécnico Metropolitano de Angola"
 } | Select-Object -First 1
@@ -130,7 +144,7 @@ else {
 }
 
 Write-Step "Criar ou reutilizar o curso"
-$courses = @(Invoke-JsonApi -Method GET -Path "/api/v1/courses?institutionId=$($institution.id)")
+$courses = @(Convert-ToItemArray (Invoke-JsonApi -Method GET -Path "/api/v1/courses?institutionId=$($institution.id)"))
 $course = $courses | Where-Object { $_.code -eq "GFB-TESTE" } | Select-Object -First 1
 
 if ($null -eq $course) {
@@ -149,7 +163,7 @@ else {
 }
 
 Write-Step "Criar ou reutilizar a turma"
-$classes = @(Invoke-JsonApi -Method GET -Path "/api/v1/academic-classes?courseId=$($course.id)")
+$classes = @(Convert-ToItemArray (Invoke-JsonApi -Method GET -Path "/api/v1/academic-classes?courseId=$($course.id)"))
 $academicClass = $classes | Where-Object {
     $_.name -eq "GFB-1A-2026" -and $_.academicYear -eq "2026"
 } | Select-Object -First 1
@@ -195,7 +209,7 @@ else {
 Write-Step "Criar ou reutilizar a propina usada na validação visual"
 $referenceMonth = "Julho/2026 - Branding"
 $description = "Propina referente ao mês de Julho de 2026 - validação visual"
-$studentCharges = @(Invoke-JsonApi -Method GET -Path "/api/v1/charges/student/$($student.id)")
+$studentCharges = @(Convert-ToItemArray (Invoke-JsonApi -Method GET -Path "/api/v1/charges/student/$($student.id)"))
 $charge = $studentCharges | Where-Object {
     $_.referenceMonth -eq $referenceMonth -and $_.chargeCategory -eq "TUITION"
 } | Select-Object -First 1
@@ -233,7 +247,7 @@ else {
     Write-Host "A cobrança já estava paga no banco local." -ForegroundColor DarkGreen
 }
 
-$receipts = @(Invoke-JsonApi -Method GET -Path "/api/v1/receipts")
+$receipts = @(Convert-ToItemArray (Invoke-JsonApi -Method GET -Path "/api/v1/receipts"))
 $receipt = $receipts | Where-Object { $_.chargeId -eq $charge.id } | Select-Object -First 1
 if ($null -eq $receipt) {
     $receipt = Invoke-JsonApi -Method POST -Path "/api/v1/receipts/charge/$($charge.id)/issue"
@@ -250,7 +264,7 @@ Download-Pdf -Path "/api/v1/receipts/$($receipt.id)/pdf" -Destination $receiptPa
 
 Write-Step "Criar ou reutilizar a declaração académica de demonstração"
 $purpose = "Validação visual das novas marcas institucionais"
-$documents = @(Invoke-JsonApi -Method GET -Path "/api/v1/academic-documents")
+$documents = @(Convert-ToItemArray (Invoke-JsonApi -Method GET -Path "/api/v1/academic-documents"))
 $academicDocument = $documents | Where-Object {
     $_.studentNumber -eq $studentNumber -and $_.purpose -eq $purpose
 } | Select-Object -First 1
