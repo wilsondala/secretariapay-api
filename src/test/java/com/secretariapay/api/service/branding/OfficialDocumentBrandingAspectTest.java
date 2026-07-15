@@ -57,7 +57,7 @@ class OfficialDocumentBrandingAspectTest {
     @Test
     void shouldRenderBothApprovedMarksWithVisiblePixels() {
         BufferedImage imetro = branding.renderImetroLogo(720, 430);
-        BufferedImage secretariaPay = branding.renderSecretariaPayMetroLogo(1080, 300);
+        BufferedImage secretariaPay = branding.renderSecretariaPayMetroLogo(600, 900);
 
         assertTrue(countVisiblePixels(imetro) > 20_000, "A marca UM deve possuir conteúdo visível.");
         assertTrue(countVisiblePixels(secretariaPay) > 20_000, "A marca SecretariaPay METRO deve possuir conteúdo visível.");
