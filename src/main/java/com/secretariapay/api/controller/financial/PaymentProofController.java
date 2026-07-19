@@ -19,6 +19,45 @@ import java.util.UUID;
 @RequestMapping("/api/v1/payment-proofs")
 public class PaymentProofController {
 
+    private static final String READ_AUTHORITIES = "hasAnyAuthority(" +
+            "'ADMIN','ROLE_ADMIN'," +
+            "'COMPANY_ADMIN','ROLE_COMPANY_ADMIN'," +
+            "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL'," +
+            "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION'," +
+            "'ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
+            "'DIRECAO','ROLE_DIRECAO'," +
+            "'FINANCEIRO','ROLE_FINANCEIRO'," +
+            "'TESOURARIA','ROLE_TESOURARIA'," +
+            "'DCR_COORDENACAO','ROLE_DCR_COORDENACAO'," +
+            "'DCR_OPERADOR','ROLE_DCR_OPERADOR'," +
+            "'AUDITORIA','ROLE_AUDITORIA')";
+
+    private static final String REVIEW_AUTHORITIES = "hasAnyAuthority(" +
+            "'ADMIN','ROLE_ADMIN'," +
+            "'COMPANY_ADMIN','ROLE_COMPANY_ADMIN'," +
+            "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL'," +
+            "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION'," +
+            "'ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
+            "'DIRECAO','ROLE_DIRECAO'," +
+            "'FINANCEIRO','ROLE_FINANCEIRO'," +
+            "'TESOURARIA','ROLE_TESOURARIA'," +
+            "'DCR_COORDENACAO','ROLE_DCR_COORDENACAO'," +
+            "'DCR_OPERADOR','ROLE_DCR_OPERADOR')";
+
+    private static final String CHARGE_READ_AUTHORITIES = "hasAnyAuthority(" +
+            "'ADMIN','ROLE_ADMIN'," +
+            "'COMPANY_ADMIN','ROLE_COMPANY_ADMIN'," +
+            "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL'," +
+            "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION'," +
+            "'ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
+            "'DIRECAO','ROLE_DIRECAO'," +
+            "'FINANCEIRO','ROLE_FINANCEIRO'," +
+            "'TESOURARIA','ROLE_TESOURARIA'," +
+            "'DCR_COORDENACAO','ROLE_DCR_COORDENACAO'," +
+            "'DCR_OPERADOR','ROLE_DCR_OPERADOR'," +
+            "'SECRETARIA','ROLE_SECRETARIA'," +
+            "'AUDITORIA','ROLE_AUDITORIA')";
+
     private final PaymentProofService service;
     private final PaymentProofAttachmentService attachmentService;
 
@@ -34,37 +73,37 @@ public class PaymentProofController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize(READ_AUTHORITIES)
     public List<PaymentProofResponse> findAll() {
         return service.findAll();
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize(READ_AUTHORITIES)
     public PaymentProofResponse findById(@PathVariable UUID id) {
         return service.findById(id);
     }
 
     @GetMapping("/{id}/attachment")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize(READ_AUTHORITIES)
     public ResponseEntity<byte[]> openAttachment(@PathVariable UUID id) {
         return attachmentService.openAttachment(id);
     }
 
     @GetMapping("/status/{status}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize(READ_AUTHORITIES)
     public List<PaymentProofResponse> findByStatus(@PathVariable PaymentProofStatus status) {
         return service.findByStatus(status);
     }
 
     @GetMapping("/charge/{chargeId}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA', 'SECRETARIA', 'ROLE_SECRETARIA')")
+    @PreAuthorize(CHARGE_READ_AUTHORITIES)
     public List<PaymentProofResponse> findByCharge(@PathVariable UUID chargeId) {
         return service.findByCharge(chargeId);
     }
 
     @PatchMapping("/{id}/approve")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize(REVIEW_AUTHORITIES)
     public PaymentProofResponse approve(
             @PathVariable UUID id,
             @Valid @RequestBody PaymentProofReviewRequest request
@@ -73,7 +112,7 @@ public class PaymentProofController {
     }
 
     @PatchMapping("/{id}/reject")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize(REVIEW_AUTHORITIES)
     public PaymentProofResponse reject(
             @PathVariable UUID id,
             @Valid @RequestBody PaymentProofReviewRequest request
