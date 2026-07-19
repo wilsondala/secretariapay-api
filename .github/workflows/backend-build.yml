@@ -30,7 +30,7 @@ jobs:
         run: |
           set -o pipefail
           mvn -B -Dstyle.color=never \
-            -Dtest=OfficialDocumentBrandingAspectTest,AcademicDocumentPdfServiceTest,AcademicDocumentServiceTest,AcademicServicesWhatsappFlowAspectTest,ChargeClassificationServiceTest,SecretariaPayFinancialProductionGuardAspectTest \
+            -Dtest=OfficialDocumentBrandingAspectTest,AcademicDocumentPdfServiceTest,AcademicDocumentServiceTest,AcademicServiceOrderServiceTest,AcademicServicesWhatsappFlowAspectTest,ChargeClassificationServiceTest,SecretariaPayFinancialProductionGuardAspectTest \
             test > /tmp/critical-tests.log 2>&1
 
       - name: Upload critical test log
