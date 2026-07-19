@@ -3,6 +3,7 @@ package com.secretariapay.api.controller;
 import com.secretariapay.api.dto.academic.AcademicServiceOrderDto;
 import com.secretariapay.api.entity.enums.academic.AcademicServiceOrderStatus;
 import com.secretariapay.api.service.academic.AcademicServiceOrderService;
+import com.secretariapay.api.service.financial.ChargeService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,9 +29,14 @@ public class AcademicServiceOrderController {
     private static final String DIRECAO_AUTHORITIES = "hasAnyAuthority(" + ADMINS + ",'DIRECAO','ROLE_DIRECAO')";
 
     private final AcademicServiceOrderService service;
+    private final ChargeService chargeService;
 
-    public AcademicServiceOrderController(AcademicServiceOrderService service) {
+    public AcademicServiceOrderController(
+            AcademicServiceOrderService service,
+            ChargeService chargeService
+    ) {
         this.service = service;
+        this.chargeService = chargeService;
     }
 
     @GetMapping
@@ -68,6 +74,17 @@ public class AcademicServiceOrderController {
             @RequestBody(required = false) AcademicServiceOrderDto.RequestPaymentRequest request
     ) {
         return service.requestPayment(id, request);
+    }
+
+    @PostMapping("/{id}/confirm-payment")
+    @PreAuthorize(DCR_AUTHORITIES)
+    public AcademicServiceOrderDto.Response confirmPayment(@PathVariable UUID id) {
+        AcademicServiceOrderDto.Response order = service.findById(id);
+        if (order.chargeId() == null) {
+            throw new IllegalStateException("O pedido ainda não possui cobrança associada.");
+        }
+        chargeService.confirmPayment(order.chargeId());
+        return service.findById(id);
     }
 
     @PostMapping("/{id}/generate-document")
