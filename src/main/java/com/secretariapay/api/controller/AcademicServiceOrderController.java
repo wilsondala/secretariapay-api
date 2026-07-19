@@ -39,7 +39,9 @@ public class AcademicServiceOrderController {
             @RequestParam(required = false) AcademicServiceOrderStatus status,
             @RequestParam(required = false) UUID studentId
     ) {
-        return service.list(status, studentId);
+        return service.list(status, studentId).stream()
+                .filter(order -> status != null || order.status() != AcademicServiceOrderStatus.ENTREGUE)
+                .toList();
     }
 
     @GetMapping("/archive")
