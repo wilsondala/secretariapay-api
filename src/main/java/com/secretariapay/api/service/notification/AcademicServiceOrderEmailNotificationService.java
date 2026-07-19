@@ -5,6 +5,7 @@ import com.secretariapay.api.entity.academic.Student;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -18,20 +19,20 @@ public class AcademicServiceOrderEmailNotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(AcademicServiceOrderEmailNotificationService.class);
 
-    private final JavaMailSender mailSender;
+    private final ObjectProvider<JavaMailSender> mailSenderProvider;
     private final boolean enabled;
     private final String from;
     private final String cc;
     private final String senderName;
 
     public AcademicServiceOrderEmailNotificationService(
-            JavaMailSender mailSender,
+            ObjectProvider<JavaMailSender> mailSenderProvider,
             @Value("${SECRETARIAPAY_NOTIFICATIONS_EMAIL_ENABLED:${SECRETARIAPAY_EMAIL_ENABLED:false}}") boolean enabled,
             @Value("${SECRETARIAPAY_NOTIFICATIONS_EMAIL_FROM:${SECRETARIAPAY_EMAIL_FROM:dcr_pay@imetroangola.com}}") String from,
             @Value("${SECRETARIAPAY_NOTIFICATIONS_EMAIL_CC:${SECRETARIAPAY_EMAIL_CC:}}") String cc,
             @Value("${SECRETARIAPAY_NOTIFICATIONS_EMAIL_SENDER_NAME:SecretáriaPay Académico — IMETRO}") String senderName
     ) {
-        this.mailSender = mailSender;
+        this.mailSenderProvider = mailSenderProvider;
         this.enabled = enabled;
         this.from = trimToNull(from);
         this.cc = trimToNull(cc);
@@ -62,6 +63,13 @@ public class AcademicServiceOrderEmailNotificationService {
             log.warn("Pedido {} sem e-mail do estudante ou responsável.", order.getOrderCode());
             return DeliveryResult.skipped("SKIPPED_NO_RECIPIENT", null,
                     "O estudante não possui e-mail cadastrado.");
+        }
+
+        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+        if (mailSender == null) {
+            log.warn("SMTP não configurado para o pedido {}.", order.getOrderCode());
+            return DeliveryResult.skipped("SKIPPED_NOT_CONFIGURED", recipient,
+                    "O servidor SMTP institucional ainda não está configurado.");
         }
 
         try {
