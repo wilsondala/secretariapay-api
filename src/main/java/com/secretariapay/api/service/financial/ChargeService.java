@@ -11,6 +11,8 @@ import com.secretariapay.api.entity.financial.Charge;
 import com.secretariapay.api.exception.NotFoundException;
 import com.secretariapay.api.repository.academic.StudentRepository;
 import com.secretariapay.api.repository.financial.ChargeRepository;
+import com.secretariapay.api.service.academic.AcademicServiceOrderService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,22 @@ public class ChargeService {
     private final StudentRepository studentRepository;
     private final TuitionChargeSettlementService tuitionChargeSettlementService;
     private final ChargeClassificationService classificationService;
+    private final AcademicServiceOrderService academicServiceOrderService;
+
+    @Autowired
+    public ChargeService(
+            ChargeRepository chargeRepository,
+            StudentRepository studentRepository,
+            TuitionChargeSettlementService tuitionChargeSettlementService,
+            ChargeClassificationService classificationService,
+            AcademicServiceOrderService academicServiceOrderService
+    ) {
+        this.chargeRepository = chargeRepository;
+        this.studentRepository = studentRepository;
+        this.tuitionChargeSettlementService = tuitionChargeSettlementService;
+        this.classificationService = classificationService;
+        this.academicServiceOrderService = academicServiceOrderService;
+    }
 
     public ChargeService(
             ChargeRepository chargeRepository,
@@ -35,10 +53,7 @@ public class ChargeService {
             TuitionChargeSettlementService tuitionChargeSettlementService,
             ChargeClassificationService classificationService
     ) {
-        this.chargeRepository = chargeRepository;
-        this.studentRepository = studentRepository;
-        this.tuitionChargeSettlementService = tuitionChargeSettlementService;
-        this.classificationService = classificationService;
+        this(chargeRepository, studentRepository, tuitionChargeSettlementService, classificationService, null);
     }
 
     @Transactional
@@ -118,7 +133,10 @@ public class ChargeService {
     @Transactional
     public ChargeResponse confirmPayment(UUID id) {
         Charge charge = findEntityById(id);
-        if (charge.getStatus() == ChargeStatus.PAID) return toResponse(charge);
+        if (charge.getStatus() == ChargeStatus.PAID) {
+            notifyAcademicServiceOrder(charge);
+            return toResponse(charge);
+        }
         if (charge.getStatus() == ChargeStatus.CANCELLED) {
             throw new IllegalArgumentException("Não é possível confirmar uma cobrança cancelada.");
         }
@@ -136,12 +154,16 @@ public class ChargeService {
                     LocalDateTime.now()
             );
             settled.setChargeCategory(ChargeCategory.TUITION).setServiceCode("TUITION");
-            return toResponse(chargeRepository.save(settled));
+            Charge saved = chargeRepository.save(settled);
+            notifyAcademicServiceOrder(saved);
+            return toResponse(saved);
         }
 
         charge.setStatus(ChargeStatus.PAID).setPaidAt(LocalDateTime.now());
         classificationService.classify(charge);
-        return toResponse(chargeRepository.save(charge));
+        Charge saved = chargeRepository.save(charge);
+        notifyAcademicServiceOrder(saved);
+        return toResponse(saved);
     }
 
     @Transactional
@@ -211,6 +233,12 @@ public class ChargeService {
             code = prefix + "-" + safeService + "-" + System.currentTimeMillis();
         } while (chargeRepository.existsByChargeCode(code));
         return code.length() <= 60 ? code : code.substring(0, 60);
+    }
+
+    private void notifyAcademicServiceOrder(Charge charge) {
+        if (academicServiceOrderService != null) {
+            academicServiceOrderService.confirmPaymentByCharge(charge);
+        }
     }
 
     private BigDecimal valueOrZero(BigDecimal value) {
