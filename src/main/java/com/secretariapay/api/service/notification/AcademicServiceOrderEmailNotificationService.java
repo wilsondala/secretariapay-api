@@ -26,10 +26,10 @@ public class AcademicServiceOrderEmailNotificationService {
 
     public AcademicServiceOrderEmailNotificationService(
             JavaMailSender mailSender,
-            @Value("${secretariapay.notifications.email.enabled:false}") boolean enabled,
-            @Value("${secretariapay.notifications.email.from:dcr_pay@imetroangola.com}") String from,
-            @Value("${secretariapay.notifications.email.cc:}") String cc,
-            @Value("${secretariapay.notifications.email.sender-name:SecretáriaPay Académico — IMETRO}") String senderName
+            @Value("${SECRETARIAPAY_NOTIFICATIONS_EMAIL_ENABLED:${SECRETARIAPAY_EMAIL_ENABLED:false}}") boolean enabled,
+            @Value("${SECRETARIAPAY_NOTIFICATIONS_EMAIL_FROM:${SECRETARIAPAY_EMAIL_FROM:dcr_pay@imetroangola.com}}") String from,
+            @Value("${SECRETARIAPAY_NOTIFICATIONS_EMAIL_CC:${SECRETARIAPAY_EMAIL_CC:}}") String cc,
+            @Value("${SECRETARIAPAY_NOTIFICATIONS_EMAIL_SENDER_NAME:SecretáriaPay Académico — IMETRO}") String senderName
     ) {
         this.mailSender = mailSender;
         this.enabled = enabled;
