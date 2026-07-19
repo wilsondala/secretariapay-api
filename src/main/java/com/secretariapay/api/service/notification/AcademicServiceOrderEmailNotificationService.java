@@ -1,0 +1,169 @@
+package com.secretariapay.api.service.notification;
+
+import com.secretariapay.api.entity.academic.AcademicServiceOrder;
+import com.secretariapay.api.entity.academic.Student;
+import jakarta.mail.internet.MimeMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.stereotype.Service;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
+@Service
+public class AcademicServiceOrderEmailNotificationService {
+
+    private static final Logger log = LoggerFactory.getLogger(AcademicServiceOrderEmailNotificationService.class);
+
+    private final JavaMailSender mailSender;
+    private final boolean enabled;
+    private final String from;
+    private final String cc;
+    private final String senderName;
+
+    public AcademicServiceOrderEmailNotificationService(
+            JavaMailSender mailSender,
+            @Value("${secretariapay.notifications.email.enabled:false}") boolean enabled,
+            @Value("${secretariapay.notifications.email.from:dcr_pay@imetroangola.com}") String from,
+            @Value("${secretariapay.notifications.email.cc:}") String cc,
+            @Value("${secretariapay.notifications.email.sender-name:SecretáriaPay Académico — IMETRO}") String senderName
+    ) {
+        this.mailSender = mailSender;
+        this.enabled = enabled;
+        this.from = trimToNull(from);
+        this.cc = trimToNull(cc);
+        this.senderName = firstNonBlank(senderName, "SecretáriaPay Académico — IMETRO");
+    }
+
+    /**
+     * Envia a comunicação complementar de levantamento. A falha do canal de
+     * e-mail não deve reverter o WhatsApp já confirmado nem provocar reenvio
+     * duplicado do canal principal.
+     */
+    public DeliveryResult sendReadyForPickup(AcademicServiceOrder order) {
+        if (order == null || order.getStudent() == null) {
+            return DeliveryResult.skipped("SKIPPED_INVALID_ORDER", null,
+                    "Pedido ou estudante não informado para a notificação por e-mail.");
+        }
+
+        Student student = order.getStudent();
+        String recipient = firstNonBlank(student.getEmail(), student.getGuardianEmail());
+
+        if (!enabled) {
+            log.info("Notificação por e-mail desativada para o pedido {}.", order.getOrderCode());
+            return DeliveryResult.skipped("SKIPPED_DISABLED", recipient,
+                    "O envio institucional por e-mail está desativado.");
+        }
+
+        if (isBlank(recipient)) {
+            log.warn("Pedido {} sem e-mail do estudante ou responsável.", order.getOrderCode());
+            return DeliveryResult.skipped("SKIPPED_NO_RECIPIENT", null,
+                    "O estudante não possui e-mail cadastrado.");
+        }
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
+            helper.setTo(recipient);
+            if (from != null) {
+                helper.setFrom(from, senderName);
+            }
+
+            String[] ccRecipients = splitRecipients(cc);
+            if (ccRecipients.length > 0) {
+                helper.setCc(ccRecipients);
+            }
+
+            helper.setSubject("Documento disponível para levantamento — " + order.getOrderCode());
+            helper.setText(buildBody(order), false);
+            mailSender.send(message);
+
+            log.info("Notificação de levantamento enviada por e-mail para {} no pedido {}.", recipient, order.getOrderCode());
+            return DeliveryResult.sent(recipient);
+        } catch (Exception exception) {
+            String detail = firstNonBlank(exception.getMessage(), exception.getClass().getSimpleName());
+            log.error("Falha ao enviar e-mail de levantamento do pedido {} para {}: {}",
+                    order.getOrderCode(), recipient, detail, exception);
+            return DeliveryResult.failed(recipient, detail);
+        }
+    }
+
+    private String buildBody(AcademicServiceOrder order) {
+        Student student = order.getStudent();
+        String documentName = order.getService() == null
+                ? "Documento académico"
+                : firstNonBlank(order.getService().getName(), "Documento académico");
+        String location = firstNonBlank(order.getPhysicalLocation(), "Secretaria Académica do IMETRO");
+
+        return """
+                Caro(a) estudante,
+
+                Informamos que o seu documento já se encontra assinado e disponível para levantamento.
+
+                Pedido: %s
+                Documento: %s
+                Matrícula: %s
+                Local de levantamento: %s
+
+                Apresente um documento de identificação no momento do levantamento.
+
+                Caso já tenha efetuado o levantamento, desconsidere esta mensagem.
+
+                Atenciosamente,
+                Secretaria Académica
+                IMETRO
+                """.formatted(
+                order.getOrderCode(),
+                documentName,
+                student.getStudentNumber(),
+                location
+        ).trim();
+    }
+
+    private String[] splitRecipients(String value) {
+        if (isBlank(value)) return new String[0];
+        return Arrays.stream(value.split("[,;]"))
+                .map(String::trim)
+                .filter(item -> !item.isBlank())
+                .distinct()
+                .toArray(String[]::new);
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) return "";
+        for (String value : values) {
+            if (!isBlank(value)) return value.trim();
+        }
+        return "";
+    }
+
+    private static String trimToNull(String value) {
+        return isBlank(value) ? null : value.trim();
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    public record DeliveryResult(
+            boolean sent,
+            String status,
+            String recipient,
+            String detail
+    ) {
+        public static DeliveryResult sent(String recipient) {
+            return new DeliveryResult(true, "SENT", recipient, null);
+        }
+
+        public static DeliveryResult skipped(String status, String recipient, String detail) {
+            return new DeliveryResult(false, status, recipient, detail);
+        }
+
+        public static DeliveryResult failed(String recipient, String detail) {
+            return new DeliveryResult(false, "FAILED", recipient, detail);
+        }
+    }
+}
