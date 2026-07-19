@@ -24,11 +24,12 @@ class AcademicServiceOrderControllerPermissionsTest {
     }
 
     @Test
-    void dcrDeveCriarPedidoEEmitirCobrancaSemExecutarEtapasDaSecretariaOuDirecao() throws Exception {
+    void dcrDeveCriarPedidoEmitirCobrancaEConfirmarPagamentoSemExecutarEtapasDaSecretariaOuDirecao() throws Exception {
         String create = authorization("create", AcademicServiceOrderDto.CreateRequest.class);
         String requestPayment = authorization("requestPayment", UUID.class, AcademicServiceOrderDto.RequestPaymentRequest.class);
+        String confirmPayment = authorization("confirmPayment", UUID.class);
 
-        for (String expression : new String[]{create, requestPayment}) {
+        for (String expression : new String[]{create, requestPayment, confirmPayment}) {
             assertThat(expression)
                     .contains("DCR_COORDENACAO", "DCR_OPERADOR")
                     .doesNotContain("'SECRETARIA'", "'DIRECAO'");
