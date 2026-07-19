@@ -16,6 +16,22 @@ import java.util.UUID;
 @RequestMapping("/api/v1/charges")
 public class ChargeController {
 
+    private static final String READ_AUTHORITIES = "hasAnyAuthority(" +
+            "'ADMIN', 'ROLE_ADMIN', " +
+            "'COMPANY_ADMIN', 'ROLE_COMPANY_ADMIN', " +
+            "'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', " +
+            "'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', " +
+            "'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +
+            "'DIRECAO', 'ROLE_DIRECAO', " +
+            "'FINANCEIRO', 'ROLE_FINANCEIRO', " +
+            "'TESOURARIA', 'ROLE_TESOURARIA', " +
+            "'DCR_COORDENACAO', 'ROLE_DCR_COORDENACAO', " +
+            "'DCR_OPERADOR', 'ROLE_DCR_OPERADOR', " +
+            "'SECRETARIA', 'ROLE_SECRETARIA', " +
+            "'OPERADOR_ATENDIMENTO', 'ROLE_OPERADOR_ATENDIMENTO', " +
+            "'AUDITORIA', 'ROLE_AUDITORIA', " +
+            "'TIC', 'ROLE_TIC')";
+
     private final ChargeService service;
 
     public ChargeController(ChargeService service) {
@@ -30,31 +46,31 @@ public class ChargeController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'DIRECAO', 'ROLE_DIRECAO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA', 'SECRETARIA', 'ROLE_SECRETARIA')")
+    @PreAuthorize(READ_AUTHORITIES)
     public List<ChargeResponse> findAll() {
         return service.findAll();
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'DIRECAO', 'ROLE_DIRECAO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA', 'SECRETARIA', 'ROLE_SECRETARIA')")
+    @PreAuthorize(READ_AUTHORITIES)
     public ChargeResponse findById(@PathVariable UUID id) {
         return service.findById(id);
     }
 
     @GetMapping("/code/{chargeCode}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'DIRECAO', 'ROLE_DIRECAO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA', 'SECRETARIA', 'ROLE_SECRETARIA')")
+    @PreAuthorize(READ_AUTHORITIES)
     public ChargeResponse findByCode(@PathVariable String chargeCode) {
         return service.findByCode(chargeCode);
     }
 
     @GetMapping("/student/{studentId}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'DIRECAO', 'ROLE_DIRECAO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA', 'SECRETARIA', 'ROLE_SECRETARIA')")
+    @PreAuthorize(READ_AUTHORITIES)
     public List<ChargeResponse> findByStudent(@PathVariable UUID studentId) {
         return service.findByStudent(studentId);
     }
 
     @GetMapping("/status/{status}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'DIRECAO', 'ROLE_DIRECAO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize(READ_AUTHORITIES)
     public List<ChargeResponse> findByStatus(@PathVariable ChargeStatus status) {
         return service.findByStatus(status);
     }
