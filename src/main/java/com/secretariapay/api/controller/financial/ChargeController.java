@@ -66,7 +66,7 @@ public class ChargeController {
     }
 
     @PatchMapping("/{id}/confirm-payment")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA', 'DCR_COORDENACAO', 'ROLE_DCR_COORDENACAO', 'DCR_OPERADOR', 'ROLE_DCR_OPERADOR')")
     public ChargeResponse confirmPayment(@PathVariable UUID id) {
         return service.confirmPayment(id);
     }
