@@ -114,18 +114,35 @@ Write-Host "Perfis autenticados sem expor tokens." -ForegroundColor Green
 
 Write-Step "Localizar estudante e serviço académico"
 $student = Invoke-JsonApi GET "/api/v1/students/number/$StudentNumber" $dcr $null
-$services = @(Invoke-JsonApi GET "/api/v1/academic-services?activeOnly=true" $dcr $null)
-$service = $services | Where-Object { $_.code -eq $ServiceCode } | Select-Object -First 1
-if ($null -eq $service) {
+$servicesResponse = Invoke-JsonApi GET "/api/v1/academic-services?activeOnly=true" $dcr $null
+
+if ($null -ne $servicesResponse -and $servicesResponse.PSObject.Properties.Name -contains 'content') {
+    $services = @($servicesResponse.content | ForEach-Object { $_ })
+}
+else {
+    $services = @($servicesResponse | ForEach-Object { $_ })
+}
+
+$serviceMatches = @($services | Where-Object { [string]$_.code -eq $ServiceCode })
+if ($serviceMatches.Count -eq 0) {
     throw "Serviço ativo não encontrado: $ServiceCode"
 }
+if ($serviceMatches.Count -gt 1) {
+    throw "Foram encontrados $($serviceMatches.Count) serviços ativos com o código $ServiceCode. A validação exige exatamente um serviço."
+}
+
+$service = $serviceMatches[0]
+if ([string]::IsNullOrWhiteSpace([string]$service.id)) {
+    throw "O serviço $ServiceCode foi localizado, mas não possui um ID válido."
+}
+
 Write-Host "Estudante: $($student.studentNumber) · $($student.fullName)" -ForegroundColor Green
-Write-Host "Serviço: $($service.code) · $($service.name)" -ForegroundColor Green
+Write-Host "Serviço: $($service.code) · $($service.name) · ID $($service.id)" -ForegroundColor Green
 
 Write-Step "DCR regista o pedido"
 $order = Invoke-JsonApi POST "/api/v1/academic-service-orders" $dcr @{
-    studentId = $student.id
-    serviceId = $service.id
+    studentId = [string]$student.id
+    serviceId = [string]$service.id
     purpose = "Validação controlada do fluxo institucional"
     notes = "Pedido criado automaticamente pelo roteiro de homologação."
 }
