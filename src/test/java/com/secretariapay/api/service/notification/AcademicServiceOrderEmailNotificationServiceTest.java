@@ -1,0 +1,106 @@
+package com.secretariapay.api.service.notification;
+
+import com.secretariapay.api.entity.academic.AcademicServiceOrder;
+import com.secretariapay.api.entity.academic.Student;
+import com.secretariapay.api.entity.financial.AcademicServiceCatalog;
+import jakarta.mail.Session;
+import jakarta.mail.internet.MimeMessage;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mail.javamail.JavaMailSender;
+
+import java.util.Properties;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class AcademicServiceOrderEmailNotificationServiceTest {
+
+    @Mock
+    private JavaMailSender mailSender;
+
+    @Test
+    void deveIgnorarEnvioQuandoCanalEstiverDesativado() {
+        AcademicServiceOrderEmailNotificationService service = new AcademicServiceOrderEmailNotificationService(
+                mailSender,
+                false,
+                "dcr_pay@imetroangola.com",
+                "",
+                "SecretáriaPay Académico — IMETRO"
+        );
+
+        AcademicServiceOrderEmailNotificationService.DeliveryResult result =
+                service.sendReadyForPickup(buildOrder("estudante@imetro.ao", null));
+
+        assertThat(result.sent()).isFalse();
+        assertThat(result.status()).isEqualTo("SKIPPED_DISABLED");
+        assertThat(result.recipient()).isEqualTo("estudante@imetro.ao");
+        verify(mailSender, never()).send(org.mockito.ArgumentMatchers.any(MimeMessage.class));
+    }
+
+    @Test
+    void deveUsarEmailDoResponsavelQuandoEstudanteNaoTiverEmail() throws Exception {
+        MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        AcademicServiceOrderEmailNotificationService service = new AcademicServiceOrderEmailNotificationService(
+                mailSender,
+                true,
+                "dcr_pay@imetroangola.com",
+                "df.oi_pay@imetroangola.com",
+                "SecretáriaPay Académico — IMETRO"
+        );
+
+        AcademicServiceOrderEmailNotificationService.DeliveryResult result =
+                service.sendReadyForPickup(buildOrder(null, "responsavel@imetro.ao"));
+
+        assertThat(result.sent()).isTrue();
+        assertThat(result.status()).isEqualTo("SENT");
+        assertThat(result.recipient()).isEqualTo("responsavel@imetro.ao");
+        assertThat(message.getSubject()).contains("IMT-SRV-20260719-EMAIL");
+        assertThat(message.getAllRecipients()).extracting(Object::toString)
+                .contains("responsavel@imetro.ao", "df.oi_pay@imetroangola.com");
+        verify(mailSender).send(message);
+    }
+
+    @Test
+    void deveRegistarAusenciaDeDestinatarioSemFalharFluxo() {
+        AcademicServiceOrderEmailNotificationService service = new AcademicServiceOrderEmailNotificationService(
+                mailSender,
+                true,
+                "dcr_pay@imetroangola.com",
+                "",
+                "SecretáriaPay Académico — IMETRO"
+        );
+
+        AcademicServiceOrderEmailNotificationService.DeliveryResult result =
+                service.sendReadyForPickup(buildOrder(null, null));
+
+        assertThat(result.sent()).isFalse();
+        assertThat(result.status()).isEqualTo("SKIPPED_NO_RECIPIENT");
+        verify(mailSender, never()).send(org.mockito.ArgumentMatchers.any(MimeMessage.class));
+    }
+
+    private AcademicServiceOrder buildOrder(String studentEmail, String guardianEmail) {
+        Student student = new Student()
+                .setStudentNumber("202301404")
+                .setFullName("Wilson dos Santos Kahango Dala")
+                .setEmail(studentEmail)
+                .setGuardianEmail(guardianEmail);
+
+        AcademicServiceCatalog service = new AcademicServiceCatalog()
+                .setCode("DECLARATION_WITHOUT_GRADES")
+                .setName("Declaração sem notas");
+
+        return new AcademicServiceOrder()
+                .setOrderCode("IMT-SRV-20260719-EMAIL")
+                .setStudent(student)
+                .setService(service)
+                .setPhysicalLocation("Secretaria Académica do IMETRO");
+    }
+}
