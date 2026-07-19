@@ -1,5 +1,6 @@
 package com.secretariapay.api.controller;
 
+import com.secretariapay.api.controller.financial.ChargeController;
 import com.secretariapay.api.dto.academic.AcademicServiceOrderDto;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,16 +25,26 @@ class AcademicServiceOrderControllerPermissionsTest {
     }
 
     @Test
-    void dcrDeveCriarPedidoEmitirCobrancaEConfirmarPagamentoSemExecutarEtapasDaSecretariaOuDirecao() throws Exception {
+    void dcrDeveCriarPedidoEEmitirCobrancaSemExecutarEtapasDaSecretariaOuDirecao() throws Exception {
         String create = authorization("create", AcademicServiceOrderDto.CreateRequest.class);
         String requestPayment = authorization("requestPayment", UUID.class, AcademicServiceOrderDto.RequestPaymentRequest.class);
-        String confirmPayment = authorization("confirmPayment", UUID.class);
 
-        for (String expression : new String[]{create, requestPayment, confirmPayment}) {
+        for (String expression : new String[]{create, requestPayment}) {
             assertThat(expression)
                     .contains("DCR_COORDENACAO", "DCR_OPERADOR")
                     .doesNotContain("'SECRETARIA'", "'DIRECAO'");
         }
+    }
+
+    @Test
+    void dcrDeveConfirmarPagamentoNaCobrancaFinanceira() throws Exception {
+        Method method = ChargeController.class.getDeclaredMethod("confirmPayment", UUID.class);
+        PreAuthorize annotation = method.getAnnotation(PreAuthorize.class);
+
+        assertThat(annotation).isNotNull();
+        assertThat(annotation.value())
+                .contains("DCR_COORDENACAO", "DCR_OPERADOR")
+                .doesNotContain("'SECRETARIA'", "'DIRECAO'");
     }
 
     @Test
