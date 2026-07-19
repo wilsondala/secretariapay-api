@@ -9,11 +9,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -24,10 +26,13 @@ class AcademicServiceOrderEmailNotificationServiceTest {
     @Mock
     private JavaMailSender mailSender;
 
+    @Mock
+    private ObjectProvider<JavaMailSender> mailSenderProvider;
+
     @Test
     void deveIgnorarEnvioQuandoCanalEstiverDesativado() {
         AcademicServiceOrderEmailNotificationService service = new AcademicServiceOrderEmailNotificationService(
-                mailSender,
+                mailSenderProvider,
                 false,
                 "dcr_pay@imetroangola.com",
                 "",
@@ -40,16 +45,17 @@ class AcademicServiceOrderEmailNotificationServiceTest {
         assertThat(result.sent()).isFalse();
         assertThat(result.status()).isEqualTo("SKIPPED_DISABLED");
         assertThat(result.recipient()).isEqualTo("estudante@imetro.ao");
-        verify(mailSender, never()).send(org.mockito.ArgumentMatchers.any(MimeMessage.class));
+        verify(mailSender, never()).send(any(MimeMessage.class));
     }
 
     @Test
     void deveUsarEmailDoResponsavelQuandoEstudanteNaoTiverEmail() throws Exception {
         MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
+        when(mailSenderProvider.getIfAvailable()).thenReturn(mailSender);
         when(mailSender.createMimeMessage()).thenReturn(message);
 
         AcademicServiceOrderEmailNotificationService service = new AcademicServiceOrderEmailNotificationService(
-                mailSender,
+                mailSenderProvider,
                 true,
                 "dcr_pay@imetroangola.com",
                 "df.oi_pay@imetroangola.com",
@@ -71,7 +77,7 @@ class AcademicServiceOrderEmailNotificationServiceTest {
     @Test
     void deveRegistarAusenciaDeDestinatarioSemFalharFluxo() {
         AcademicServiceOrderEmailNotificationService service = new AcademicServiceOrderEmailNotificationService(
-                mailSender,
+                mailSenderProvider,
                 true,
                 "dcr_pay@imetroangola.com",
                 "",
@@ -83,7 +89,26 @@ class AcademicServiceOrderEmailNotificationServiceTest {
 
         assertThat(result.sent()).isFalse();
         assertThat(result.status()).isEqualTo("SKIPPED_NO_RECIPIENT");
-        verify(mailSender, never()).send(org.mockito.ArgumentMatchers.any(MimeMessage.class));
+        verify(mailSender, never()).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void deveInformarQuandoSmtpNaoEstiverConfigurado() {
+        AcademicServiceOrderEmailNotificationService service = new AcademicServiceOrderEmailNotificationService(
+                mailSenderProvider,
+                true,
+                "dcr_pay@imetroangola.com",
+                "",
+                "SecretáriaPay Académico — IMETRO"
+        );
+
+        AcademicServiceOrderEmailNotificationService.DeliveryResult result =
+                service.sendReadyForPickup(buildOrder("estudante@imetro.ao", null));
+
+        assertThat(result.sent()).isFalse();
+        assertThat(result.status()).isEqualTo("SKIPPED_NOT_CONFIGURED");
+        assertThat(result.detail()).contains("SMTP");
+        verify(mailSender, never()).send(any(MimeMessage.class));
     }
 
     private AcademicServiceOrder buildOrder(String studentEmail, String guardianEmail) {
