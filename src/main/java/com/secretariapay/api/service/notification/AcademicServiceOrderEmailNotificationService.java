@@ -24,8 +24,7 @@ import java.util.regex.Pattern;
 public class AcademicServiceOrderEmailNotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(AcademicServiceOrderEmailNotificationService.class);
-    private static final String MINIMAL_SUBJECT = "Teste";
-    private static final String MINIMAL_BODY = "Ola Wilson.";
+    private static final String PICKUP_SUBJECT = "O seu pedido académico está pronto para levantamento";
     private static final Pattern SMTP_RESPONSE_PATTERN =
             Pattern.compile("(?i)\\b(4|5)\\d{2}[ -]\\d\\.\\d\\.\\d(?:\\s+[^\\r\\n]*)?");
 
@@ -88,9 +87,9 @@ public class AcademicServiceOrderEmailNotificationService {
             if (from != null) {
                 message.setFrom(from);
             }
-            message.setSubject(MINIMAL_SUBJECT);
-            message.setText(MINIMAL_BODY);
-            log.info("Mensagem simples de isolamento preparada para o pedido {}: from={}, recipients=1, cc=0, replyTo=ausente.",
+            message.setSubject(PICKUP_SUBJECT);
+            message.setText(buildBody(order));
+            log.info("Mensagem institucional de levantamento preparada para o pedido {}: from={}, recipients=1, cc=0, replyTo=ausente.",
                     order.getOrderCode(), firstNonBlank(from, "gerado pelo SMTP"));
             mailSender.send(message);
 
