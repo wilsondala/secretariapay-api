@@ -8,11 +8,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Locale;
 
 @Service
 public class AcademicServiceOrderEmailNotificationService {
@@ -66,10 +68,10 @@ public class AcademicServiceOrderEmailNotificationService {
         }
 
         JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-        if (mailSender == null) {
-            log.warn("SMTP não configurado para o pedido {}.", order.getOrderCode());
+        if (mailSender == null || hasInvalidSmtpHost(mailSender)) {
+            log.warn("SMTP não configurado corretamente para o pedido {}.", order.getOrderCode());
             return DeliveryResult.skipped("SKIPPED_NOT_CONFIGURED", recipient,
-                    "O servidor SMTP institucional ainda não está configurado.");
+                    "O servidor SMTP institucional ainda não está configurado corretamente.");
         }
 
         try {
@@ -92,11 +94,65 @@ public class AcademicServiceOrderEmailNotificationService {
             log.info("Notificação de levantamento enviada por e-mail para {} no pedido {}.", recipient, order.getOrderCode());
             return DeliveryResult.sent(recipient);
         } catch (Exception exception) {
-            String detail = firstNonBlank(exception.getMessage(), exception.getClass().getSimpleName());
+            String technicalDetail = firstNonBlank(exception.getMessage(), exception.getClass().getSimpleName());
             log.error("Falha ao enviar e-mail de levantamento do pedido {} para {}: {}",
-                    order.getOrderCode(), recipient, detail, exception);
-            return DeliveryResult.failed(recipient, detail);
+                    order.getOrderCode(), recipient, technicalDetail, exception);
+            return DeliveryResult.failed(recipient, friendlyFailureMessage(exception));
         }
+    }
+
+    private boolean hasInvalidSmtpHost(JavaMailSender mailSender) {
+        if (!(mailSender instanceof JavaMailSenderImpl sender)) return false;
+        String host = trimToNull(sender.getHost());
+        if (host == null) return true;
+
+        String normalized = host.toLowerCase(Locale.ROOT);
+        return host.contains("<")
+                || host.contains(">")
+                || normalized.contains("smtp institucional")
+                || normalized.contains("host smtp")
+                || normalized.contains("smtp-host")
+                || normalized.contains("example")
+                || normalized.contains("changeme");
+    }
+
+    private String friendlyFailureMessage(Exception exception) {
+        String detail = collectExceptionMessages(exception).toLowerCase(Locale.ROOT);
+
+        if (detail.contains("unknownhost") || detail.contains("couldn't connect")
+                || detail.contains("could not connect") || detail.contains("mailconnectexception")) {
+            return "Não foi possível conectar ao servidor SMTP institucional. Verifique o host, a porta e a ligação de rede.";
+        }
+        if (detail.contains("authenticationfailed") || detail.contains("authentication failed")
+                || detail.contains("535") || detail.contains("bad credentials")) {
+            return "A autenticação SMTP falhou. Verifique o utilizador e a senha da conta institucional.";
+        }
+        if (detail.contains("sender address rejected") || detail.contains("from address")
+                || detail.contains("not authorized to send")) {
+            return "O servidor SMTP não autorizou o endereço remetente configurado.";
+        }
+        if (detail.contains("recipient address rejected") || detail.contains("invalid addresses")) {
+            return "O endereço de e-mail do estudante ou responsável foi rejeitado pelo servidor SMTP.";
+        }
+        return "Não foi possível enviar o e-mail de levantamento. Verifique a configuração SMTP institucional.";
+    }
+
+    private String collectExceptionMessages(Throwable throwable) {
+        StringBuilder messages = new StringBuilder();
+        Throwable current = throwable;
+        int depth = 0;
+        while (current != null && depth < 8) {
+            if (current.getMessage() != null && !current.getMessage().isBlank()) {
+                if (!messages.isEmpty()) messages.append(' ');
+                messages.append(current.getClass().getSimpleName()).append(": ").append(current.getMessage());
+            } else {
+                if (!messages.isEmpty()) messages.append(' ');
+                messages.append(current.getClass().getSimpleName());
+            }
+            current = current.getCause();
+            depth++;
+        }
+        return messages.toString();
     }
 
     private String buildBody(AcademicServiceOrder order) {
