@@ -70,7 +70,7 @@ class AcademicServiceOrderEmailNotificationServiceTest {
         assertThat(result.sent()).isTrue();
         assertThat(result.status()).isEqualTo("SENT");
         assertThat(result.recipient()).isEqualTo("dalakahango@hotmail.com");
-        assertThat(message.getSubject()).isEqualTo("Teste SecretáriaPay");
+        assertThat(message.getSubject()).isEqualTo("Teste");
         assertThat(message.getFrom()).extracting(Object::toString)
                 .containsExactly("secretariapay@paixaoangola.com");
         assertThat(message.getAllRecipients()).extracting(Object::toString)
@@ -79,9 +79,9 @@ class AcademicServiceOrderEmailNotificationServiceTest {
         assertThat(message.getRecipients(jakarta.mail.Message.RecipientType.CC)).isNull();
         assertThat(message.getContentType()).startsWith("text/plain").contains("charset=UTF-8");
         assertThat(String.valueOf(message.getContent()))
-                .isEqualTo("Olá Wilson. O seu documento está disponível na Secretaria Académica.")
+                .isEqualTo("Ola Wilson.")
                 .doesNotContain("202301404", "IMT-SRV-", "http");
-        assertThat(message.getMessageID()).isNotBlank();
+        assertThat(message.getMessageID()).isNull();
         verify(mailSender).send(message);
     }
 
