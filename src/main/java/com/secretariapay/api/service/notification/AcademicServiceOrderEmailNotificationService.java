@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -82,17 +83,15 @@ public class AcademicServiceOrderEmailNotificationService {
         }
 
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
-            helper.setTo(recipient);
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(recipient);
             if (from != null) {
-                // Isolamento antispam: sem nome pessoal, Reply-To ou CC.
-                helper.setFrom(from);
+                message.setFrom(from);
             }
-            helper.setSubject(MINIMAL_SUBJECT);
-            helper.setText(MINIMAL_BODY, false);
-            // Não antecipar saveChanges: o transporte SMTP deve gerar os cabeçalhos finais.
-            logMimeEnvelope(message, order.getOrderCode());
+            message.setSubject(MINIMAL_SUBJECT);
+            message.setText(MINIMAL_BODY);
+            log.info("Mensagem simples de isolamento preparada para o pedido {}: from={}, recipients=1, cc=0, replyTo=ausente.",
+                    order.getOrderCode(), firstNonBlank(from, "gerado pelo SMTP"));
             mailSender.send(message);
 
             log.info("Notificação de levantamento enviada por e-mail para {} no pedido {}.", recipient, order.getOrderCode());
