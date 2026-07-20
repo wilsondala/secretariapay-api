@@ -51,7 +51,7 @@ class AcademicServiceOrderEmailNotificationServiceTest {
     }
 
     @Test
-    void deveUsarEmailDoResponsavelComMensagemPersonalizadaEInstitucional() throws Exception {
+    void deveMontarMensagemMinimaParaIsolarFiltroAntispam() throws Exception {
         MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
         when(mailSenderProvider.getIfAvailable()).thenReturn(mailSender);
         when(mailSender.createMimeMessage()).thenReturn(message);
@@ -59,29 +59,30 @@ class AcademicServiceOrderEmailNotificationServiceTest {
         AcademicServiceOrderEmailNotificationService service = new AcademicServiceOrderEmailNotificationService(
                 mailSenderProvider,
                 true,
-                "dcr_pay@imetroangola.com",
+                "secretariapay@paixaoangola.com",
                 "df.oi_pay@imetroangola.com",
                 "SecretáriaPay Académico — IMETRO"
         );
 
         AcademicServiceOrderEmailNotificationService.DeliveryResult result =
-                service.sendReadyForPickup(buildOrder(null, "responsavel@imetro.ao"));
+                service.sendReadyForPickup(buildOrder("dalakahango@hotmail.com", null));
 
         assertThat(result.sent()).isTrue();
         assertThat(result.status()).isEqualTo("SENT");
-        assertThat(result.recipient()).isEqualTo("responsavel@imetro.ao");
-        assertThat(message.getSubject()).isEqualTo("O seu pedido académico está pronto para levantamento");
+        assertThat(result.recipient()).isEqualTo("dalakahango@hotmail.com");
+        assertThat(message.getSubject()).isEqualTo("Teste SecretáriaPay");
+        assertThat(message.getFrom()).extracting(Object::toString)
+                .containsExactly("secretariapay@paixaoangola.com");
         assertThat(message.getAllRecipients()).extracting(Object::toString)
-                .contains("responsavel@imetro.ao", "df.oi_pay@imetroangola.com");
+                .containsExactly("dalakahango@hotmail.com");
         assertThat(message.getReplyTo()).extracting(Object::toString)
-                .contains("dcr_pay@imetroangola.com");
-
-        String body = String.valueOf(message.getContent());
-        assertThat(body)
-                .contains("Wilson dos Santos Kahango Dala")
-                .contains("IMT-SRV-20260719-EMAIL")
-                .contains("Declaração sem notas")
-                .hasSizeGreaterThan(500);
+                .containsExactly("secretariapay@paixaoangola.com");
+        assertThat(message.getRecipients(jakarta.mail.Message.RecipientType.CC)).isNull();
+        assertThat(message.getContentType()).startsWith("text/plain").contains("charset=UTF-8");
+        assertThat(String.valueOf(message.getContent()))
+                .isEqualTo("Olá Wilson. O seu documento está disponível na Secretaria Académica.")
+                .doesNotContain("202301404", "IMT-SRV-", "http");
+        assertThat(message.getMessageID()).isNotBlank();
         verify(mailSender).send(message);
     }
 
@@ -147,9 +148,9 @@ class AcademicServiceOrderEmailNotificationServiceTest {
         assertThat(result.recipient()).isEqualTo("dalakahango@hotmail.com");
         assertThat(result.detail())
                 .contains("filtro antispam")
-                .contains("550 5.7.1")
-                .contains("SPF")
-                .contains("DKIM");
+                .contains("Referência SMTP")
+                .contains("550 5.7.1 Mail contain spam content")
+                .doesNotContain("SPF", "DKIM");
     }
 
     private AcademicServiceOrder buildOrder(String studentEmail, String guardianEmail) {
