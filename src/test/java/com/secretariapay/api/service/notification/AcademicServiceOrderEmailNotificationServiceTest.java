@@ -54,7 +54,7 @@ class AcademicServiceOrderEmailNotificationServiceTest {
     }
 
     @Test
-    void deveEnviarMensagemSimplesAsciiParaIsolarFiltroAntispam() {
+    void deveEnviarMensagemInstitucionalPeloCanalSmtpValidado() {
         when(mailSenderProvider.getIfAvailable()).thenReturn(mailSender);
 
         AcademicServiceOrderEmailNotificationService service = new AcademicServiceOrderEmailNotificationService(
@@ -81,8 +81,15 @@ class AcademicServiceOrderEmailNotificationServiceTest {
         assertThat(message.getTo()).containsExactly("dalakahango@hotmail.com");
         assertThat(message.getCc()).isNull();
         assertThat(message.getReplyTo()).isNull();
-        assertThat(message.getSubject()).isEqualTo("Teste");
-        assertThat(message.getText()).isEqualTo("Ola Wilson.");
+        assertThat(message.getSubject()).isEqualTo("O seu pedido académico está pronto para levantamento");
+        assertThat(message.getText())
+                .contains("Wilson dos Santos Kahango Dala")
+                .contains("Declaração sem notas")
+                .contains("202301404")
+                .contains("IMT-SRV-20260719-EMAIL")
+                .contains("Secretaria Académica do IMETRO")
+                .contains("Atenciosamente,")
+                .contains("IMETRO");
     }
 
     @Test
