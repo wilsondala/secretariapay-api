@@ -2,6 +2,7 @@ package com.secretariapay.api.service.notification;
 
 import com.secretariapay.api.entity.academic.AcademicServiceOrder;
 import com.secretariapay.api.entity.academic.Student;
+import jakarta.mail.Message;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,11 +16,17 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class AcademicServiceOrderEmailNotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(AcademicServiceOrderEmailNotificationService.class);
+    private static final String MINIMAL_SUBJECT = "Teste SecretáriaPay";
+    private static final String MINIMAL_BODY = "Olá Wilson. O seu documento está disponível na Secretaria Académica.";
+    private static final Pattern SMTP_RESPONSE_PATTERN =
+            Pattern.compile("(?i)\\b(4|5)\\d{2}[ -]\\d\\.\\d\\.\\d(?:\\s+[^\\r\\n]*)?");
 
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
     private final boolean enabled;
@@ -79,27 +86,28 @@ public class AcademicServiceOrderEmailNotificationService {
             MimeMessageHelper helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
             helper.setTo(recipient);
             if (from != null) {
-                helper.setFrom(from, senderName);
-                helper.setReplyTo(from);
+                // Isolamento antispam: sem nome pessoal, Reply-To ou CC.
+                helper.setFrom(from);
             }
-
-            String[] ccRecipients = splitRecipients(cc);
-            if (ccRecipients.length > 0) {
-                helper.setCc(ccRecipients);
-            }
-
-            helper.setSubject("O seu pedido académico está pronto para levantamento");
-            helper.setText(buildBody(order), false);
+            helper.setSubject(MINIMAL_SUBJECT);
+            helper.setText(MINIMAL_BODY, false);
+            message.setHeader("Content-Language", "pt");
+            message.saveChanges();
+            logMimeEnvelope(message, order.getOrderCode());
             mailSender.send(message);
 
             log.info("Notificação de levantamento enviada por e-mail para {} no pedido {}.", recipient, order.getOrderCode());
             return DeliveryResult.sent(recipient);
         } catch (Exception exception) {
-            String technicalDetail = firstNonBlank(exception.getMessage(), exception.getClass().getSimpleName());
             String failureStatus = failureStatus(exception);
-            log.error("Falha ao enviar e-mail de levantamento do pedido {} para {} [{}]: {}",
-                    order.getOrderCode(), recipient, failureStatus, technicalDetail, exception);
-            return DeliveryResult.failed(failureStatus, recipient, friendlyFailureMessage(exception));
+            String providerReference = extractSmtpResponse(exception);
+            log.error("Falha ao enviar e-mail de levantamento do pedido {} para {} [{}] [smtpResponse={}].",
+                    order.getOrderCode(), recipient, failureStatus, providerReference, exception);
+            return DeliveryResult.failed(
+                    failureStatus,
+                    recipient,
+                    friendlyFailureMessage(exception, providerReference)
+            );
         }
     }
 
@@ -139,12 +147,12 @@ public class AcademicServiceOrderEmailNotificationService {
         return "FAILED";
     }
 
-    private String friendlyFailureMessage(Exception exception) {
+    private String friendlyFailureMessage(Exception exception, String providerReference) {
         String detail = collectExceptionMessages(exception).toLowerCase(Locale.ROOT);
 
         if (containsContentRejection(detail)) {
-            return "O servidor de e-mail bloqueou o conteúdo da mensagem pelo filtro antispam (550 5.7.1). "
-                    + "Confirme SPF e DKIM do domínio e utilize o modelo institucional atualizado antes de reenviar.";
+            return "O servidor de e-mail bloqueou o conteúdo da mensagem pelo filtro antispam. "
+                    + "Referência SMTP: " + providerReference + ".";
         }
         if (detail.contains("unknownhost") || detail.contains("couldn't connect")
                 || detail.contains("could not connect") || detail.contains("mailconnectexception")) {
@@ -171,6 +179,28 @@ public class AcademicServiceOrderEmailNotificationService {
                 || detail.contains("mail is compromised")
                 || detail.contains("compromised domain")
                 || detail.contains("compromised image");
+    }
+
+    private String extractSmtpResponse(Throwable throwable) {
+        String messages = collectExceptionMessages(throwable);
+        Matcher matcher = SMTP_RESPONSE_PATTERN.matcher(messages);
+        if (!matcher.find()) return "não informada";
+        return matcher.group().trim().replaceAll("\\s+", " ");
+    }
+
+    private void logMimeEnvelope(MimeMessage message, String orderCode) throws Exception {
+        String contentType = firstNonBlank(message.getContentType(), "não informado");
+        String fromHeader = firstNonBlank(message.getHeader("From", null), "não informado");
+        String replyToHeader = firstNonBlank(message.getHeader("Reply-To", null), "ausente");
+        String messageId = firstNonBlank(message.getMessageID(), "gerado pelo servidor no envio");
+        int recipientCount = message.getAllRecipients() == null ? 0 : message.getAllRecipients().length;
+        int ccCount = message.getRecipients(Message.RecipientType.CC) == null
+                ? 0
+                : message.getRecipients(Message.RecipientType.CC).length;
+
+        log.info("MIME de isolamento preparado para o pedido {}: contentType={}, charset=UTF-8, from={}, "
+                        + "replyTo={}, messageId={}, recipients={}, cc={}.",
+                orderCode, contentType, fromHeader, replyToHeader, messageId, recipientCount, ccCount);
     }
 
     private String collectExceptionMessages(Throwable throwable) {
