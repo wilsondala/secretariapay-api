@@ -3,6 +3,7 @@ package com.secretariapay.api.service.academic;
 import com.secretariapay.api.dto.academic.AcademicDocumentDto;
 import com.secretariapay.api.dto.academic.AcademicServiceOrderDto;
 import com.secretariapay.api.dto.whatsapp.WhatsAppCloudSendResult;
+import com.secretariapay.api.exception.WhatsAppDeliveryException;
 import com.secretariapay.api.entity.academic.AcademicClass;
 import com.secretariapay.api.entity.academic.AcademicDocumentRequest;
 import com.secretariapay.api.entity.academic.AcademicServiceOrder;
@@ -285,7 +286,10 @@ public class AcademicServiceOrderService {
 
         WhatsAppCloudSendResult result = whatsAppCloudApiClient.sendText(recipient, message);
         if (!result.isSuccess()) {
-            throw new IllegalStateException(firstNonBlank(result.getErrorMessage(), "Não foi possível enviar a notificação pelo WhatsApp."));
+            throw new WhatsAppDeliveryException(
+                    firstNonBlank(result.getErrorMessage(), "Não foi possível enviar a notificação pelo WhatsApp."),
+                    result.getHttpStatus()
+            );
         }
 
         order.setStatus(AcademicServiceOrderStatus.WHATSAPP_ENVIADO)
