@@ -23,8 +23,8 @@ import java.util.regex.Pattern;
 public class AcademicServiceOrderEmailNotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(AcademicServiceOrderEmailNotificationService.class);
-    private static final String MINIMAL_SUBJECT = "Teste SecretáriaPay";
-    private static final String MINIMAL_BODY = "Olá Wilson. O seu documento está disponível na Secretaria Académica.";
+    private static final String MINIMAL_SUBJECT = "Teste";
+    private static final String MINIMAL_BODY = "Ola Wilson.";
     private static final Pattern SMTP_RESPONSE_PATTERN =
             Pattern.compile("(?i)\\b(4|5)\\d{2}[ -]\\d\\.\\d\\.\\d(?:\\s+[^\\r\\n]*)?");
 
@@ -91,8 +91,7 @@ public class AcademicServiceOrderEmailNotificationService {
             }
             helper.setSubject(MINIMAL_SUBJECT);
             helper.setText(MINIMAL_BODY, false);
-            message.setHeader("Content-Language", "pt");
-            message.saveChanges();
+            // Não antecipar saveChanges: o transporte SMTP deve gerar os cabeçalhos finais.
             logMimeEnvelope(message, order.getOrderCode());
             mailSender.send(message);
 
