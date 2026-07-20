@@ -3,6 +3,7 @@ package com.secretariapay.api.service.academic;
 import com.secretariapay.api.dto.academic.AcademicDocumentDto;
 import com.secretariapay.api.dto.academic.AcademicServiceOrderDto;
 import com.secretariapay.api.dto.whatsapp.WhatsAppCloudSendResult;
+import com.secretariapay.api.exception.WhatsAppDeliveryException;
 import com.secretariapay.api.entity.academic.AcademicClass;
 import com.secretariapay.api.entity.academic.AcademicDocumentRequest;
 import com.secretariapay.api.entity.academic.AcademicServiceOrder;
@@ -173,5 +174,23 @@ class AcademicServiceOrderServiceTest {
         assertThat(delivered.recipientName()).isEqualTo("Wilson Dala");
         assertThat(delivered.recipientDocumentNumber()).isEqualTo("006123456LA042");
         assertThat(delivered.deliveredAt()).isNotNull();
+    }
+
+    @Test
+    void devePreservarEstadoEInformarRejeicaoDoProvedorWhatsapp() {
+        order.setStatus(AcademicServiceOrderStatus.PRONTO_PARA_LEVANTAMENTO);
+        when(orderRepository.findOneById(orderId)).thenReturn(Optional.of(order));
+        when(whatsAppCloudApiClient.sendText(any(String.class), any(String.class)))
+                .thenReturn(WhatsAppCloudSendResult.failed(
+                        "WhatsApp Cloud API erro HTTP 400: janela de atendimento encerrada",
+                        400
+                ));
+
+        assertThatThrownBy(() -> service.sendPickupWhatsapp(orderId))
+                .isInstanceOf(WhatsAppDeliveryException.class)
+                .hasMessageContaining("janela de atendimento encerrada");
+
+        assertThat(order.getStatus()).isEqualTo(AcademicServiceOrderStatus.PRONTO_PARA_LEVANTAMENTO);
+        verify(orderRepository, never()).save(any(AcademicServiceOrder.class));
     }
 }
