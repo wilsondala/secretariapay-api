@@ -80,6 +80,7 @@ public class AcademicServiceOrderEmailNotificationService {
             helper.setTo(recipient);
             if (from != null) {
                 helper.setFrom(from, senderName);
+                helper.setReplyTo(from);
             }
 
             String[] ccRecipients = splitRecipients(cc);
@@ -87,7 +88,7 @@ public class AcademicServiceOrderEmailNotificationService {
                 helper.setCc(ccRecipients);
             }
 
-            helper.setSubject("Documento disponível para levantamento — " + order.getOrderCode());
+            helper.setSubject("O seu pedido académico está pronto para levantamento");
             helper.setText(buildBody(order), false);
             mailSender.send(message);
 
@@ -95,9 +96,10 @@ public class AcademicServiceOrderEmailNotificationService {
             return DeliveryResult.sent(recipient);
         } catch (Exception exception) {
             String technicalDetail = firstNonBlank(exception.getMessage(), exception.getClass().getSimpleName());
-            log.error("Falha ao enviar e-mail de levantamento do pedido {} para {}: {}",
-                    order.getOrderCode(), recipient, technicalDetail, exception);
-            return DeliveryResult.failed(recipient, friendlyFailureMessage(exception));
+            String failureStatus = failureStatus(exception);
+            log.error("Falha ao enviar e-mail de levantamento do pedido {} para {} [{}]: {}",
+                    order.getOrderCode(), recipient, failureStatus, technicalDetail, exception);
+            return DeliveryResult.failed(failureStatus, recipient, friendlyFailureMessage(exception));
         }
     }
 
@@ -116,9 +118,34 @@ public class AcademicServiceOrderEmailNotificationService {
                 || normalized.contains("changeme");
     }
 
+    private String failureStatus(Exception exception) {
+        String detail = collectExceptionMessages(exception).toLowerCase(Locale.ROOT);
+        if (containsContentRejection(detail)) return "FAILED_CONTENT_REJECTED";
+        if (detail.contains("authenticationfailed") || detail.contains("authentication failed")
+                || detail.contains("535") || detail.contains("bad credentials")) {
+            return "FAILED_AUTHENTICATION";
+        }
+        if (detail.contains("sender address rejected") || detail.contains("from address")
+                || detail.contains("not authorized to send")) {
+            return "FAILED_SENDER_REJECTED";
+        }
+        if (detail.contains("recipient address rejected") || detail.contains("invalid addresses")) {
+            return "FAILED_RECIPIENT_REJECTED";
+        }
+        if (detail.contains("unknownhost") || detail.contains("couldn't connect")
+                || detail.contains("could not connect") || detail.contains("mailconnectexception")) {
+            return "FAILED_CONNECTION";
+        }
+        return "FAILED";
+    }
+
     private String friendlyFailureMessage(Exception exception) {
         String detail = collectExceptionMessages(exception).toLowerCase(Locale.ROOT);
 
+        if (containsContentRejection(detail)) {
+            return "O servidor de e-mail bloqueou o conteúdo da mensagem pelo filtro antispam (550 5.7.1). "
+                    + "Confirme SPF e DKIM do domínio e utilize o modelo institucional atualizado antes de reenviar.";
+        }
         if (detail.contains("unknownhost") || detail.contains("couldn't connect")
                 || detail.contains("could not connect") || detail.contains("mailconnectexception")) {
             return "Não foi possível conectar ao servidor SMTP institucional. Verifique o host, a porta e a ligação de rede.";
@@ -135,6 +162,15 @@ public class AcademicServiceOrderEmailNotificationService {
             return "O endereço de e-mail do estudante ou responsável foi rejeitado pelo servidor SMTP.";
         }
         return "Não foi possível enviar o e-mail de levantamento. Verifique a configuração SMTP institucional.";
+    }
+
+    private boolean containsContentRejection(String detail) {
+        return detail.contains("mail contain spam content")
+                || detail.contains("spam content")
+                || detail.contains("phishing content")
+                || detail.contains("mail is compromised")
+                || detail.contains("compromised domain")
+                || detail.contains("compromised image");
     }
 
     private String collectExceptionMessages(Throwable throwable) {
@@ -157,32 +193,35 @@ public class AcademicServiceOrderEmailNotificationService {
 
     private String buildBody(AcademicServiceOrder order) {
         Student student = order.getStudent();
+        String studentName = firstNonBlank(student.getFullName(), "Estudante");
         String documentName = order.getService() == null
                 ? "Documento académico"
                 : firstNonBlank(order.getService().getName(), "Documento académico");
         String location = firstNonBlank(order.getPhysicalLocation(), "Secretaria Académica do IMETRO");
 
         return """
-                Caro(a) estudante,
+                Olá, %s.
 
-                Informamos que o seu documento já se encontra assinado e disponível para levantamento.
+                A Secretaria Académica informa que o seu pedido foi concluído e está disponível para levantamento presencial.
 
-                Pedido: %s
-                Documento: %s
+                Dados para conferência:
+                Serviço académico: %s
                 Matrícula: %s
-                Local de levantamento: %s
+                Referência do pedido: %s
+                Local de atendimento: %s
 
-                Apresente um documento de identificação no momento do levantamento.
+                Antes de se deslocar, confirme o horário de atendimento da Secretaria Académica. No balcão, informe a sua matrícula e apresente uma identificação válida para que a equipa possa localizar e entregar o documento correto.
 
-                Caso já tenha efetuado o levantamento, desconsidere esta mensagem.
+                Esta comunicação refere-se a um pedido previamente registado no SecretáriaPay. Caso não reconheça esta solicitação ou necessite de esclarecimentos, responda a este e-mail ou contacte diretamente a Secretaria Académica pelos canais institucionais.
 
                 Atenciosamente,
                 Secretaria Académica
                 IMETRO
                 """.formatted(
-                order.getOrderCode(),
+                studentName,
                 documentName,
                 student.getStudentNumber(),
+                order.getOrderCode(),
                 location
         ).trim();
     }
@@ -226,8 +265,8 @@ public class AcademicServiceOrderEmailNotificationService {
             return new DeliveryResult(false, status, recipient, detail);
         }
 
-        public static DeliveryResult failed(String recipient, String detail) {
-            return new DeliveryResult(false, "FAILED", recipient, detail);
+        public static DeliveryResult failed(String status, String recipient, String detail) {
+            return new DeliveryResult(false, status, recipient, detail);
         }
     }
 }
