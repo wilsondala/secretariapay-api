@@ -75,8 +75,7 @@ class AcademicServiceOrderEmailNotificationServiceTest {
                 .containsExactly("secretariapay@paixaoangola.com");
         assertThat(message.getAllRecipients()).extracting(Object::toString)
                 .containsExactly("dalakahango@hotmail.com");
-        assertThat(message.getReplyTo()).extracting(Object::toString)
-                .containsExactly("secretariapay@paixaoangola.com");
+        assertThat(message.getHeader("Reply-To")).isNull();
         assertThat(message.getRecipients(jakarta.mail.Message.RecipientType.CC)).isNull();
         assertThat(message.getContentType()).startsWith("text/plain").contains("charset=UTF-8");
         assertThat(String.valueOf(message.getContent()))
