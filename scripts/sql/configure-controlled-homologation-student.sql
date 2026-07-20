@@ -7,10 +7,9 @@ BEGIN;
 DO $$
 DECLARE
     target_count INTEGER;
-    whatsapp_value TEXT;
 BEGIN
-    SELECT COUNT(*), MAX(whatsapp)
-      INTO target_count, whatsapp_value
+    SELECT COUNT(*)
+      INTO target_count
       FROM students
      WHERE student_number = '202301404'
        AND full_name = 'Wilson dos Santos Kahango Dala';
@@ -18,14 +17,12 @@ BEGIN
     IF target_count <> 1 THEN
         RAISE EXCEPTION 'Esperado exatamente um estudante 202301404 / Wilson dos Santos Kahango Dala; encontrado(s): %', target_count;
     END IF;
-
-    IF whatsapp_value IS NULL OR BTRIM(whatsapp_value) = '' THEN
-        RAISE EXCEPTION 'O estudante controlado de homologação não possui WhatsApp cadastrado.';
-    END IF;
 END $$;
 
 UPDATE students
    SET email = 'dalakahango@hotmail.com',
+       phone = '+5511915102566',
+       whatsapp = '+5511915102566',
        updated_at = CURRENT_TIMESTAMP
  WHERE student_number = '202301404'
    AND full_name = 'Wilson dos Santos Kahango Dala';
@@ -36,10 +33,8 @@ SELECT
     student_number,
     full_name,
     email,
-    CASE
-        WHEN whatsapp IS NULL OR BTRIM(whatsapp) = '' THEN 'NAO_CONFIGURADO'
-        ELSE 'CONFIGURADO'
-    END AS whatsapp_status,
+    phone,
+    whatsapp,
     status
 FROM students
 WHERE student_number = '202301404';
