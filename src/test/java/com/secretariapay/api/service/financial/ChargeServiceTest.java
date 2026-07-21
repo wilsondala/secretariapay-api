@@ -2,12 +2,14 @@ package com.secretariapay.api.service.financial;
 
 import com.secretariapay.api.dto.financial.ChargeRequest;
 import com.secretariapay.api.dto.financial.ChargeResponse;
+import com.secretariapay.api.dto.financial.ReceiptResponse;
 import com.secretariapay.api.entity.academic.Student;
 import com.secretariapay.api.entity.enums.financial.ChargeCategory;
 import com.secretariapay.api.entity.enums.financial.ChargeStatus;
 import com.secretariapay.api.entity.financial.Charge;
 import com.secretariapay.api.repository.academic.StudentRepository;
 import com.secretariapay.api.repository.financial.ChargeRepository;
+import com.secretariapay.api.service.academic.AcademicServiceOrderService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,6 +37,9 @@ class ChargeServiceTest {
     @Mock private ChargeRepository chargeRepository;
     @Mock private StudentRepository studentRepository;
     @Mock private TuitionChargeSettlementService tuitionChargeSettlementService;
+    @Mock private AcademicServiceOrderService academicServiceOrderService;
+    @Mock private ReceiptService receiptService;
+    @Mock private ReceiptDeliveryService receiptDeliveryService;
 
     private ChargeService service;
     private Student student;
@@ -46,7 +51,10 @@ class ChargeServiceTest {
                 chargeRepository,
                 studentRepository,
                 tuitionChargeSettlementService,
-                new ChargeClassificationService()
+                new ChargeClassificationService(),
+                academicServiceOrderService,
+                receiptService,
+                receiptDeliveryService
         );
         studentId = UUID.randomUUID();
         student = new Student();
@@ -93,6 +101,8 @@ class ChargeServiceTest {
                 eq(BigDecimal.ZERO), eq(BigDecimal.ZERO), eq("AOA"), any(LocalDateTime.class)
         )).thenReturn(paid);
         when(chargeRepository.save(paid)).thenReturn(paid);
+        ReceiptResponse receipt = new ReceiptResponse().setReceiptCode("RCT-TUITION");
+        when(receiptService.issueOrFindForCharge(chargeId)).thenReturn(receipt);
 
         ChargeResponse response = service.confirmPayment(chargeId);
 
@@ -102,6 +112,9 @@ class ChargeServiceTest {
         assertThat(response.getServiceCode()).isEqualTo("TUITION");
         assertThat(response.getPaidAt()).isEqualTo(LocalDateTime.of(2026, 7, 12, 16, 0));
         verify(chargeRepository).save(paid);
+        verify(academicServiceOrderService).confirmPaymentByCharge(paid);
+        verify(receiptService).issueOrFindForCharge(chargeId);
+        verify(receiptDeliveryService).sendAfterDcrApproval(paid, receipt, "");
     }
 
     @Test
@@ -120,6 +133,8 @@ class ChargeServiceTest {
 
         when(chargeRepository.findById(chargeId)).thenReturn(Optional.of(declaration));
         when(chargeRepository.save(declaration)).thenReturn(declaration);
+        ReceiptResponse receipt = new ReceiptResponse().setReceiptCode("RCT-SERVICE");
+        when(receiptService.issueOrFindForCharge(chargeId)).thenReturn(receipt);
 
         ChargeResponse response = service.confirmPayment(chargeId);
 
@@ -128,6 +143,9 @@ class ChargeServiceTest {
         assertThat(response.getChargeCategory()).isEqualTo(ChargeCategory.ACADEMIC_SERVICE);
         assertThat(response.getServiceCode()).isEqualTo("DECLARATION_WITHOUT_GRADES");
         verify(chargeRepository).save(declaration);
+        verify(academicServiceOrderService).confirmPaymentByCharge(declaration);
+        verify(receiptService).issueOrFindForCharge(chargeId);
+        verify(receiptDeliveryService).sendAfterDcrApproval(declaration, receipt, "");
         verify(tuitionChargeSettlementService, never()).settleTuitionPayment(
                 any(), any(), any(), any(), any(), any(), any(), any(), any()
         );

@@ -2,6 +2,7 @@ package com.secretariapay.api.service.financial;
 
 import com.secretariapay.api.dto.financial.ChargeRequest;
 import com.secretariapay.api.dto.financial.ChargeResponse;
+import com.secretariapay.api.dto.financial.ReceiptResponse;
 import com.secretariapay.api.entity.academic.AcademicClass;
 import com.secretariapay.api.entity.academic.Course;
 import com.secretariapay.api.entity.academic.Student;
@@ -31,6 +32,8 @@ public class ChargeService {
     private final TuitionChargeSettlementService tuitionChargeSettlementService;
     private final ChargeClassificationService classificationService;
     private final AcademicServiceOrderService academicServiceOrderService;
+    private final ReceiptService receiptService;
+    private final ReceiptDeliveryService receiptDeliveryService;
 
     @Autowired
     public ChargeService(
@@ -38,13 +41,28 @@ public class ChargeService {
             StudentRepository studentRepository,
             TuitionChargeSettlementService tuitionChargeSettlementService,
             ChargeClassificationService classificationService,
-            AcademicServiceOrderService academicServiceOrderService
+            AcademicServiceOrderService academicServiceOrderService,
+            ReceiptService receiptService,
+            ReceiptDeliveryService receiptDeliveryService
     ) {
         this.chargeRepository = chargeRepository;
         this.studentRepository = studentRepository;
         this.tuitionChargeSettlementService = tuitionChargeSettlementService;
         this.classificationService = classificationService;
         this.academicServiceOrderService = academicServiceOrderService;
+        this.receiptService = receiptService;
+        this.receiptDeliveryService = receiptDeliveryService;
+    }
+
+    public ChargeService(
+            ChargeRepository chargeRepository,
+            StudentRepository studentRepository,
+            TuitionChargeSettlementService tuitionChargeSettlementService,
+            ChargeClassificationService classificationService,
+            AcademicServiceOrderService academicServiceOrderService
+    ) {
+        this(chargeRepository, studentRepository, tuitionChargeSettlementService, classificationService,
+                academicServiceOrderService, null, null);
     }
 
     public ChargeService(
@@ -53,7 +71,8 @@ public class ChargeService {
             TuitionChargeSettlementService tuitionChargeSettlementService,
             ChargeClassificationService classificationService
     ) {
-        this(chargeRepository, studentRepository, tuitionChargeSettlementService, classificationService, null);
+        this(chargeRepository, studentRepository, tuitionChargeSettlementService, classificationService,
+                null, null, null);
     }
 
     @Transactional
@@ -155,14 +174,14 @@ public class ChargeService {
             );
             settled.setChargeCategory(ChargeCategory.TUITION).setServiceCode("TUITION");
             Charge saved = chargeRepository.save(settled);
-            notifyAcademicServiceOrder(saved);
+            completeDcrConfirmation(saved);
             return toResponse(saved);
         }
 
         charge.setStatus(ChargeStatus.PAID).setPaidAt(LocalDateTime.now());
         classificationService.classify(charge);
         Charge saved = chargeRepository.save(charge);
-        notifyAcademicServiceOrder(saved);
+        completeDcrConfirmation(saved);
         return toResponse(saved);
     }
 
@@ -239,6 +258,16 @@ public class ChargeService {
         if (academicServiceOrderService != null) {
             academicServiceOrderService.confirmPaymentByCharge(charge);
         }
+    }
+
+    private void completeDcrConfirmation(Charge charge) {
+        notifyAcademicServiceOrder(charge);
+        if (receiptService == null || receiptDeliveryService == null || charge == null || charge.getId() == null) {
+            return;
+        }
+
+        ReceiptResponse receipt = receiptService.issueOrFindForCharge(charge.getId());
+        receiptDeliveryService.sendAfterDcrApproval(charge, receipt, "");
     }
 
     private BigDecimal valueOrZero(BigDecimal value) {
