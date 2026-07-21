@@ -17,6 +17,8 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final String UNAUTHORIZED_RESPONSE = "{\"status\":401,\"error\":\"Não autorizado\",\"message\":\"Sessão expirada ou token inválido. Entre novamente no sistema.\"}";
+
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
 
@@ -63,12 +65,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     );
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                } else {
+                    writeUnauthorized(response);
+                    return;
                 }
             }
         } catch (Exception exception) {
             SecurityContextHolder.clearContext();
+            writeUnauthorized(response);
+            return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private void writeUnauthorized(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/json");
+        response.getWriter().write(UNAUTHORIZED_RESPONSE);
     }
 }
