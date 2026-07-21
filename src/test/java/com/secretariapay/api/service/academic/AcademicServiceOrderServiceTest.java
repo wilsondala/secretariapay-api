@@ -31,6 +31,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -128,6 +129,43 @@ class AcademicServiceOrderServiceTest {
         assertThat(order.getStatus()).isEqualTo(AcademicServiceOrderStatus.PAGO);
         assertThat(order.getPaymentConfirmedAt()).isNotNull();
         verify(orderRepository).save(order);
+    }
+
+    @Test
+    void deveCriarPedidoWhatsappECobrancaComVencimentoValidoNaMesmaTransacao() {
+        Student student = order.getStudent();
+        AcademicServiceCatalog catalog = order.getService();
+        AtomicReference<AcademicServiceOrder> createdOrder = new AtomicReference<>();
+
+        when(studentRepository.findById(student.getId())).thenReturn(Optional.of(student));
+        when(catalogRepository.findById(catalog.getId())).thenReturn(Optional.of(catalog));
+        when(orderRepository.save(any(AcademicServiceOrder.class))).thenAnswer(invocation -> {
+            AcademicServiceOrder saved = invocation.getArgument(0);
+            if (saved.getId() == null) ReflectionTestUtils.setField(saved, "id", UUID.randomUUID());
+            createdOrder.set(saved);
+            return saved;
+        });
+        when(orderRepository.findOneById(any(UUID.class))).thenAnswer(invocation -> Optional.of(createdOrder.get()));
+        when(chargeRepository.save(any(Charge.class))).thenAnswer(invocation -> {
+            Charge saved = invocation.getArgument(0);
+            if (saved.getId() == null) ReflectionTestUtils.setField(saved, "id", UUID.randomUUID());
+            return saved;
+        });
+
+        LocalDate dueDate = LocalDate.now().plusDays(3);
+        AcademicServiceOrderDto.Response response = service.createFromWhatsapp(
+                student.getId(),
+                catalog.getId(),
+                "+55 11 91510-2566",
+                dueDate
+        );
+
+        assertThat(response.status()).isEqualTo(AcademicServiceOrderStatus.AGUARDANDO_PAGAMENTO);
+        assertThat(response.chargeId()).isNotNull();
+        assertThat(createdOrder.get().getNotes()).contains("WhatsApp", "+5511915102566");
+        assertThat(createdOrder.get().getCharge().getDueDate()).isEqualTo(dueDate);
+        assertThat(createdOrder.get().getCharge().getDueDate()).isAfterOrEqualTo(LocalDate.now());
+        assertThat(createdOrder.get().getCharge().getServiceCode()).isEqualTo(catalog.getCode());
     }
 
     @Test
