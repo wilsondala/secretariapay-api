@@ -109,7 +109,6 @@ class AcademicServicesWhatsappFlowServiceTest {
                         : Optional.empty());
         when(studentRepository.findByStudentNumber("202301404")).thenReturn(Optional.of(student));
         when(chargeRepository.findByChargeCode(charge.getChargeCode())).thenReturn(Optional.of(charge));
-        when(chargeRepository.findById(chargeId)).thenReturn(Optional.of(charge));
         when(academicServiceOrderService.createFromWhatsapp(
                 eq(studentId),
                 eq(serviceId),
@@ -152,6 +151,8 @@ class AcademicServicesWhatsappFlowServiceTest {
     @Test
     void deveManterContextoPersistenteParaComprovativoDaDcr() {
         String phone = "+55 11 91510-2566";
+        when(chargeRepository.findById(chargeId)).thenReturn(Optional.of(charge));
+
         flow.start(phone);
         flow.handleIfActive(phone, "text", "1");
         flow.handleIfActive(phone, "text", "202301404");
