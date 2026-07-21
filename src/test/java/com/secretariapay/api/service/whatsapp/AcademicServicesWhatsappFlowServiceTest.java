@@ -109,6 +109,7 @@ class AcademicServicesWhatsappFlowServiceTest {
                         : Optional.empty());
         when(studentRepository.findByStudentNumber("202301404")).thenReturn(Optional.of(student));
         when(chargeRepository.findByChargeCode(charge.getChargeCode())).thenReturn(Optional.of(charge));
+        when(chargeRepository.findById(chargeId)).thenReturn(Optional.of(charge));
         when(academicServiceOrderService.createFromWhatsapp(
                 eq(studentId),
                 eq(serviceId),
