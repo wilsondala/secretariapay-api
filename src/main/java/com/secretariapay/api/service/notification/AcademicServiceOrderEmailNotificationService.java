@@ -1,0 +1,299 @@
+package com.secretariapay.api.service.notification;
+
+import com.secretariapay.api.entity.academic.AcademicServiceOrder;
+import com.secretariapay.api.entity.academic.Student;
+import jakarta.mail.Message;
+import jakarta.mail.internet.MimeMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.stereotype.Service;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+@Service
+public class AcademicServiceOrderEmailNotificationService {
+
+    private static final Logger log = LoggerFactory.getLogger(AcademicServiceOrderEmailNotificationService.class);
+    private static final String PICKUP_SUBJECT = "O seu pedido académico está pronto para levantamento";
+    private static final Pattern SMTP_RESPONSE_PATTERN =
+            Pattern.compile("(?i)\\b(4|5)\\d{2}[ -]\\d\\.\\d\\.\\d(?:\\s+[^\\r\\n]*)?");
+
+    private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    private final boolean enabled;
+    private final String from;
+    private final String cc;
+    private final String senderName;
+
+    public AcademicServiceOrderEmailNotificationService(
+            ObjectProvider<JavaMailSender> mailSenderProvider,
+            @Value("${SECRETARIAPAY_NOTIFICATIONS_EMAIL_ENABLED:${SECRETARIAPAY_EMAIL_ENABLED:false}}") boolean enabled,
+            @Value("${SECRETARIAPAY_NOTIFICATIONS_EMAIL_FROM:${SECRETARIAPAY_EMAIL_FROM:dcr_pay@imetroangola.com}}") String from,
+            @Value("${SECRETARIAPAY_NOTIFICATIONS_EMAIL_CC:${SECRETARIAPAY_EMAIL_CC:}}") String cc,
+            @Value("${SECRETARIAPAY_NOTIFICATIONS_EMAIL_SENDER_NAME:SecretáriaPay Académico — IMETRO}") String senderName
+    ) {
+        this.mailSenderProvider = mailSenderProvider;
+        this.enabled = enabled;
+        this.from = trimToNull(from);
+        this.cc = trimToNull(cc);
+        this.senderName = firstNonBlank(senderName, "SecretáriaPay Académico — IMETRO");
+    }
+
+    /**
+     * Envia a comunicação complementar de levantamento. A falha do canal de
+     * e-mail não deve reverter o WhatsApp já confirmado nem provocar reenvio
+     * duplicado do canal principal.
+     */
+    public DeliveryResult sendReadyForPickup(AcademicServiceOrder order) {
+        if (order == null || order.getStudent() == null) {
+            return DeliveryResult.skipped("SKIPPED_INVALID_ORDER", null,
+                    "Pedido ou estudante não informado para a notificação por e-mail.");
+        }
+
+        Student student = order.getStudent();
+        String recipient = firstNonBlank(student.getEmail(), student.getGuardianEmail());
+
+        if (!enabled) {
+            log.info("Notificação por e-mail desativada para o pedido {}.", order.getOrderCode());
+            return DeliveryResult.skipped("SKIPPED_DISABLED", recipient,
+                    "O envio institucional por e-mail está desativado.");
+        }
+
+        if (isBlank(recipient)) {
+            log.warn("Pedido {} sem e-mail do estudante ou responsável.", order.getOrderCode());
+            return DeliveryResult.skipped("SKIPPED_NO_RECIPIENT", null,
+                    "O estudante não possui e-mail cadastrado.");
+        }
+
+        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+        if (mailSender == null || hasInvalidSmtpHost(mailSender)) {
+            log.warn("SMTP não configurado corretamente para o pedido {}.", order.getOrderCode());
+            return DeliveryResult.skipped("SKIPPED_NOT_CONFIGURED", recipient,
+                    "O servidor SMTP institucional ainda não está configurado corretamente.");
+        }
+
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(recipient);
+            if (from != null) {
+                message.setFrom(from);
+            }
+            message.setSubject(PICKUP_SUBJECT);
+            message.setText(buildBody(order));
+            log.info("Mensagem institucional de levantamento preparada para o pedido {}: from={}, recipients=1, cc=0, replyTo=ausente.",
+                    order.getOrderCode(), firstNonBlank(from, "gerado pelo SMTP"));
+            mailSender.send(message);
+
+            log.info("Notificação de levantamento enviada por e-mail para {} no pedido {}.", recipient, order.getOrderCode());
+            return DeliveryResult.sent(recipient);
+        } catch (Exception exception) {
+            String failureStatus = failureStatus(exception);
+            String providerReference = extractSmtpResponse(exception);
+            log.error("Falha ao enviar e-mail de levantamento do pedido {} para {} [{}] [smtpResponse={}].",
+                    order.getOrderCode(), recipient, failureStatus, providerReference, exception);
+            return DeliveryResult.failed(
+                    failureStatus,
+                    recipient,
+                    friendlyFailureMessage(exception, providerReference)
+            );
+        }
+    }
+
+    private boolean hasInvalidSmtpHost(JavaMailSender mailSender) {
+        if (!(mailSender instanceof JavaMailSenderImpl sender)) return false;
+        String host = trimToNull(sender.getHost());
+        if (host == null) return true;
+
+        String normalized = host.toLowerCase(Locale.ROOT);
+        return host.contains("<")
+                || host.contains(">")
+                || normalized.contains("smtp institucional")
+                || normalized.contains("host smtp")
+                || normalized.contains("smtp-host")
+                || normalized.contains("example")
+                || normalized.contains("changeme");
+    }
+
+    private String failureStatus(Exception exception) {
+        String detail = collectExceptionMessages(exception).toLowerCase(Locale.ROOT);
+        if (containsContentRejection(detail)) return "FAILED_CONTENT_REJECTED";
+        if (detail.contains("authenticationfailed") || detail.contains("authentication failed")
+                || detail.contains("535") || detail.contains("bad credentials")) {
+            return "FAILED_AUTHENTICATION";
+        }
+        if (detail.contains("sender address rejected") || detail.contains("from address")
+                || detail.contains("not authorized to send")) {
+            return "FAILED_SENDER_REJECTED";
+        }
+        if (detail.contains("recipient address rejected") || detail.contains("invalid addresses")) {
+            return "FAILED_RECIPIENT_REJECTED";
+        }
+        if (detail.contains("unknownhost") || detail.contains("couldn't connect")
+                || detail.contains("could not connect") || detail.contains("mailconnectexception")) {
+            return "FAILED_CONNECTION";
+        }
+        return "FAILED";
+    }
+
+    private String friendlyFailureMessage(Exception exception, String providerReference) {
+        String detail = collectExceptionMessages(exception).toLowerCase(Locale.ROOT);
+
+        if (containsContentRejection(detail)) {
+            return "O servidor de e-mail bloqueou o conteúdo da mensagem pelo filtro antispam. "
+                    + "Referência SMTP: " + providerReference + ".";
+        }
+        if (detail.contains("unknownhost") || detail.contains("couldn't connect")
+                || detail.contains("could not connect") || detail.contains("mailconnectexception")) {
+            return "Não foi possível conectar ao servidor SMTP institucional. Verifique o host, a porta e a ligação de rede.";
+        }
+        if (detail.contains("authenticationfailed") || detail.contains("authentication failed")
+                || detail.contains("535") || detail.contains("bad credentials")) {
+            return "A autenticação SMTP falhou. Verifique o utilizador e a senha da conta institucional.";
+        }
+        if (detail.contains("sender address rejected") || detail.contains("from address")
+                || detail.contains("not authorized to send")) {
+            return "O servidor SMTP não autorizou o endereço remetente configurado.";
+        }
+        if (detail.contains("recipient address rejected") || detail.contains("invalid addresses")) {
+            return "O endereço de e-mail do estudante ou responsável foi rejeitado pelo servidor SMTP.";
+        }
+        return "Não foi possível enviar o e-mail de levantamento. Verifique a configuração SMTP institucional.";
+    }
+
+    private boolean containsContentRejection(String detail) {
+        return detail.contains("mail contain spam content")
+                || detail.contains("spam content")
+                || detail.contains("phishing content")
+                || detail.contains("mail is compromised")
+                || detail.contains("compromised domain")
+                || detail.contains("compromised image");
+    }
+
+    private String extractSmtpResponse(Throwable throwable) {
+        String messages = collectExceptionMessages(throwable);
+        Matcher matcher = SMTP_RESPONSE_PATTERN.matcher(messages);
+        if (!matcher.find()) return "não informada";
+        return matcher.group().trim().replaceAll("\\s+", " ");
+    }
+
+    private void logMimeEnvelope(MimeMessage message, String orderCode) throws Exception {
+        String contentType = firstNonBlank(message.getContentType(), "não informado");
+        String fromHeader = firstNonBlank(message.getHeader("From", null), "não informado");
+        String replyToHeader = firstNonBlank(message.getHeader("Reply-To", null), "ausente");
+        String messageId = firstNonBlank(message.getMessageID(), "gerado pelo servidor no envio");
+        int recipientCount = message.getAllRecipients() == null ? 0 : message.getAllRecipients().length;
+        int ccCount = message.getRecipients(Message.RecipientType.CC) == null
+                ? 0
+                : message.getRecipients(Message.RecipientType.CC).length;
+
+        log.info("MIME de isolamento preparado para o pedido {}: contentType={}, charset=UTF-8, from={}, "
+                        + "replyTo={}, messageId={}, recipients={}, cc={}.",
+                orderCode, contentType, fromHeader, replyToHeader, messageId, recipientCount, ccCount);
+    }
+
+    private String collectExceptionMessages(Throwable throwable) {
+        StringBuilder messages = new StringBuilder();
+        Throwable current = throwable;
+        int depth = 0;
+        while (current != null && depth < 8) {
+            if (current.getMessage() != null && !current.getMessage().isBlank()) {
+                if (!messages.isEmpty()) messages.append(' ');
+                messages.append(current.getClass().getSimpleName()).append(": ").append(current.getMessage());
+            } else {
+                if (!messages.isEmpty()) messages.append(' ');
+                messages.append(current.getClass().getSimpleName());
+            }
+            current = current.getCause();
+            depth++;
+        }
+        return messages.toString();
+    }
+
+    private String buildBody(AcademicServiceOrder order) {
+        Student student = order.getStudent();
+        String studentName = firstNonBlank(student.getFullName(), "Estudante");
+        String documentName = order.getService() == null
+                ? "Documento académico"
+                : firstNonBlank(order.getService().getName(), "Documento académico");
+        String location = firstNonBlank(order.getPhysicalLocation(), "Secretaria Académica do IMETRO");
+
+        return """
+                Olá, %s.
+
+                A Secretaria Académica informa que o seu pedido foi concluído e está disponível para levantamento presencial.
+
+                Dados para conferência:
+                Serviço académico: %s
+                Matrícula: %s
+                Referência do pedido: %s
+                Local de atendimento: %s
+
+                Antes de se deslocar, confirme o horário de atendimento da Secretaria Académica. No balcão, informe a sua matrícula e apresente uma identificação válida para que a equipa possa localizar e entregar o documento correto.
+
+                Esta comunicação refere-se a um pedido previamente registado no SecretáriaPay. Caso não reconheça esta solicitação ou necessite de esclarecimentos, responda a este e-mail ou contacte diretamente a Secretaria Académica pelos canais institucionais.
+
+                Atenciosamente,
+                Secretaria Académica
+                IMETRO
+                """.formatted(
+                studentName,
+                documentName,
+                student.getStudentNumber(),
+                order.getOrderCode(),
+                location
+        ).trim();
+    }
+
+    private String[] splitRecipients(String value) {
+        if (isBlank(value)) return new String[0];
+        return Arrays.stream(value.split("[,;]"))
+                .map(String::trim)
+                .filter(item -> !item.isBlank())
+                .distinct()
+                .toArray(String[]::new);
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) return "";
+        for (String value : values) {
+            if (!isBlank(value)) return value.trim();
+        }
+        return "";
+    }
+
+    private static String trimToNull(String value) {
+        return isBlank(value) ? null : value.trim();
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    public record DeliveryResult(
+            boolean sent,
+            String status,
+            String recipient,
+            String detail
+    ) {
+        public static DeliveryResult sent(String recipient) {
+            return new DeliveryResult(true, "SENT", recipient, null);
+        }
+
+        public static DeliveryResult skipped(String status, String recipient, String detail) {
+            return new DeliveryResult(false, status, recipient, detail);
+        }
+
+        public static DeliveryResult failed(String status, String recipient, String detail) {
+            return new DeliveryResult(false, status, recipient, detail);
+        }
+    }
+}

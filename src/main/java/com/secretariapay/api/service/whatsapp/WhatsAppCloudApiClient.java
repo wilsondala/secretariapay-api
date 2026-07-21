@@ -36,7 +36,7 @@ public class WhatsAppCloudApiClient {
 
     public WhatsAppCloudApiClient(RestClient.Builder restClientBuilder,
             @Value("${secretariapay.whatsapp.graph-api-base-url:https://graph.facebook.com}") String graphApiBaseUrl,
-            @Value("${secretariapay.whatsapp.graph-api-version:v20.0}") String graphApiVersion,
+            @Value("${secretariapay.whatsapp.graph-api-version:v25.0}") String graphApiVersion,
             @Value("${secretariapay.whatsapp.phone-number-id:}") String phoneNumberId,
             @Value("${secretariapay.whatsapp.access-token:}") String accessToken) {
         this.restClient = restClientBuilder.build();

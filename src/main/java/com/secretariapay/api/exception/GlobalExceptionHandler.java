@@ -38,6 +38,20 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
+    @ExceptionHandler(WhatsAppDeliveryException.class)
+    public ResponseEntity<Map<String, Object>> handleWhatsAppDelivery(WhatsAppDeliveryException exception) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", 502);
+        response.put("error", "Falha no envio pelo WhatsApp");
+        response.put("message", exception.getMessage());
+        if (exception.getProviderHttpStatus() != null) {
+            response.put("providerStatus", exception.getProviderHttpStatus());
+        }
+        response.put("timestamp", LocalDateTime.now());
+
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(response);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException exception) {
         Map<String, String> fieldErrors = new HashMap<>();

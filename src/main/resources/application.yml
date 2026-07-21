@@ -34,7 +34,7 @@ secretariapay:
     enabled: ${SECRETARIAPAY_WHATSAPP_ENABLED:false}
     phone-number-id: ${SECRETARIAPAY_WHATSAPP_PHONE_NUMBER_ID:}
     access-token: ${SECRETARIAPAY_WHATSAPP_ACCESS_TOKEN:}
-    graph-api-version: ${SECRETARIAPAY_WHATSAPP_GRAPH_API_VERSION:v20.0}
+    graph-api-version: ${SECRETARIAPAY_WHATSAPP_GRAPH_API_VERSION:v25.0}
     graph-api-base-url: ${SECRETARIAPAY_WHATSAPP_GRAPH_API_BASE_URL:https://graph.facebook.com}
 
 management:

@@ -17,7 +17,9 @@ import com.secretariapay.api.repository.UserRepository;
 import com.secretariapay.api.repository.financial.ChargeRepository;
 import com.secretariapay.api.repository.financial.PaymentProofRepository;
 import com.secretariapay.api.repository.financial.ReceiptRepository;
+import com.secretariapay.api.service.academic.AcademicServiceOrderService;
 import com.secretariapay.api.service.whatsapp.WhatsAppCloudApiClient;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -42,6 +44,28 @@ public class PaymentProofService {
     private final ReceiptService receiptService;
     private final WhatsAppCloudApiClient whatsAppCloudApiClient;
     private final ChargeClassificationService classificationService;
+    private final AcademicServiceOrderService academicServiceOrderService;
+
+    @Autowired
+    public PaymentProofService(
+            PaymentProofRepository paymentProofRepository,
+            ChargeRepository chargeRepository,
+            UserRepository userRepository,
+            ReceiptRepository receiptRepository,
+            ReceiptService receiptService,
+            WhatsAppCloudApiClient whatsAppCloudApiClient,
+            ChargeClassificationService classificationService,
+            AcademicServiceOrderService academicServiceOrderService
+    ) {
+        this.paymentProofRepository = paymentProofRepository;
+        this.chargeRepository = chargeRepository;
+        this.userRepository = userRepository;
+        this.receiptRepository = receiptRepository;
+        this.receiptService = receiptService;
+        this.whatsAppCloudApiClient = whatsAppCloudApiClient;
+        this.classificationService = classificationService;
+        this.academicServiceOrderService = academicServiceOrderService;
+    }
 
     public PaymentProofService(
             PaymentProofRepository paymentProofRepository,
@@ -52,13 +76,8 @@ public class PaymentProofService {
             WhatsAppCloudApiClient whatsAppCloudApiClient,
             ChargeClassificationService classificationService
     ) {
-        this.paymentProofRepository = paymentProofRepository;
-        this.chargeRepository = chargeRepository;
-        this.userRepository = userRepository;
-        this.receiptRepository = receiptRepository;
-        this.receiptService = receiptService;
-        this.whatsAppCloudApiClient = whatsAppCloudApiClient;
-        this.classificationService = classificationService;
+        this(paymentProofRepository, chargeRepository, userRepository, receiptRepository, receiptService,
+                whatsAppCloudApiClient, classificationService, null);
     }
 
     @Transactional
@@ -112,7 +131,8 @@ public class PaymentProofService {
         Charge charge = proof.getCharge();
         classificationService.classify(charge);
         charge.setStatus(ChargeStatus.PAID).setPaidAt(now);
-        chargeRepository.save(charge);
+        Charge paidCharge = chargeRepository.save(charge);
+        notifyAcademicServiceOrder(paidCharge);
 
         ReceiptResponse receipt = receiptService.issueOrFindForCharge(charge.getId());
         sendReceiptDocument(charge, receipt);
@@ -215,6 +235,12 @@ public class PaymentProofService {
         WhatsAppCloudSendResult result = whatsAppCloudApiClient.sendDocumentByLink(recipientPhone, pdfUrl, fileName, caption);
         if (result == null || !result.isSuccess()) {
             whatsAppCloudApiClient.sendText(recipientPhone, caption + "\n\nLink do recibo PDF:\n" + pdfUrl);
+        }
+    }
+
+    private void notifyAcademicServiceOrder(Charge charge) {
+        if (academicServiceOrderService != null) {
+            academicServiceOrderService.confirmPaymentByCharge(charge);
         }
     }
 
