@@ -9,6 +9,8 @@ import java.util.UUID;
 
 public interface PaymentProofRepository extends JpaRepository<PaymentProof, UUID> {
 
+    boolean existsByFileUrl(String fileUrl);
+
     List<PaymentProof> findByChargeIdOrderBySubmittedAtDesc(UUID chargeId);
 
     List<PaymentProof> findByStatusOrderBySubmittedAtAsc(PaymentProofStatus status);

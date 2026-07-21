@@ -95,8 +95,11 @@ public class SecretariaPayWhatsappWebhookService {
 
         WhatsappRecipientOverrideContext.set(message.from());
         try {
-            Optional<String> financialReply = financialConversationService.handle(message.from(), message.type(), message.body());
-            replyText = financialReply.orElseGet(() -> buildMediaOrScopeReply(message));
+            Optional<String> contextualMediaReply = resolveContextualMediaReply(message);
+            Optional<String> financialReply = contextualMediaReply.isPresent()
+                    ? Optional.empty()
+                    : financialConversationService.handle(message.from(), message.type(), message.body());
+            replyText = contextualMediaReply.orElseGet(() -> financialReply.orElseGet(() -> buildMediaOrScopeReply(message)));
             replyText = sanitizeInstitutionalLanguage(replyText);
 
             Optional<WhatsappInteractiveListMessage> interactiveMessage = interactiveMenuFactory.fromReplyText(replyText);
@@ -160,6 +163,22 @@ public class SecretariaPayWhatsappWebhookService {
                     .orElseGet(this::buildFinancialScopeReply);
         }
         return buildFinancialScopeReply();
+    }
+
+    private Optional<String> resolveContextualMediaReply(InboundWhatsappMessage message) {
+        if (message == null || !isPaymentProofMedia(message.type())) return Optional.empty();
+        return academicSupportService.buildDatabaseAwareReply(
+                message.from(),
+                message.type(),
+                message.body(),
+                message.mediaId(),
+                message.fileName(),
+                message.mimeType()
+        );
+    }
+
+    private boolean isPaymentProofMedia(String type) {
+        return "image".equalsIgnoreCase(type) || "document".equalsIgnoreCase(type);
     }
 
     private String buildFinancialScopeReply() {

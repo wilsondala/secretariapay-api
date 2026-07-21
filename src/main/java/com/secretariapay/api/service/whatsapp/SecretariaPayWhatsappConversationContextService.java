@@ -249,10 +249,25 @@ public class SecretariaPayWhatsappConversationContextService {
             }
 
             Charge charge = chargeOptional.get();
+            String mediaReference = buildWhatsappMediaReference(mediaId, type);
+
+            if (paymentProofRepository.existsByFileUrl(mediaReference)) {
+                session.setCurrentStep(WhatsappConversationStep.SECRETARIAPAY_CHARGE_FOUND);
+                metadata.put("lastIntent", "PAYMENT_PROOF_ALREADY_REGISTERED");
+                metadata.put("paymentProofReceivedAt", LocalDateTime.now().toString());
+                writeMetadata(session, metadata);
+                sessionRepository.save(session);
+
+                return Optional.of(("""
+                        Este comprovativo já estava registado para a cobrança %s.
+
+                        Estado: Pendente de validação pela DCR.
+                        """).formatted(chargeCode).trim());
+            }
 
             PaymentProof proof = new PaymentProof()
                     .setCharge(charge)
-                    .setFileUrl(buildWhatsappMediaReference(mediaId, type))
+                    .setFileUrl(mediaReference)
                     .setFileName(resolveFileName(type, mediaId, fileName, mimeType))
                     .setMimeType(resolveMimeType(type, mimeType))
                     .setSubmittedByPhone(session.getPhoneNumber())

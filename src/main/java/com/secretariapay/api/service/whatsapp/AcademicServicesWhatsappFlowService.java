@@ -1,14 +1,15 @@
 package com.secretariapay.api.service.whatsapp;
 
 import com.secretariapay.api.dto.notification.GuideFallbackRequest;
+import com.secretariapay.api.dto.academic.AcademicServiceOrderDto;
 import com.secretariapay.api.entity.academic.Student;
-import com.secretariapay.api.entity.enums.financial.ChargeStatus;
 import com.secretariapay.api.entity.financial.AcademicServiceCatalog;
 import com.secretariapay.api.entity.financial.Charge;
 import com.secretariapay.api.repository.academic.StudentRepository;
 import com.secretariapay.api.repository.financial.AcademicServiceCatalogRepository;
 import com.secretariapay.api.repository.financial.ChargeRepository;
 import com.secretariapay.api.service.FallbackNotificationService;
+import com.secretariapay.api.service.academic.AcademicServiceOrderService;
 import com.secretariapay.api.service.payment.AppyPayChargeResponse;
 import com.secretariapay.api.service.payment.AppyPayPaymentGatewayService;
 import com.secretariapay.api.service.payment.InfinitePayLinkPaymentResponse;
@@ -37,7 +38,6 @@ public class AcademicServicesWhatsappFlowService {
 
     private static final int SESSION_MINUTES = 60;
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final DateTimeFormatter CODE_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final List<String> WHATSAPP_SERVICE_CODES = List.of(
             "ENROLLMENT",
             "ENROLLMENT_CONFIRMATION",
@@ -54,6 +54,8 @@ public class AcademicServicesWhatsappFlowService {
     private final AcademicServiceCatalogRepository catalogRepository;
     private final StudentRepository studentRepository;
     private final ChargeRepository chargeRepository;
+    private final AcademicServiceOrderService academicServiceOrderService;
+    private final SecretariaPayWhatsappConversationContextService conversationContextService;
     private final WhatsAppCloudApiClient whatsAppCloudApiClient;
     private final AppyPayPaymentGatewayService appyPayPaymentGatewayService;
     private final InfinitePayTestPaymentService infinitePayTestPaymentService;
@@ -65,6 +67,8 @@ public class AcademicServicesWhatsappFlowService {
             AcademicServiceCatalogRepository catalogRepository,
             StudentRepository studentRepository,
             ChargeRepository chargeRepository,
+            AcademicServiceOrderService academicServiceOrderService,
+            SecretariaPayWhatsappConversationContextService conversationContextService,
             WhatsAppCloudApiClient whatsAppCloudApiClient,
             AppyPayPaymentGatewayService appyPayPaymentGatewayService,
             InfinitePayTestPaymentService infinitePayTestPaymentService,
@@ -75,6 +79,8 @@ public class AcademicServicesWhatsappFlowService {
         this.catalogRepository = catalogRepository;
         this.studentRepository = studentRepository;
         this.chargeRepository = chargeRepository;
+        this.academicServiceOrderService = academicServiceOrderService;
+        this.conversationContextService = conversationContextService;
         this.whatsAppCloudApiClient = whatsAppCloudApiClient;
         this.appyPayPaymentGatewayService = appyPayPaymentGatewayService;
         this.infinitePayTestPaymentService = infinitePayTestPaymentService;
@@ -107,8 +113,7 @@ public class AcademicServicesWhatsappFlowService {
         }
         if ("WAITING_PROOF".equals(session.step())) {
             if (isMedia(messageType) || normalized.contains("imagem recebida") || normalized.contains("documento recebido")) {
-                sessions.remove(phone);
-                return Optional.of("📎 Comprovativo recebido.\n\nO pagamento será analisado pela DCR. Após validação, o borderô financeiro será atualizado e disponibilizado neste WhatsApp.\n\nInstituto Superior Politécnico Metropolitano de Angola — IMETRO.");
+                return Optional.of("⚠️ O anexo ainda não foi registado. Reenvie a imagem ou o PDF pelo canal oficial para que o sistema associe o comprovativo à cobrança e o disponibilize à DCR.");
             }
             return Optional.of("📎 Envie o comprovativo de pagamento em imagem ou PDF.\n\nA DCR fará a validação antes da emissão do recibo.");
         }
@@ -239,8 +244,17 @@ public class AcademicServicesWhatsappFlowService {
         }
 
         Student student = studentOptional.get();
-        Charge charge = createOrReuseCharge(student, service);
-        AcademicServiceSession next = session.withStudentAndCharge(student, charge).withStep("WAITING_PAYMENT");
+        AcademicServiceOrderDto.Response order = academicServiceOrderService.createFromWhatsapp(
+                student.getId(),
+                service.getId(),
+                phone,
+                LocalDate.now().plusDays(3)
+        );
+        Charge charge = chargeRepository.findByChargeCode(order.chargeCode())
+                .orElseThrow(() -> new IllegalStateException("A cobrança do pedido académico não foi encontrada."));
+        conversationContextService.rememberChargeContext(phone, charge, "ACADEMIC_SERVICE_ORDER");
+
+        AcademicServiceSession next = session.withStudentOrderAndCharge(student, order, charge).withStep("WAITING_PAYMENT");
         sessions.put(phone, next);
         return buildPaymentMenu(next, service, charge);
     }
@@ -284,10 +298,11 @@ public class AcademicServicesWhatsappFlowService {
         }
         if ("4".equals(normalized) || containsAny(normalized, "deposito", "depósito", "outro banco")) {
             sendGuide(phone, session, service, charge, "Depósito ou transferência de outro banco");
-            sessions.put(phone, session.withStep("WAITING_PROOF"));
+            sessions.remove(phone);
             return """
                     ✅ Guia de pagamento criada.
 
+                    Pedido: %s
                     Serviço: %s
                     Forma de pagamento: Depósito ou transferência de outro banco
                     Valor a pagar: %s
@@ -295,7 +310,7 @@ public class AcademicServicesWhatsappFlowService {
 
                     A guia de pagamento foi enviada neste WhatsApp.
                     Após pagar, envie o comprovativo em imagem ou PDF para validação da DCR.
-                    """.formatted(service.getName(), money(charge.getTotalAmount()), formatDate(charge.getDueDate())).trim();
+                    """.formatted(session.orderCode(), service.getName(), money(charge.getTotalAmount()), formatDate(charge.getDueDate())).trim();
         }
         if ("8".equals(normalized) || containsAny(normalized, "infinitepay", "teste brasil", "pix brasil")) {
             return createInfinitePayTest(phone, session, service, charge);
@@ -390,32 +405,6 @@ public class AcademicServicesWhatsappFlowService {
                 """.formatted(service.getName(), money(charge.getTotalAmount()), safe(response.getOrderNsu()), safe(response.getCheckoutUrl())).trim();
     }
 
-    private Charge createOrReuseCharge(Student student, AcademicServiceCatalog service) {
-        String reference = academicReference(service);
-        Optional<Charge> existing = chargeRepository.findByStudentIdOrderByDueDateDesc(student.getId()).stream()
-                .filter(charge -> charge.getStatus() == ChargeStatus.PENDING
-                        || charge.getStatus() == ChargeStatus.OVERDUE
-                        || charge.getStatus() == ChargeStatus.PARTIALLY_PAID)
-                .filter(charge -> reference.equalsIgnoreCase(safe(charge.getReferenceMonth())))
-                .filter(charge -> service.getName().equalsIgnoreCase(safe(charge.getDescription())))
-                .findFirst();
-        if (existing.isPresent()) return existing.get();
-
-        Charge charge = new Charge()
-                .setStudent(student)
-                .setChargeCode(buildChargeCode(service, student))
-                .setDescription(service.getName())
-                .setReferenceMonth(reference)
-                .setDueDate(LocalDate.now().plusDays(3))
-                .setAmount(service.getUnitPrice())
-                .setFineAmount(BigDecimal.ZERO)
-                .setInterestAmount(BigDecimal.ZERO)
-                .setDiscountAmount(BigDecimal.ZERO)
-                .setCurrency(firstNonBlank(service.getCurrency(), "AOA"))
-                .setStatus(ChargeStatus.PENDING);
-        return chargeRepository.save(charge);
-    }
-
     private void sendGuide(String phone, AcademicServiceSession session, AcademicServiceCatalog service, Charge charge, String paymentMethod) {
         String pdfUrl = apiBaseUrl + "/api/v1/public/payment-guides/" + encode(charge.getChargeCode()) + "/pdf?v=" + System.currentTimeMillis();
         String publicUrl = apiBaseUrl + "/api/v1/public/payment-guides/" + encode(charge.getChargeCode()) + "/pdf";
@@ -423,6 +412,7 @@ public class AcademicServicesWhatsappFlowService {
         String caption = """
                 SecretáriaPay Académico — guia de pagamento.
 
+                Pedido: %s
                 Estudante: %s
                 Matrícula: %s
                 Serviço: %s
@@ -432,6 +422,7 @@ public class AcademicServicesWhatsappFlowService {
 
                 Consultar guia: %s
                 """.formatted(
+                session.orderCode(),
                 session.studentName(),
                 session.studentNumber(),
                 service.getName(),
@@ -476,6 +467,7 @@ public class AcademicServicesWhatsappFlowService {
         return """
                 📄 Guia preparada.
 
+                Pedido: %s
                 Estudante: %s
                 Matrícula: %s
                 Serviço: %s
@@ -491,6 +483,7 @@ public class AcademicServicesWhatsappFlowService {
                 [8] Teste real Brasil - InfinitePay
                 [5] Voltar
                 """.formatted(
+                session.orderCode(),
                 session.studentName(),
                 session.studentNumber(),
                 service.getName(),
@@ -544,31 +537,6 @@ public class AcademicServicesWhatsappFlowService {
             if (byGuardian.isPresent()) return byGuardian;
         }
         return Optional.empty();
-    }
-
-    private String academicReference(AcademicServiceCatalog service) {
-        String year = String.valueOf(LocalDate.now().getYear());
-        return switch (service.getCode()) {
-            case "ENROLLMENT" -> "Matrícula " + year;
-            case "ENROLLMENT_CONFIRMATION" -> "Conf. matrícula " + year;
-            case "REGISTRATION" -> "Inscrição " + year;
-            case "RESIT_EXAM" -> "Recurso " + year;
-            case "SPECIAL_EXAM" -> "Exame especial " + year;
-            case "DECLARATION_WITH_GRADES" -> "Decl. c/ nota " + year;
-            case "DECLARATION_WITHOUT_GRADES" -> "Decl. s/ nota " + year;
-            case "CERTIFICATE" -> "Certificado " + year;
-            case "DIPLOMA" -> "Diploma " + year;
-            default -> abbreviate(service.getName(), 15) + " " + year;
-        };
-    }
-
-    private String buildChargeCode(AcademicServiceCatalog service, Student student) {
-        String code = sanitizeFilePart(service.getCode());
-        if (code.length() > 18) code = code.substring(0, 18);
-        String studentPart = sanitizeFilePart(student.getStudentNumber());
-        if (studentPart.length() > 12) studentPart = studentPart.substring(studentPart.length() - 12);
-        String candidate = "IMT-" + code + "-" + LocalDate.now().format(CODE_DATE_FORMAT) + "-" + studentPart + "-" + shortId();
-        return candidate.length() <= 60 ? candidate : candidate.substring(0, 60);
     }
 
     private void clearExpired(String phone) {
@@ -639,15 +607,6 @@ public class AcademicServicesWhatsappFlowService {
         return resolved.endsWith("/") ? resolved.substring(0, resolved.length() - 1) : resolved;
     }
 
-    private String shortId() {
-        return UUID.randomUUID().toString().substring(0, 4).toUpperCase(Locale.ROOT);
-    }
-
-    private String abbreviate(String value, int maxLength) {
-        String safe = safe(value).trim();
-        return safe.length() <= maxLength ? safe : safe.substring(0, maxLength).trim();
-    }
-
     private String firstNonBlank(String... values) {
         if (values == null) return "";
         for (String value : values) {
@@ -671,18 +630,24 @@ public class AcademicServicesWhatsappFlowService {
             String studentName,
             String studentEmail,
             String studentPhone,
+            UUID orderId,
+            String orderCode,
             UUID chargeId,
             LocalDateTime expiresAt
     ) {
         static AcademicServiceSession waitingServiceChoice() {
-            return new AcademicServiceSession("WAITING_SERVICE_CHOICE", "", "", "", "", "", null, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+            return new AcademicServiceSession("WAITING_SERVICE_CHOICE", "", "", "", "", "", null, "", null, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
         static AcademicServiceSession waitingStudent(String serviceCode) {
-            return new AcademicServiceSession("WAITING_STUDENT", serviceCode, "", "", "", "", null, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+            return new AcademicServiceSession("WAITING_STUDENT", serviceCode, "", "", "", "", null, "", null, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
-        AcademicServiceSession withStudentAndCharge(Student student, Charge charge) {
+        AcademicServiceSession withStudentOrderAndCharge(
+                Student student,
+                AcademicServiceOrderDto.Response order,
+                Charge charge
+        ) {
             return new AcademicServiceSession(
                     step,
                     serviceCode,
@@ -690,13 +655,15 @@ public class AcademicServicesWhatsappFlowService {
                     student.getFullName(),
                     student.getEmail(),
                     firstNonBlankStatic(student.getWhatsapp(), student.getPhone(), student.getGuardianPhone()),
+                    order.id(),
+                    order.orderCode(),
                     charge.getId(),
                     LocalDateTime.now().plusMinutes(SESSION_MINUTES)
             );
         }
 
         AcademicServiceSession withStep(String newStep) {
-            return new AcademicServiceSession(newStep, serviceCode, studentNumber, studentName, studentEmail, studentPhone, chargeId, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
+            return new AcademicServiceSession(newStep, serviceCode, studentNumber, studentName, studentEmail, studentPhone, orderId, orderCode, chargeId, LocalDateTime.now().plusMinutes(SESSION_MINUTES));
         }
 
         private static String firstNonBlankStatic(String... values) {

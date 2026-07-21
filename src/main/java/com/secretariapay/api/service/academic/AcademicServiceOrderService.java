@@ -122,6 +122,23 @@ public class AcademicServiceOrderService {
     }
 
     @Transactional
+    public AcademicServiceOrderDto.Response createFromWhatsapp(
+            UUID studentId,
+            UUID serviceId,
+            String requesterPhone,
+            LocalDate dueDate
+    ) {
+        LocalDate resolvedDueDate = dueDate == null ? LocalDate.now().plusDays(3) : dueDate;
+        AcademicServiceOrderDto.Response created = create(new AcademicServiceOrderDto.CreateRequest(
+                studentId,
+                serviceId,
+                null,
+                "Solicitado pelo WhatsApp " + sanitizePhoneForAudit(requesterPhone)
+        ));
+        return requestPayment(created.id(), new AcademicServiceOrderDto.RequestPaymentRequest(resolvedDueDate));
+    }
+
+    @Transactional
     public AcademicServiceOrderDto.Response requestPayment(UUID id, AcademicServiceOrderDto.RequestPaymentRequest request) {
         AcademicServiceOrder order = load(id);
         requireStatus(order, AcademicServiceOrderStatus.SOLICITADO);
@@ -452,6 +469,11 @@ public class AcademicServiceOrderService {
     private String sanitize(String value) {
         String safe = value == null ? "" : value.trim().replaceAll("[^A-Za-z0-9._-]", "-").replaceAll("-+", "-");
         return safe.isBlank() ? "estudante" : safe;
+    }
+
+    private String sanitizePhoneForAudit(String value) {
+        String digits = value == null ? "" : value.replaceAll("[^0-9]", "");
+        return digits.isBlank() ? "(contacto não informado)" : "+" + digits;
     }
 
     private String trimToNull(String value) {
