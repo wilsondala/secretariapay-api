@@ -65,19 +65,18 @@ public class AdmissionService {
     @Transactional
     public AdmissionDto.LeadResponse createLead(AdmissionDto.LeadRequest request) {
         Institution institution = findInstitution(request.institutionId());
-        Course course = request.desiredCourseId() == null ? null : findCourse(request.desiredCourseId(), institution.getId());
+        Course course = request.desiredCourseId() == null
+                ? null
+                : findCourse(request.desiredCourseId(), institution.getId());
 
-        AdmissionLead existing = findDuplicateLead(request);
-        if (existing != null) {
-            applyLeadData(existing, request, course);
-            existing.setLastContactAt(LocalDateTime.now());
-            return toLeadResponse(leadRepository.save(existing));
+        AdmissionLead lead = findDuplicateLead(request);
+        if (lead == null) {
+            lead = new AdmissionLead()
+                    .setInstitution(institution)
+                    .setStatus(AdmissionLeadStatus.NEW);
+        } else {
+            lead.setLastContactAt(LocalDateTime.now());
         }
-
-        AdmissionLead lead = new AdmissionLead()
-                .setInstitution(institution)
-                .setDesiredCourse(course)
-                .setStatus(AdmissionLeadStatus.NEW);
         applyLeadData(lead, request, course);
         return toLeadResponse(leadRepository.save(lead));
     }
@@ -153,7 +152,7 @@ public class AdmissionService {
 
     @Transactional
     public AdmissionDto.ApplicationResponse submitApplication(UUID applicationId) {
-        AdmissionApplication application = findApplication(applicationId);
+        AdmissionApplication application = findApplicationEntity(applicationId);
         ensureStatus(application, AdmissionApplicationStatus.DRAFT, AdmissionApplicationStatus.DOCUMENTATION_PENDING);
         if (!Boolean.TRUE.equals(application.getTermsAccepted())) {
             throw new IllegalArgumentException("A candidatura só pode ser submetida após a aceitação dos termos.");
@@ -164,12 +163,12 @@ public class AdmissionService {
     }
 
     @Transactional(readOnly = true)
-    public AdmissionDto.ApplicationResponse findApplication(UUID applicationId) {
+    public AdmissionDto.ApplicationResponse getApplication(UUID applicationId) {
         return toApplicationResponse(findApplicationEntity(applicationId));
     }
 
     @Transactional(readOnly = true)
-    public AdmissionDto.ApplicationResponse findApplicationByCode(String applicationCode) {
+    public AdmissionDto.ApplicationResponse getApplicationByCode(String applicationCode) {
         AdmissionApplication application = applicationRepository.findByApplicationCodeIgnoreCase(applicationCode)
                 .orElseThrow(() -> new NotFoundException("Candidatura não encontrada."));
         return toApplicationResponse(application);
@@ -184,8 +183,9 @@ public class AdmissionService {
     ) {
         List<AdmissionApplication> applications;
         if (courseId != null && shift != null && !shift.isBlank()) {
-            applications = applicationRepository.findByInstitutionIdAndDesiredCourseIdAndDesiredShiftIgnoreCaseOrderByCreatedAtDesc(
-                    institutionId, courseId, normalizeShift(shift));
+            applications = applicationRepository
+                    .findByInstitutionIdAndDesiredCourseIdAndDesiredShiftIgnoreCaseOrderByCreatedAtDesc(
+                            institutionId, courseId, normalizeShift(shift));
         } else if (status != null) {
             applications = applicationRepository.findByInstitutionIdAndStatusOrderByCreatedAtDesc(institutionId, status);
         } else {
@@ -194,7 +194,8 @@ public class AdmissionService {
         return applications.stream()
                 .filter(item -> status == null || item.getStatus() == status)
                 .filter(item -> courseId == null || item.getDesiredCourse().getId().equals(courseId))
-                .filter(item -> shift == null || shift.isBlank() || item.getDesiredShift().equalsIgnoreCase(normalizeShift(shift)))
+                .filter(item -> shift == null || shift.isBlank()
+                        || item.getDesiredShift().equalsIgnoreCase(normalizeShift(shift)))
                 .map(this::toApplicationResponse)
                 .toList();
     }
@@ -240,7 +241,10 @@ public class AdmissionService {
     }
 
     @Transactional
-    public AdmissionDto.PaymentProofResponse submitPaymentProof(UUID invoiceId, AdmissionDto.PaymentProofRequest request) {
+    public AdmissionDto.PaymentProofResponse submitPaymentProof(
+            UUID invoiceId,
+            AdmissionDto.PaymentProofRequest request
+    ) {
         AdmissionInvoice invoice = findInvoice(invoiceId);
         if (invoice.getStatus() == AdmissionInvoiceStatus.PAID) {
             throw new IllegalArgumentException("A cobrança já está paga.");
@@ -253,32 +257,33 @@ public class AdmissionService {
                 .setStatus(AdmissionPaymentProofStatus.PENDING_REVIEW));
         invoice.setStatus(AdmissionInvoiceStatus.UNDER_REVIEW);
         invoiceRepository.save(invoice);
-        AdmissionApplication application = invoice.getApplication();
-        application.setStatus(AdmissionApplicationStatus.PAYMENT_UNDER_REVIEW);
-        applicationRepository.save(application);
+        invoice.getApplication().setStatus(AdmissionApplicationStatus.PAYMENT_UNDER_REVIEW);
+        applicationRepository.save(invoice.getApplication());
         return toProofResponse(proof);
     }
 
     @Transactional
-    public AdmissionDto.ApplicationResponse approvePaymentProof(UUID proofId, AdmissionDto.ReviewPaymentProofRequest request) {
+    public AdmissionDto.ApplicationResponse approvePaymentProof(
+            UUID proofId,
+            AdmissionDto.ReviewPaymentProofRequest request
+    ) {
         AdmissionPaymentProof proof = findProof(proofId);
-        if (proof.getStatus() != AdmissionPaymentProofStatus.PENDING_REVIEW) {
-            throw new IllegalArgumentException("O comprovativo já foi analisado.");
-        }
+        ensurePendingProof(proof);
         proof.setStatus(AdmissionPaymentProofStatus.APPROVED)
                 .setReviewedBy(request.reviewedBy().trim())
                 .setReviewNote(trimToNull(request.reviewNote()))
                 .setReviewedAt(LocalDateTime.now());
         proofRepository.save(proof);
-        return confirmInvoicePayment(proof.getInvoice(), request);
+        return completePayment(proof.getInvoice(), request);
     }
 
     @Transactional
-    public AdmissionDto.ApplicationResponse rejectPaymentProof(UUID proofId, AdmissionDto.ReviewPaymentProofRequest request) {
+    public AdmissionDto.ApplicationResponse rejectPaymentProof(
+            UUID proofId,
+            AdmissionDto.ReviewPaymentProofRequest request
+    ) {
         AdmissionPaymentProof proof = findProof(proofId);
-        if (proof.getStatus() != AdmissionPaymentProofStatus.PENDING_REVIEW) {
-            throw new IllegalArgumentException("O comprovativo já foi analisado.");
-        }
+        ensurePendingProof(proof);
         proof.setStatus(AdmissionPaymentProofStatus.REJECTED)
                 .setReviewedBy(request.reviewedBy().trim())
                 .setReviewNote(trimToNull(request.reviewNote()))
@@ -288,9 +293,8 @@ public class AdmissionService {
         AdmissionInvoice invoice = proof.getInvoice();
         invoice.setStatus(AdmissionInvoiceStatus.PENDING);
         invoiceRepository.save(invoice);
-        AdmissionApplication application = invoice.getApplication();
-        application.setStatus(AdmissionApplicationStatus.AWAITING_PAYMENT);
-        return toApplicationResponse(applicationRepository.save(application));
+        invoice.getApplication().setStatus(AdmissionApplicationStatus.AWAITING_PAYMENT);
+        return toApplicationResponse(applicationRepository.save(invoice.getApplication()));
     }
 
     @Transactional
@@ -298,14 +302,16 @@ public class AdmissionService {
             UUID invoiceId,
             AdmissionDto.ReviewPaymentProofRequest request
     ) {
-        return confirmInvoicePayment(findInvoice(invoiceId), request);
+        return completePayment(findInvoice(invoiceId), request);
     }
 
     @Transactional(readOnly = true)
     public AdmissionDto.DashboardResponse dashboard(UUID institutionId, UUID courseId, String shift) {
-        List<AdmissionApplication> applications = applicationRepository.findByInstitutionIdOrderByCreatedAtDesc(institutionId).stream()
+        List<AdmissionApplication> applications = applicationRepository
+                .findByInstitutionIdOrderByCreatedAtDesc(institutionId).stream()
                 .filter(item -> courseId == null || item.getDesiredCourse().getId().equals(courseId))
-                .filter(item -> shift == null || shift.isBlank() || item.getDesiredShift().equalsIgnoreCase(normalizeShift(shift)))
+                .filter(item -> shift == null || shift.isBlank()
+                        || item.getDesiredShift().equalsIgnoreCase(normalizeShift(shift)))
                 .toList();
         List<AdmissionLead> leads = leadRepository.findByInstitutionIdOrderByCreatedAtDesc(institutionId);
 
@@ -319,7 +325,6 @@ public class AdmissionService {
             }
         }
 
-        List<AdmissionDto.ReportRow> rows = applications.stream().map(this::toReportRow).toList();
         return new AdmissionDto.DashboardResponse(
                 leads.size(),
                 leads.stream().filter(item -> item.getStatus() == AdmissionLeadStatus.CONTACTED).count(),
@@ -329,11 +334,11 @@ public class AdmissionService {
                 applications.stream().filter(item -> item.getStatus() == AdmissionApplicationStatus.CONFIRMED).count(),
                 totalInvoiced,
                 totalPaid,
-                rows
+                applications.stream().map(this::toReportRow).toList()
         );
     }
 
-    private AdmissionDto.ApplicationResponse confirmInvoicePayment(
+    private AdmissionDto.ApplicationResponse completePayment(
             AdmissionInvoice invoice,
             AdmissionDto.ReviewPaymentProofRequest request
     ) {
@@ -360,15 +365,21 @@ public class AdmissionService {
 
     private AdmissionLead findDuplicateLead(AdmissionDto.LeadRequest request) {
         if (request.whatsapp() != null && !request.whatsapp().isBlank()) {
-            AdmissionLead found = leadRepository.findFirstByInstitutionIdAndWhatsappIgnoreCase(request.institutionId(), request.whatsapp().trim()).orElse(null);
+            AdmissionLead found = leadRepository
+                    .findFirstByInstitutionIdAndWhatsappIgnoreCase(request.institutionId(), request.whatsapp().trim())
+                    .orElse(null);
             if (found != null) return found;
         }
         if (request.documentNumber() != null && !request.documentNumber().isBlank()) {
-            AdmissionLead found = leadRepository.findFirstByInstitutionIdAndDocumentNumberIgnoreCase(request.institutionId(), request.documentNumber().trim()).orElse(null);
+            AdmissionLead found = leadRepository
+                    .findFirstByInstitutionIdAndDocumentNumberIgnoreCase(request.institutionId(), request.documentNumber().trim())
+                    .orElse(null);
             if (found != null) return found;
         }
         if (request.email() != null && !request.email().isBlank()) {
-            return leadRepository.findFirstByInstitutionIdAndEmailIgnoreCase(request.institutionId(), request.email().trim()).orElse(null);
+            return leadRepository
+                    .findFirstByInstitutionIdAndEmailIgnoreCase(request.institutionId(), request.email().trim())
+                    .orElse(null);
         }
         return null;
     }
@@ -406,23 +417,29 @@ public class AdmissionService {
     }
 
     private AdmissionLead findLead(UUID id) {
-        return leadRepository.findById(id).orElseThrow(() -> new NotFoundException("Lead não encontrado."));
+        return leadRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Lead não encontrado."));
     }
 
     private AdmissionApplication findApplicationEntity(UUID id) {
-        return applicationRepository.findById(id).orElseThrow(() -> new NotFoundException("Candidatura não encontrada."));
-    }
-
-    private AdmissionApplication findApplication(UUID id) {
-        return findApplicationEntity(id);
+        return applicationRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Candidatura não encontrada."));
     }
 
     private AdmissionInvoice findInvoice(UUID id) {
-        return invoiceRepository.findById(id).orElseThrow(() -> new NotFoundException("Cobrança de inscrição não encontrada."));
+        return invoiceRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Cobrança de inscrição não encontrada."));
     }
 
     private AdmissionPaymentProof findProof(UUID id) {
-        return proofRepository.findById(id).orElseThrow(() -> new NotFoundException("Comprovativo de inscrição não encontrado."));
+        return proofRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Comprovativo de inscrição não encontrado."));
+    }
+
+    private void ensurePendingProof(AdmissionPaymentProof proof) {
+        if (proof.getStatus() != AdmissionPaymentProofStatus.PENDING_REVIEW) {
+            throw new IllegalArgumentException("O comprovativo já foi analisado.");
+        }
     }
 
     private void ensureStatus(AdmissionApplication application, AdmissionApplicationStatus... allowed) {
@@ -435,7 +452,8 @@ public class AdmissionService {
     private String generateApplicationCode() {
         String code;
         do {
-            code = "IMT-ADM-" + LocalDate.now().format(CODE_DATE) + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
+            code = "IMT-ADM-" + LocalDate.now().format(CODE_DATE) + "-"
+                    + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
         } while (applicationRepository.existsByApplicationCode(code));
         return code;
     }
@@ -470,51 +488,113 @@ public class AdmissionService {
                 lead.getInstitution().getName(),
                 lead.getDesiredCourse() == null ? null : lead.getDesiredCourse().getId(),
                 lead.getDesiredCourse() == null ? null : lead.getDesiredCourse().getName(),
-                lead.getFullName(), lead.getPhone(), lead.getWhatsapp(), lead.getEmail(), lead.getDocumentNumber(),
-                lead.getDesiredShift(), lead.getProvince(), lead.getMunicipality(), lead.getLeadSource(),
-                lead.getConsentGiven(), lead.getStatus(), lead.getLastContactAt(), lead.getConvertedAt(), lead.getNotes(),
-                lead.getCreatedAt(), lead.getUpdatedAt()
+                lead.getFullName(),
+                lead.getPhone(),
+                lead.getWhatsapp(),
+                lead.getEmail(),
+                lead.getDocumentNumber(),
+                lead.getDesiredShift(),
+                lead.getProvince(),
+                lead.getMunicipality(),
+                lead.getLeadSource(),
+                lead.getConsentGiven(),
+                lead.getStatus(),
+                lead.getLastContactAt(),
+                lead.getConvertedAt(),
+                lead.getNotes(),
+                lead.getCreatedAt(),
+                lead.getUpdatedAt()
         );
     }
 
     private AdmissionDto.ApplicationResponse toApplicationResponse(AdmissionApplication application) {
         AdmissionInvoice invoice = invoiceRepository.findByApplicationId(application.getId()).orElse(null);
-        AdmissionPaymentProof proof = invoice == null ? null : proofRepository.findFirstByInvoiceIdOrderByCreatedAtDesc(invoice.getId()).orElse(null);
+        AdmissionPaymentProof proof = invoice == null
+                ? null
+                : proofRepository.findFirstByInvoiceIdOrderByCreatedAtDesc(invoice.getId()).orElse(null);
         return new AdmissionDto.ApplicationResponse(
-                application.getId(), application.getApplicationCode(), application.getInstitution().getId(), application.getInstitution().getName(),
+                application.getId(),
+                application.getApplicationCode(),
+                application.getInstitution().getId(),
+                application.getInstitution().getName(),
                 application.getLead() == null ? null : application.getLead().getId(),
-                application.getDesiredCourse().getId(), application.getDesiredCourse().getName(), application.getDesiredShift(), application.getAcademicYear(),
-                application.getFullName(), application.getDocumentType(), application.getDocumentNumber(), application.getBirthDate(),
-                application.getPhone(), application.getWhatsapp(), application.getEmail(), application.getPreviousSchool(), application.getProvince(),
-                application.getMunicipality(), application.getDocumentsComplete(), application.getTermsAccepted(), application.getStatus(), application.getNotes(),
-                application.getSubmittedAt(), application.getConfirmedAt(), toInvoiceResponse(invoice), toProofResponse(proof),
-                application.getCreatedAt(), application.getUpdatedAt()
+                application.getDesiredCourse().getId(),
+                application.getDesiredCourse().getName(),
+                application.getDesiredShift(),
+                application.getAcademicYear(),
+                application.getFullName(),
+                application.getDocumentType(),
+                application.getDocumentNumber(),
+                application.getBirthDate(),
+                application.getPhone(),
+                application.getWhatsapp(),
+                application.getEmail(),
+                application.getPreviousSchool(),
+                application.getProvince(),
+                application.getMunicipality(),
+                application.getDocumentsComplete(),
+                application.getTermsAccepted(),
+                application.getStatus(),
+                application.getNotes(),
+                application.getSubmittedAt(),
+                application.getConfirmedAt(),
+                toInvoiceResponse(invoice),
+                toProofResponse(proof),
+                application.getCreatedAt(),
+                application.getUpdatedAt()
         );
     }
 
     private AdmissionDto.InvoiceResponse toInvoiceResponse(AdmissionInvoice invoice) {
         if (invoice == null) return null;
         return new AdmissionDto.InvoiceResponse(
-                invoice.getId(), invoice.getInvoiceCode(), invoice.getAmount(), invoice.getCurrency(), invoice.getDueDate(), invoice.getStatus(),
-                invoice.getPaymentMethod(), invoice.getPaymentReference(), invoice.getProvider(), invoice.getExternalTransactionId(), invoice.getPaidAt(),
-                invoice.getCreatedAt(), invoice.getUpdatedAt()
+                invoice.getId(),
+                invoice.getInvoiceCode(),
+                invoice.getAmount(),
+                invoice.getCurrency(),
+                invoice.getDueDate(),
+                invoice.getStatus(),
+                invoice.getPaymentMethod(),
+                invoice.getPaymentReference(),
+                invoice.getProvider(),
+                invoice.getExternalTransactionId(),
+                invoice.getPaidAt(),
+                invoice.getCreatedAt(),
+                invoice.getUpdatedAt()
         );
     }
 
     private AdmissionDto.PaymentProofResponse toProofResponse(AdmissionPaymentProof proof) {
         if (proof == null) return null;
         return new AdmissionDto.PaymentProofResponse(
-                proof.getId(), proof.getInvoice().getId(), proof.getFileUrl(), proof.getFileName(), proof.getMimeType(), proof.getStatus(),
-                proof.getReviewedBy(), proof.getReviewNote(), proof.getSubmittedAt(), proof.getReviewedAt(), proof.getCreatedAt(), proof.getUpdatedAt()
+                proof.getId(),
+                proof.getInvoice().getId(),
+                proof.getFileUrl(),
+                proof.getFileName(),
+                proof.getMimeType(),
+                proof.getStatus(),
+                proof.getReviewedBy(),
+                proof.getReviewNote(),
+                proof.getSubmittedAt(),
+                proof.getReviewedAt(),
+                proof.getCreatedAt(),
+                proof.getUpdatedAt()
         );
     }
 
     private AdmissionDto.ReportRow toReportRow(AdmissionApplication application) {
         AdmissionInvoice invoice = invoiceRepository.findByApplicationId(application.getId()).orElse(null);
         return new AdmissionDto.ReportRow(
-                application.getApplicationCode(), application.getFullName(), application.getDocumentNumber(),
-                firstNonBlank(application.getWhatsapp(), application.getPhone()), application.getDesiredCourse().getName(), application.getDesiredShift(),
-                application.getStatus(), invoice == null ? null : invoice.getStatus(), application.getSubmittedAt(), application.getConfirmedAt()
+                application.getApplicationCode(),
+                application.getFullName(),
+                application.getDocumentNumber(),
+                firstNonBlank(application.getWhatsapp(), application.getPhone()),
+                application.getDesiredCourse().getName(),
+                application.getDesiredShift(),
+                application.getStatus(),
+                invoice == null ? null : invoice.getStatus(),
+                application.getSubmittedAt(),
+                application.getConfirmedAt()
         );
     }
 }
