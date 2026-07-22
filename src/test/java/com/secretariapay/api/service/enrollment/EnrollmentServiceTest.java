@@ -12,6 +12,8 @@ import com.secretariapay.api.entity.enrollment.AcademicEnrollmentInvoice;
 import com.secretariapay.api.entity.enrollment.AcademicEnrollmentRequest;
 import com.secretariapay.api.entity.enums.admission.AdmissionApplicationStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionInvoiceStatus;
+import com.secretariapay.api.entity.enums.admission.AdmissionShift;
+import com.secretariapay.api.entity.enums.enrollment.EnrollmentRequestStatus;
 import com.secretariapay.api.entity.enums.enrollment.EnrollmentRequestType;
 import com.secretariapay.api.repository.academic.AcademicClassRepository;
 import com.secretariapay.api.repository.academic.CourseRepository;
@@ -37,6 +39,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -101,7 +104,10 @@ class EnrollmentServiceTest {
         when(admissionApplicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
         when(requestRepository.existsByAdmissionApplicationId(applicationId)).thenReturn(false);
         when(admissionInvoiceRepository.findByApplicationId(applicationId)).thenReturn(Optional.of(registrationInvoice));
-        when(offeringRepository.existsByCampaignIdAndCourseIdAndShiftAndActiveTrue(any(), any(), any()))
+        when(offeringRepository.existsByCampaignIdAndCourseIdAndShiftAndActiveTrue(
+                nullable(UUID.class),
+                nullable(UUID.class),
+                any(AdmissionShift.class)))
                 .thenReturn(true);
 
         service.createEnrollmentFromAdmission(
@@ -141,11 +147,18 @@ class EnrollmentServiceTest {
 
         when(studentRepository.findById(studentId)).thenReturn(Optional.of(student));
         when(courseRepository.findById(courseId)).thenReturn(Optional.of(targetCourse));
-        when(campaignRepository.findFirstByInstitutionIdAndActiveTrueOrderByRegistrationStartDesc(any()))
+        when(campaignRepository.findFirstByInstitutionIdAndActiveTrueOrderByRegistrationStartDesc(nullable(UUID.class)))
                 .thenReturn(Optional.of(campaign));
-        when(requestRepository.existsByStudentIdAndAcademicYearAndRequestTypeAndStatusNot(any(), any(), any(), any()))
+        when(requestRepository.existsByStudentIdAndAcademicYearAndRequestTypeAndStatusNot(
+                nullable(UUID.class),
+                any(String.class),
+                any(EnrollmentRequestType.class),
+                any(EnrollmentRequestStatus.class)))
                 .thenReturn(false);
-        when(offeringRepository.existsByCampaignIdAndCourseIdAndShiftAndActiveTrue(any(), any(), any()))
+        when(offeringRepository.existsByCampaignIdAndCourseIdAndShiftAndActiveTrue(
+                nullable(UUID.class),
+                nullable(UUID.class),
+                any(AdmissionShift.class)))
                 .thenReturn(true);
 
         service.createReenrollment(new EnrollmentDto.ReenrollmentRequest(
