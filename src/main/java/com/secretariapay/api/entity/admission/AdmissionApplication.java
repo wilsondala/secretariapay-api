@@ -3,6 +3,7 @@ package com.secretariapay.api.entity.admission;
 import com.secretariapay.api.entity.academic.Course;
 import com.secretariapay.api.entity.academic.Institution;
 import com.secretariapay.api.entity.enums.admission.AdmissionApplicationStatus;
+import com.secretariapay.api.entity.enums.admission.AdmissionSourceChannel;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;
@@ -25,6 +26,10 @@ public class AdmissionApplication {
     private Institution institution;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "campaign_id")
+    private AdmissionCampaign campaign;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "lead_id")
     private AdmissionLead lead;
 
@@ -37,6 +42,10 @@ public class AdmissionApplication {
 
     @Column(name = "academic_year", nullable = false, length = 20)
     private String academicYear;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_channel", nullable = false, length = 30)
+    private AdmissionSourceChannel sourceChannel = AdmissionSourceChannel.INTERNAL;
 
     @Column(name = "full_name", nullable = false, length = 180)
     private String fullName;
@@ -104,6 +113,7 @@ public class AdmissionApplication {
     void prePersist() {
         LocalDateTime now = LocalDateTime.now();
         if (status == null) status = AdmissionApplicationStatus.DRAFT;
+        if (sourceChannel == null) sourceChannel = AdmissionSourceChannel.INTERNAL;
         if (documentsComplete == null) documentsComplete = false;
         if (termsAccepted == null) termsAccepted = false;
         if (Boolean.TRUE.equals(termsAccepted) && termsAcceptedAt == null) termsAcceptedAt = now;
@@ -114,6 +124,7 @@ public class AdmissionApplication {
     @PreUpdate
     void preUpdate() {
         if (status == null) status = AdmissionApplicationStatus.DRAFT;
+        if (sourceChannel == null) sourceChannel = AdmissionSourceChannel.INTERNAL;
         if (documentsComplete == null) documentsComplete = false;
         if (termsAccepted == null) termsAccepted = false;
         if (Boolean.TRUE.equals(termsAccepted) && termsAcceptedAt == null) termsAcceptedAt = LocalDateTime.now();
@@ -125,6 +136,8 @@ public class AdmissionApplication {
     public AdmissionApplication setApplicationCode(String applicationCode) { this.applicationCode = applicationCode; return this; }
     public Institution getInstitution() { return institution; }
     public AdmissionApplication setInstitution(Institution institution) { this.institution = institution; return this; }
+    public AdmissionCampaign getCampaign() { return campaign; }
+    public AdmissionApplication setCampaign(AdmissionCampaign campaign) { this.campaign = campaign; return this; }
     public AdmissionLead getLead() { return lead; }
     public AdmissionApplication setLead(AdmissionLead lead) { this.lead = lead; return this; }
     public Course getDesiredCourse() { return desiredCourse; }
@@ -133,6 +146,8 @@ public class AdmissionApplication {
     public AdmissionApplication setDesiredShift(String desiredShift) { this.desiredShift = desiredShift; return this; }
     public String getAcademicYear() { return academicYear; }
     public AdmissionApplication setAcademicYear(String academicYear) { this.academicYear = academicYear; return this; }
+    public AdmissionSourceChannel getSourceChannel() { return sourceChannel; }
+    public AdmissionApplication setSourceChannel(AdmissionSourceChannel sourceChannel) { this.sourceChannel = sourceChannel; return this; }
     public String getFullName() { return fullName; }
     public AdmissionApplication setFullName(String fullName) { this.fullName = fullName; return this; }
     public String getDocumentType() { return documentType; }
