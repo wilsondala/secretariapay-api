@@ -18,5 +18,6 @@ recibo-imetro*.pdf
 
 # Artefactos temporários de implantação por fases
 /README_FASE_*.txt
+/README_FIX_*.txt
 /secretariapay-fase-*/
 /secretariapay-fase-*.zip
