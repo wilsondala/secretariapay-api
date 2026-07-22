@@ -9,12 +9,14 @@ bilhete-SecretariaPay.pdf
 .env.*.local
 .env.production
 
-
-
 # Produção / backups locais
-.env.production
 .env.production.backup.*
 .env.production.bak-*
 *.bak-*
 *.backup
 recibo-imetro*.pdf
+
+# Artefactos temporários de implantação por fases
+/README_FASE_*.txt
+/secretariapay-fase-*/
+/secretariapay-fase-*.zip
