@@ -1,6 +1,7 @@
 package com.secretariapay.api.config;
 
 import com.secretariapay.api.security.JwtAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -141,6 +142,12 @@ public class SecurityConfig {
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .authenticationProvider(authenticationProvider())
+                                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint((request, response, exception) -> {
+                                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                                        response.setCharacterEncoding("UTF-8");
+                                        response.setContentType("application/json");
+                                        response.getWriter().write("{\"status\":401,\"error\":\"Não autorizado\",\"message\":\"A autenticação é obrigatória. Entre novamente no sistema.\"}");
+                                }))
                                 .authorizeHttpRequests(auth -> auth
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/").permitAll()
