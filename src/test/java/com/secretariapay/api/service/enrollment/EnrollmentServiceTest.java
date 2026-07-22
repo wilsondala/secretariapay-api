@@ -40,6 +40,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -82,7 +83,7 @@ class EnrollmentServiceTest {
     @Test
     void shouldUseOfficialEnrollmentFeeFromCampaign() {
         UUID applicationId = UUID.randomUUID();
-        Institution institution = new Institution().setName("IMETRO");
+        Institution institution = persistedInstitution("IMETRO");
         Course course = new Course().setInstitution(institution).setName("Engenharia Civil").setActive(true);
         AdmissionCampaign campaign = new AdmissionCampaign()
                 .setInstitution(institution)
@@ -131,7 +132,7 @@ class EnrollmentServiceTest {
     void shouldUseOfficialReenrollmentFeeFromCampaign() {
         UUID studentId = UUID.randomUUID();
         UUID courseId = UUID.randomUUID();
-        Institution institution = new Institution().setName("IMETRO");
+        Institution institution = persistedInstitution("IMETRO");
         Course currentCourse = new Course().setInstitution(institution).setName("Economia").setActive(true);
         Course targetCourse = new Course().setInstitution(institution).setName("Economia").setActive(true);
         AcademicClass currentClass = new AcademicClass().setCourse(currentCourse);
@@ -147,7 +148,7 @@ class EnrollmentServiceTest {
 
         when(studentRepository.findById(studentId)).thenReturn(Optional.of(student));
         when(courseRepository.findById(courseId)).thenReturn(Optional.of(targetCourse));
-        when(campaignRepository.findFirstByInstitutionIdAndActiveTrueOrderByRegistrationStartDesc(nullable(UUID.class)))
+        when(campaignRepository.findFirstByInstitutionIdAndActiveTrueOrderByRegistrationStartDesc(any(UUID.class)))
                 .thenReturn(Optional.of(campaign));
         when(requestRepository.existsByStudentIdAndAcademicYearAndRequestTypeAndStatusNot(
                 nullable(UUID.class),
@@ -177,5 +178,12 @@ class EnrollmentServiceTest {
         assertEquals(new BigDecimal("23500.00"), captor.getValue().getAmount());
         assertEquals(EnrollmentRequestType.REENROLLMENT,
                 captor.getValue().getEnrollmentRequest().getRequestType());
+    }
+
+    private Institution persistedInstitution(String name) {
+        Institution institution = mock(Institution.class);
+        when(institution.getId()).thenReturn(UUID.randomUUID());
+        when(institution.getName()).thenReturn(name);
+        return institution;
     }
 }
