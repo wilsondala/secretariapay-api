@@ -1,0 +1,197 @@
+package com.secretariapay.api.dto.admission;
+
+import com.secretariapay.api.entity.enums.admission.AdmissionApplicationStatus;
+import com.secretariapay.api.entity.enums.admission.AdmissionInvoiceStatus;
+import com.secretariapay.api.entity.enums.admission.AdmissionLeadStatus;
+import com.secretariapay.api.entity.enums.admission.AdmissionPaymentProofStatus;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+public final class AdmissionDto {
+
+    private AdmissionDto() {}
+
+    public record LeadRequest(
+            @NotNull UUID institutionId,
+            UUID desiredCourseId,
+            @NotBlank String fullName,
+            String phone,
+            String whatsapp,
+            @Email String email,
+            String documentNumber,
+            String desiredShift,
+            String province,
+            String municipality,
+            String leadSource,
+            Boolean consentGiven,
+            String notes
+    ) {}
+
+    public record LeadResponse(
+            UUID id,
+            UUID institutionId,
+            String institutionName,
+            UUID desiredCourseId,
+            String desiredCourseName,
+            String fullName,
+            String phone,
+            String whatsapp,
+            String email,
+            String documentNumber,
+            String desiredShift,
+            String province,
+            String municipality,
+            String leadSource,
+            Boolean consentGiven,
+            AdmissionLeadStatus status,
+            LocalDateTime lastContactAt,
+            LocalDateTime convertedAt,
+            String notes,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {}
+
+    public record ApplicationRequest(
+            @NotNull UUID institutionId,
+            UUID leadId,
+            @NotNull UUID desiredCourseId,
+            @NotBlank String desiredShift,
+            @NotBlank String academicYear,
+            @NotBlank String fullName,
+            String documentType,
+            @NotBlank String documentNumber,
+            LocalDate birthDate,
+            String phone,
+            String whatsapp,
+            @Email String email,
+            String previousSchool,
+            String province,
+            String municipality,
+            Boolean documentsComplete,
+            Boolean termsAccepted,
+            String notes
+    ) {}
+
+    public record InvoiceRequest(
+            @NotNull @Positive BigDecimal amount,
+            @NotNull LocalDate dueDate,
+            String paymentReference,
+            String provider
+    ) {}
+
+    public record PaymentProofRequest(
+            @NotBlank String fileUrl,
+            String fileName,
+            String mimeType
+    ) {}
+
+    public record ReviewPaymentProofRequest(
+            @NotBlank String reviewedBy,
+            String reviewNote,
+            String paymentMethod,
+            String paymentReference,
+            String provider,
+            String externalTransactionId
+    ) {}
+
+    public record InvoiceResponse(
+            UUID id,
+            String invoiceCode,
+            BigDecimal amount,
+            String currency,
+            LocalDate dueDate,
+            AdmissionInvoiceStatus status,
+            String paymentMethod,
+            String paymentReference,
+            String provider,
+            String externalTransactionId,
+            LocalDateTime paidAt,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {}
+
+    public record PaymentProofResponse(
+            UUID id,
+            UUID invoiceId,
+            String fileUrl,
+            String fileName,
+            String mimeType,
+            AdmissionPaymentProofStatus status,
+            String reviewedBy,
+            String reviewNote,
+            LocalDateTime submittedAt,
+            LocalDateTime reviewedAt,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {}
+
+    public record ApplicationResponse(
+            UUID id,
+            String applicationCode,
+            UUID institutionId,
+            String institutionName,
+            UUID leadId,
+            UUID desiredCourseId,
+            String desiredCourseName,
+            String desiredShift,
+            String academicYear,
+            String fullName,
+            String documentType,
+            String documentNumber,
+            LocalDate birthDate,
+            String phone,
+            String whatsapp,
+            String email,
+            String previousSchool,
+            String province,
+            String municipality,
+            Boolean documentsComplete,
+            Boolean termsAccepted,
+            AdmissionApplicationStatus status,
+            String notes,
+            LocalDateTime submittedAt,
+            LocalDateTime confirmedAt,
+            InvoiceResponse invoice,
+            PaymentProofResponse latestPaymentProof,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {}
+
+    public record ApplicationStatusRequest(
+            @NotNull AdmissionApplicationStatus status,
+            String notes
+    ) {}
+
+    public record ReportRow(
+            String applicationCode,
+            String fullName,
+            String documentNumber,
+            String phone,
+            String desiredCourseName,
+            String desiredShift,
+            AdmissionApplicationStatus applicationStatus,
+            AdmissionInvoiceStatus paymentStatus,
+            LocalDateTime submittedAt,
+            LocalDateTime confirmedAt
+    ) {}
+
+    public record DashboardResponse(
+            long totalLeads,
+            long contactedLeads,
+            long submittedApplications,
+            long awaitingPayment,
+            long paymentUnderReview,
+            long confirmedApplications,
+            BigDecimal totalInvoiced,
+            BigDecimal totalPaid,
+            List<ReportRow> applications
+    ) {}
+}
