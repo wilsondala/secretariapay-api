@@ -174,6 +174,12 @@ public final class AdmissionDto {
             String notes
     ) {}
 
+    public record ApplicationDocumentsRequest(
+            @NotNull Boolean documentsComplete,
+            @NotBlank String reviewedBy,
+            String notes
+    ) {}
+
     public record ReportRow(
             String applicationCode,
             String fullName,
