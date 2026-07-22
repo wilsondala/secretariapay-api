@@ -4,6 +4,7 @@ import com.secretariapay.api.entity.enums.admission.AdmissionApplicationStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionInvoiceStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionLeadStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionPaymentProofStatus;
+import com.secretariapay.api.entity.enums.admission.AdmissionSourceChannel;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -138,11 +139,14 @@ public final class AdmissionDto {
             String applicationCode,
             UUID institutionId,
             String institutionName,
+            UUID campaignId,
+            String campaignCode,
             UUID leadId,
             UUID desiredCourseId,
             String desiredCourseName,
             String desiredShift,
             String academicYear,
+            AdmissionSourceChannel sourceChannel,
             String fullName,
             String documentType,
             String documentNumber,
@@ -193,5 +197,41 @@ public final class AdmissionDto {
             BigDecimal totalInvoiced,
             BigDecimal totalPaid,
             List<ReportRow> applications
+    ) {}
+
+    public record CatalogShiftResponse(
+            String code,
+            String label
+    ) {}
+
+    public record CatalogCourseResponse(
+            UUID courseId,
+            String courseCode,
+            String courseName,
+            String decreeReference,
+            List<CatalogShiftResponse> shifts
+    ) {}
+
+    public record CatalogDepartmentResponse(
+            String departmentCode,
+            List<CatalogCourseResponse> courses
+    ) {}
+
+    public record CatalogResponse(
+            UUID institutionId,
+            String institutionName,
+            UUID campaignId,
+            String campaignCode,
+            String academicYear,
+            LocalDate registrationStart,
+            LocalDate registrationEnd,
+            boolean registrationOpen,
+            BigDecimal registrationFee,
+            BigDecimal enrollmentFee,
+            BigDecimal reenrollmentFee,
+            String currency,
+            boolean publicFormEnabled,
+            boolean whatsappEnabled,
+            List<CatalogDepartmentResponse> departments
     ) {}
 }
