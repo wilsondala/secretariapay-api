@@ -4,6 +4,7 @@ import com.secretariapay.api.dto.admission.AdmissionDto;
 import com.secretariapay.api.entity.enums.admission.AdmissionApplicationStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionLeadStatus;
 import com.secretariapay.api.service.admission.AdmissionDocumentationService;
+import com.secretariapay.api.service.admission.AdmissionLeadWorkflowService;
 import com.secretariapay.api.service.admission.AdmissionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -25,13 +26,16 @@ public class AdmissionController {
 
     private final AdmissionService service;
     private final AdmissionDocumentationService documentationService;
+    private final AdmissionLeadWorkflowService leadWorkflowService;
 
     public AdmissionController(
             AdmissionService service,
-            AdmissionDocumentationService documentationService
+            AdmissionDocumentationService documentationService,
+            AdmissionLeadWorkflowService leadWorkflowService
     ) {
         this.service = service;
         this.documentationService = documentationService;
+        this.leadWorkflowService = leadWorkflowService;
     }
 
     @PostMapping("/leads")
@@ -57,14 +61,14 @@ public class AdmissionController {
             @RequestParam AdmissionLeadStatus status,
             @RequestParam(required = false) String notes
     ) {
-        return service.updateLeadStatus(leadId, status, notes);
+        return leadWorkflowService.updateLeadStatus(leadId, status, notes);
     }
 
     @PostMapping("/applications")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize(ADMISSIONS)
     public AdmissionDto.ApplicationResponse createApplication(@Valid @RequestBody AdmissionDto.ApplicationRequest request) {
-        return service.createApplication(request);
+        return leadWorkflowService.createApplication(request);
     }
 
     @GetMapping("/applications")
