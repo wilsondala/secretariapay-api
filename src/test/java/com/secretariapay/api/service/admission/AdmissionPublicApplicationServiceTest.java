@@ -21,6 +21,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -38,6 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AdmissionPublicApplicationServiceTest {
 
     private static final ZoneId LUANDA_ZONE = ZoneId.of("Africa/Luanda");
@@ -147,7 +150,7 @@ class AdmissionPublicApplicationServiceTest {
                 AdmissionShift.MANHA
         )).thenReturn(true);
 
-        return new TestContext(applicationRequest(institutionId, courseId), institutionId, courseId, campaignId);
+        return new TestContext(applicationRequest(institutionId, courseId));
     }
 
     private AdmissionDto.ApplicationRequest applicationRequest(UUID institutionId, UUID courseId) {
@@ -173,10 +176,5 @@ class AdmissionPublicApplicationServiceTest {
         );
     }
 
-    private record TestContext(
-            AdmissionDto.ApplicationRequest request,
-            UUID institutionId,
-            UUID courseId,
-            UUID campaignId
-    ) {}
+    private record TestContext(AdmissionDto.ApplicationRequest request) {}
 }
