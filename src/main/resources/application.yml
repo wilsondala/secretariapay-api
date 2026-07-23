@@ -45,7 +45,7 @@ secretariapay:
     mobile-money-info: ${SECRETARIAPAY_PAYMENT_MOBILE_MONEY_INFO:Unitel Money/Afrimoney quando autorizado pela instituição}
 
   institution:
-    whatsapp: ${SECRETARIAPAY_INSTITUTION_WHATSAPP:+244 923 168 085}
+    whatsapp: ${SECRETARIAPAY_INSTITUTION_WHATSAPP:+244 991 640 259}
     financial-email: ${SECRETARIAPAY_INSTITUTION_FINANCIAL_EMAIL:secretaria.financeira@imetroangola.com}
 
   whatsapp:
