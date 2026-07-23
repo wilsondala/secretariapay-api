@@ -13,6 +13,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -30,7 +31,6 @@ class AdmissionOperationalNotificationServiceTest {
 
     @Mock
     private AdmissionOperationalNotificationRepository repository;
-
     @Mock
     private WhatsAppCloudApiClient whatsAppClient;
 
@@ -48,17 +48,10 @@ class AdmissionOperationalNotificationServiceTest {
                 .setAcademicYear("2026/2027")
                 .setWhatsapp("+244 923 000 200");
 
-        when(repository.existsByIdempotencyKey(any(String.class))).thenReturn(false);
-        when(repository.save(any(AdmissionOperationalNotification.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
+        prepareOutboxSave();
         service(false).enqueueApplicationSubmitted(application);
 
-        ArgumentCaptor<AdmissionOperationalNotification> captor =
-                ArgumentCaptor.forClass(AdmissionOperationalNotification.class);
-        verify(repository).save(captor.capture());
-
-        AdmissionOperationalNotification notification = captor.getValue();
+        AdmissionOperationalNotification notification = captureSavedNotification();
         assertEquals(AdmissionNotificationStatus.PENDING, notification.getStatus());
         assertEquals("+244 991 640 259", notification.getRecipient());
         assertTrue(notification.getMessageBody().contains("Nova candidatura recebida"));
@@ -69,42 +62,42 @@ class AdmissionOperationalNotificationServiceTest {
     }
 
     @Test
-    void shouldRequestDigitalDocumentsAndOriginalsFromCandidateWhatsapp() {
-        Course course = org.mockito.Mockito.mock(Course.class);
-        when(course.getName()).thenReturn("Arquitectura");
+    void shouldExplainDigitalDocumentsEnrollmentChargeAndLaterOriginals() {
+        AdmissionApplication application = candidateApplication("IMT-ADM-20260723-DOCUMENTOS");
 
-        AdmissionApplication application = new AdmissionApplication()
-                .setApplicationCode("IMT-ADM-20260723-DOCUMENTOS")
-                .setFullName("Candidato Teste")
-                .setDesiredCourse(course)
-                .setDesiredShift("MANHA")
-                .setAcademicYear("2026/2027")
-                .setWhatsapp("+244 923 200 777");
-
-        when(repository.existsByIdempotencyKey(any(String.class))).thenReturn(false);
-        when(repository.save(any(AdmissionOperationalNotification.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
+        prepareOutboxSave();
         service(false).enqueueEnrollmentDocumentsRequested(application);
 
-        ArgumentCaptor<AdmissionOperationalNotification> captor =
-                ArgumentCaptor.forClass(AdmissionOperationalNotification.class);
-        verify(repository).save(captor.capture());
-
-        AdmissionOperationalNotification notification = captor.getValue();
+        AdmissionOperationalNotification notification = captureSavedNotification();
         assertEquals("ENROLLMENT_DOCUMENTS_REQUESTED", notification.getEventType());
         assertEquals(AdmissionNotificationStatus.PENDING, notification.getStatus());
         assertEquals("+244 923 200 777", notification.getRecipient());
-        assertTrue(notification.getMessageBody().contains("Inscrição confirmada"));
         assertTrue(notification.getMessageBody().contains("Envie pelo robô SecretáriaPay"));
         assertTrue(notification.getMessageBody().contains("2 fotografias do tipo passe"));
-        assertTrue(notification.getMessageBody().contains("certificado de habilitações"));
-        assertTrue(notification.getMessageBody().contains("Bilhete de Identidade"));
-        assertTrue(notification.getMessageBody().contains("Ministério da Educação"));
-        assertTrue(notification.getMessageBody().contains("documentos originais"));
-        assertTrue(notification.getMessageBody().contains("conferência presencial"));
-        assertTrue(notification.getMessageBody().contains("Idade mínima de 18 anos"));
+        assertTrue(notification.getMessageBody().contains("guia de matrícula"));
         assertTrue(notification.getMessageBody().contains("23.500,00 Kz"));
+        assertTrue(notification.getMessageBody().contains("antes do encerramento"));
+        assertTrue(notification.getMessageBody().contains("bloqueio temporário"));
+    }
+
+    @Test
+    void shouldNotifyCompletedEnrollmentAndOriginalsDeadline() {
+        AdmissionApplication application = candidateApplication("IMT-ADM-20260723-MATRICULADO");
+
+        prepareOutboxSave();
+        service(false).enqueueEnrollmentCompletedOriginalsPending(
+                application,
+                "202601234",
+                LocalDate.of(2026, 9, 8)
+        );
+
+        AdmissionOperationalNotification notification = captureSavedNotification();
+        assertEquals("ENROLLMENT_COMPLETED_ORIGINALS_PENDING", notification.getEventType());
+        assertTrue(notification.getMessageBody().contains("Matrícula confirmada"));
+        assertTrue(notification.getMessageBody().contains("202601234"));
+        assertTrue(notification.getMessageBody().contains("08/09/2026"));
+        assertTrue(notification.getMessageBody().contains("documentos originais"));
+        assertTrue(notification.getMessageBody().contains("temporariamente bloqueado"));
     }
 
     @Test
@@ -113,17 +106,10 @@ class AdmissionOperationalNotificationServiceTest {
                 .setApplicationCode("IMT-ADM-20260723-SEM-CONTACTO")
                 .setFullName("Candidato sem contacto");
 
-        when(repository.existsByIdempotencyKey(any(String.class))).thenReturn(false);
-        when(repository.save(any(AdmissionOperationalNotification.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
+        prepareOutboxSave();
         service(false).enqueueEnrollmentDocumentsRequested(application);
 
-        ArgumentCaptor<AdmissionOperationalNotification> captor =
-                ArgumentCaptor.forClass(AdmissionOperationalNotification.class);
-        verify(repository).save(captor.capture());
-
-        AdmissionOperationalNotification notification = captor.getValue();
+        AdmissionOperationalNotification notification = captureSavedNotification();
         assertEquals(AdmissionNotificationStatus.EXHAUSTED, notification.getStatus());
         assertEquals("SEM_CONTACTO", notification.getRecipient());
         assertNotNull(notification.getLastError());
@@ -135,7 +121,6 @@ class AdmissionOperationalNotificationServiceTest {
     void shouldNotDuplicateAlertWithSameIdempotencyKey() {
         AdmissionApplication application = new AdmissionApplication()
                 .setApplicationCode("IMT-ADM-20260723-DUPLICADA");
-
         when(repository.existsByIdempotencyKey(any(String.class))).thenReturn(true);
 
         service(false).enqueueApplicationSubmitted(application);
@@ -168,6 +153,31 @@ class AdmissionOperationalNotificationServiceTest {
         assertEquals(1, notification.getAttempts());
         assertEquals("wamid.TESTE", notification.getProviderMessageId());
         verify(repository).save(notification);
+    }
+
+    private AdmissionApplication candidateApplication(String code) {
+        Course course = org.mockito.Mockito.mock(Course.class);
+        when(course.getName()).thenReturn("Arquitectura");
+        return new AdmissionApplication()
+                .setApplicationCode(code)
+                .setFullName("Candidato Teste")
+                .setDesiredCourse(course)
+                .setDesiredShift("MANHA")
+                .setAcademicYear("2026/2027")
+                .setWhatsapp("+244 923 200 777");
+    }
+
+    private void prepareOutboxSave() {
+        when(repository.existsByIdempotencyKey(any(String.class))).thenReturn(false);
+        when(repository.save(any(AdmissionOperationalNotification.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private AdmissionOperationalNotification captureSavedNotification() {
+        ArgumentCaptor<AdmissionOperationalNotification> captor =
+                ArgumentCaptor.forClass(AdmissionOperationalNotification.class);
+        verify(repository).save(captor.capture());
+        return captor.getValue();
     }
 
     private AdmissionOperationalNotificationService service(boolean enabled) {
