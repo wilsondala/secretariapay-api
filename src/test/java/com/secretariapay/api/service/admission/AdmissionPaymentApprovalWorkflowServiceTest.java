@@ -56,12 +56,14 @@ class AdmissionPaymentApprovalWorkflowServiceTest {
     @Test
     void shouldNotRequestDocumentsWhenApplicationIsAlreadyConfirmed() {
         UUID proofId = UUID.randomUUID();
+        UUID applicationId = UUID.randomUUID();
         AdmissionDto.ReviewPaymentProofRequest request =
                 mock(AdmissionDto.ReviewPaymentProofRequest.class);
         AdmissionDto.ApplicationResponse response =
                 mock(AdmissionDto.ApplicationResponse.class);
 
         when(admissionService.approvePaymentProof(proofId, request)).thenReturn(response);
+        when(response.id()).thenReturn(applicationId);
         when(response.status()).thenReturn(AdmissionApplicationStatus.CONFIRMED);
 
         AdmissionDto.ApplicationResponse result = service().approvePaymentProof(proofId, request);
