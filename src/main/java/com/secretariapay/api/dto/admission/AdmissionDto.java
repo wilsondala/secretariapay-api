@@ -5,6 +5,7 @@ import com.secretariapay.api.entity.enums.admission.AdmissionInvoiceStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionLeadStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionPaymentProofStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionSourceChannel;
+import com.secretariapay.api.entity.enums.enrollment.EnrollmentRequestStatus;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -216,6 +217,42 @@ public final class AdmissionDto {
             @NotNull Boolean documentsComplete,
             @NotBlank String reviewedBy,
             String notes
+    ) {}
+
+    public record EnrollmentDocumentChecklistRequest(
+            @NotNull Boolean twoPassportPhotos,
+            @NotNull Boolean authenticatedCertificateCopy,
+            @NotNull Boolean identityDocumentCopy,
+            @NotNull Boolean studiedAbroad,
+            @NotNull Boolean educationEquivalenceCopy,
+            @NotNull Boolean secondaryEducationCompleted,
+            @NotBlank String reviewedBy,
+            String notes
+    ) {}
+
+    public record EnrollmentDocumentChecklistResponse(
+            UUID id,
+            UUID applicationId,
+            String applicationCode,
+            Boolean twoPassportPhotos,
+            Boolean authenticatedCertificateCopy,
+            Boolean identityDocumentCopy,
+            Boolean studiedAbroad,
+            Boolean educationEquivalenceCopy,
+            Boolean secondaryEducationCompleted,
+            Boolean ageEligible,
+            Boolean documentsComplete,
+            String reviewedBy,
+            String notes,
+            LocalDateTime reviewedAt,
+            UUID enrollmentRequestId,
+            String enrollmentRequestCode,
+            EnrollmentRequestStatus enrollmentStatus,
+            BigDecimal enrollmentAmount,
+            String enrollmentCurrency,
+            LocalDate enrollmentDueDate,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
     ) {}
 
     public record ReportRow(
