@@ -127,19 +127,24 @@ class AdmissionPublicPaymentServiceTest {
         when(invoiceRepository.save(invoice)).thenReturn(invoice);
         when(proofRepository.findFirstByInvoiceIdOrderByCreatedAtDesc(nullable(UUID.class)))
                 .thenReturn(Optional.empty());
-        when(admissionService.issueInvoice(any(), any())).thenReturn(org.mockito.Mockito.mock(AdmissionDto.ApplicationResponse.class));
+        when(admissionService.issueInvoice(any(), any()))
+                .thenReturn(org.mockito.Mockito.mock(AdmissionDto.ApplicationResponse.class));
 
         AdmissionDto.PublicPaymentResponse response = service(true).issueOrGetInvoice(
                 "IMT-ADM-20260723-PILOTO",
                 new AdmissionDto.PublicApplicationAccessRequest("TESTE-PORTAL-PUBLICO-001")
         );
 
-        ArgumentCaptor<AdmissionDto.InvoiceRequest> requestCaptor = ArgumentCaptor.forClass(AdmissionDto.InvoiceRequest.class);
-        verify(admissionService).issueInvoice(org.mockito.ArgumentMatchers.eq(applicationId), requestCaptor.capture());
+        ArgumentCaptor<AdmissionDto.InvoiceRequest> requestCaptor =
+                ArgumentCaptor.forClass(AdmissionDto.InvoiceRequest.class);
+        verify(admissionService).issueInvoice(
+                org.mockito.ArgumentMatchers.eq(applicationId),
+                requestCaptor.capture()
+        );
 
         assertEquals(new BigDecimal("6500.00"), requestCaptor.getValue().amount());
         assertEquals(LocalDate.now(LUANDA_ZONE).plusDays(3), requestCaptor.getValue().dueDate());
-        assertEquals("IMT-INSCR-PILOTO-001", response.invoice().paymentReference());
+        assertEquals("SPAY-BAI-IMTINSCRPILOTO001", response.invoice().paymentReference());
         assertEquals("BAI_TRANSFERENCIA_BANCARIA_PILOTO", response.invoice().provider());
         assertTrue(response.paymentInstructions().enabled());
         assertTrue(response.paymentInstructions().provisional());
@@ -182,7 +187,7 @@ class AdmissionPublicPaymentServiceTest {
                 "06014467710001",
                 "Multicaixa Express / transferência bancária para a conta AKZ indicada",
                 "Unitel Money/Afrimoney quando autorizado pela instituição",
-                "+244 923 168 085",
+                "+244 991 640 259",
                 "secretaria.financeira@imetroangola.com"
         );
     }
