@@ -3,6 +3,7 @@ package com.secretariapay.api.controller.enrollment;
 import com.secretariapay.api.dto.enrollment.EnrollmentDto;
 import com.secretariapay.api.entity.enums.enrollment.EnrollmentRequestStatus;
 import com.secretariapay.api.entity.enums.enrollment.EnrollmentRequestType;
+import com.secretariapay.api.service.enrollment.EnrollmentPaymentCompletionWorkflowService;
 import com.secretariapay.api.service.enrollment.EnrollmentService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -22,9 +23,14 @@ public class EnrollmentController {
     private static final String FINANCE = "hasAnyAuthority(" + ADMINS + ",'DCR_COORDENACAO','ROLE_DCR_COORDENACAO','DCR_OPERADOR','ROLE_DCR_OPERADOR','FINANCEIRO','ROLE_FINANCEIRO','TESOURARIA','ROLE_TESOURARIA')";
 
     private final EnrollmentService service;
+    private final EnrollmentPaymentCompletionWorkflowService paymentCompletionWorkflowService;
 
-    public EnrollmentController(EnrollmentService service) {
+    public EnrollmentController(
+            EnrollmentService service,
+            EnrollmentPaymentCompletionWorkflowService paymentCompletionWorkflowService
+    ) {
         this.service = service;
+        this.paymentCompletionWorkflowService = paymentCompletionWorkflowService;
     }
 
     @PostMapping("/from-admission/{applicationId}")
@@ -84,7 +90,7 @@ public class EnrollmentController {
             @PathVariable UUID proofId,
             @Valid @RequestBody EnrollmentDto.ReviewPaymentRequest request
     ) {
-        return service.approvePaymentProof(proofId, request);
+        return paymentCompletionWorkflowService.approvePaymentProof(proofId, request);
     }
 
     @PostMapping("/payment-proofs/{proofId}/reject")
@@ -102,6 +108,6 @@ public class EnrollmentController {
             @PathVariable UUID invoiceId,
             @Valid @RequestBody EnrollmentDto.ReviewPaymentRequest request
     ) {
-        return service.confirmPayment(invoiceId, request);
+        return paymentCompletionWorkflowService.confirmPayment(invoiceId, request);
     }
 }
