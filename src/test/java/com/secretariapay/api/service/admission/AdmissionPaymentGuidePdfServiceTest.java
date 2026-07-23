@@ -8,11 +8,14 @@ import com.secretariapay.api.entity.admission.AdmissionInvoice;
 import com.secretariapay.api.entity.enums.admission.AdmissionInvoiceStatus;
 import com.secretariapay.api.repository.admission.AdmissionApplicationRepository;
 import com.secretariapay.api.repository.admission.AdmissionInvoiceRepository;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -43,7 +46,7 @@ class AdmissionPaymentGuidePdfServiceTest {
     private Institution institution;
 
     @Test
-    void shouldGeneratePdfForAuthorizedPendingInvoice() {
+    void shouldGenerateOfficialPdfForAuthorizedPendingInvoice() throws Exception {
         UUID applicationId = UUID.randomUUID();
         when(application.getId()).thenReturn(applicationId);
         when(application.getApplicationCode()).thenReturn("IMT-ADM-TESTE-GUIA");
@@ -55,7 +58,8 @@ class AdmissionPaymentGuidePdfServiceTest {
         when(application.getDesiredCourse()).thenReturn(course);
         when(application.getInstitution()).thenReturn(institution);
         when(course.getName()).thenReturn("Arquitectura");
-        when(institution.getLegalName()).thenReturn("Instituto Superior Politécnico Metropolitano de Angola");
+        when(institution.getLegalName())
+                .thenReturn("Instituto Superior Politécnico Metropolitano de Angola");
 
         AdmissionInvoice invoice = new AdmissionInvoice()
                 .setApplication(application)
@@ -63,7 +67,7 @@ class AdmissionPaymentGuidePdfServiceTest {
                 .setAmount(new BigDecimal("6500.00"))
                 .setCurrency("AOA")
                 .setDueDate(LocalDate.now().plusDays(3))
-                .setPaymentReference("IMT-INSCR-TESTE-GUIA")
+                .setPaymentReference("SPAY-BAI-IMTINSCRTESTEGUIA")
                 .setStatus(AdmissionInvoiceStatus.PENDING);
 
         when(applicationRepository.findByApplicationCodeIgnoreCase("IMT-ADM-TESTE-GUIA"))
@@ -76,8 +80,23 @@ class AdmissionPaymentGuidePdfServiceTest {
                 new AdmissionDto.PublicApplicationAccessRequest("TESTE-BI-GUIA-001")
         );
 
-        assertTrue(pdf.length > 1000);
+        assertTrue(pdf.length > 5000);
         assertEquals("%PDF", new String(pdf, 0, 4, StandardCharsets.US_ASCII));
+
+        try (PDDocument document = PDDocument.load(new ByteArrayInputStream(pdf))) {
+            String text = new PDFTextStripper().getText(document);
+            assertTrue(text.contains("GUIA DE PAGAMENTO ACADÉMICO"));
+            assertTrue(text.contains("DADOS DO CANDIDATO"));
+            assertTrue(text.contains("DETALHES DA COBRANÇA"));
+            assertTrue(text.contains("DADOS PARA PAGAMENTO"));
+            assertTrue(text.contains("VALIDAÇÃO DIGITAL"));
+            assertTrue(text.contains("ATENDIMENTO FINANCEIRO"));
+            assertTrue(text.contains("CANDIDATO TESTE GUIA"));
+            assertTrue(text.contains("6.500,00 Kz"));
+            assertTrue(text.contains("SPAY-BAI-IMTINSCRTESTEGUIA"));
+            assertTrue(text.contains("+244 991 640 259"));
+            assertTrue(text.contains("Versão 3.1"));
+        }
     }
 
     @Test
