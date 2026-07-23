@@ -46,6 +46,7 @@ public class AdmissionEnrollmentDocumentChecklistService {
     private final EnrollmentService enrollmentService;
     private final AdmissionEnrollmentDocumentFileStorageService documentFileStorageService;
     private final AdmissionOriginalDocumentComplianceService originalDocumentComplianceService;
+    private final AdmissionEnrollmentChargeNotificationService enrollmentChargeNotificationService;
     private final int enrollmentPaymentDueDays;
     private final int originalDocumentsGraceDays;
     private final String enrollmentPaymentProvider;
@@ -59,6 +60,7 @@ public class AdmissionEnrollmentDocumentChecklistService {
             EnrollmentService enrollmentService,
             AdmissionEnrollmentDocumentFileStorageService documentFileStorageService,
             AdmissionOriginalDocumentComplianceService originalDocumentComplianceService,
+            AdmissionEnrollmentChargeNotificationService enrollmentChargeNotificationService,
             @Value("${secretariapay.enrollment.payment-due-days:3}") int enrollmentPaymentDueDays,
             @Value("${secretariapay.enrollment.original-documents-grace-days:30}") int originalDocumentsGraceDays,
             @Value("${secretariapay.enrollment.payment-provider:BAI_TRANSFERENCIA_BANCARIA_PILOTO}") String enrollmentPaymentProvider
@@ -71,6 +73,7 @@ public class AdmissionEnrollmentDocumentChecklistService {
         this.enrollmentService = enrollmentService;
         this.documentFileStorageService = documentFileStorageService;
         this.originalDocumentComplianceService = originalDocumentComplianceService;
+        this.enrollmentChargeNotificationService = enrollmentChargeNotificationService;
         this.enrollmentPaymentDueDays = Math.max(1, enrollmentPaymentDueDays);
         this.originalDocumentsGraceDays = Math.max(1, originalDocumentsGraceDays);
         this.enrollmentPaymentProvider = clean(
@@ -191,7 +194,7 @@ public class AdmissionEnrollmentDocumentChecklistService {
         applicationRepository.save(application);
 
         if (documentsComplete && existingEnrollment == null) {
-            enrollmentService.createEnrollmentFromAdmission(
+            EnrollmentDto.EnrollmentResponse enrollment = enrollmentService.createEnrollmentFromAdmission(
                     applicationId,
                     new EnrollmentDto.EnrollmentFromAdmissionRequest(
                             LocalDate.now(LUANDA_ZONE).plusDays(enrollmentPaymentDueDays),
@@ -200,6 +203,7 @@ public class AdmissionEnrollmentDocumentChecklistService {
                             enrollmentPaymentProvider
                     )
             );
+            enrollmentChargeNotificationService.enqueue(application, enrollment);
         }
 
         originalDocumentComplianceService.clearBlockIfOriginalsVerified(review);
