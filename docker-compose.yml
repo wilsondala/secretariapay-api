@@ -28,6 +28,8 @@ services:
         condition: service_healthy
     env_file:
       - .env.production
+    volumes:
+      - SecretariaPay_admission_payment_proofs:/app/data/admission-payment-proofs
     ports:
       - "127.0.0.1:8080:8080"
     networks:
@@ -35,8 +37,8 @@ services:
 
 volumes:
   SecretariaPay_postgres_data:
+  SecretariaPay_admission_payment_proofs:
 
 networks:
   SecretariaPay-network:
     driver: bridge
-
