@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,6 +36,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AdmissionEnrollmentDocumentChecklistServiceTest {
+
+    private static final ZoneId LUANDA_ZONE = ZoneId.of("Africa/Luanda");
 
     @Mock
     private AdmissionApplicationRepository applicationRepository;
@@ -87,7 +90,7 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
         );
         assertEquals(1, captor.getValue().targetYearLevel());
         assertEquals("BAI_TRANSFERENCIA_BANCARIA_PILOTO", captor.getValue().provider());
-        assertEquals(LocalDate.now().plusDays(3), captor.getValue().dueDate());
+        assertEquals(LocalDate.now(LUANDA_ZONE).plusDays(3), captor.getValue().dueDate());
     }
 
     @Test
@@ -128,7 +131,10 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
     @Test
     void shouldKeepDocumentsPendingWhenCandidateIsUnderEighteen() {
         UUID applicationId = UUID.randomUUID();
-        AdmissionApplication application = paidApplication(applicationId, LocalDate.now().minusYears(17));
+        AdmissionApplication application = paidApplication(
+                applicationId,
+                LocalDate.now(LUANDA_ZONE).minusYears(17)
+        );
         AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
 
         when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
