@@ -56,9 +56,14 @@ secretariapay:
       dispatch-cron: ${SECRETARIAPAY_ADMISSIONS_NOTIFICATIONS_DISPATCH_CRON:*/15 * * * * *}
 
   enrollment:
-    # A cobrança de matrícula nasce somente após inscrição paga e checklist aprovado.
+    # A cobrança de matrícula nasce após inscrição paga e documentação digital completa.
     payment-due-days: ${SECRETARIAPAY_ENROLLMENT_PAYMENT_DUE_DAYS:3}
     payment-provider: ${SECRETARIAPAY_ENROLLMENT_PAYMENT_PROVIDER:BAI_TRANSFERENCIA_BANCARIA_PILOTO}
+    # Prazo alternativo quando a campanha já terminou ou não possui data de encerramento.
+    original-documents-grace-days: ${SECRETARIAPAY_ENROLLMENT_ORIGINAL_DOCUMENTS_GRACE_DAYS:30}
+    # Preparado para ativação futura. Permanece false durante a observação do piloto.
+    original-documents-blocking-enabled: ${SECRETARIAPAY_ENROLLMENT_ORIGINAL_DOCUMENTS_BLOCKING_ENABLED:false}
+    original-documents-blocking-cron: ${SECRETARIAPAY_ENROLLMENT_ORIGINAL_DOCUMENTS_BLOCKING_CRON:0 30 2 * * *}
 
   payment:
     bank-name: ${SECRETARIAPAY_PAYMENT_BANK_NAME:Banco Angolano de Investimento}
