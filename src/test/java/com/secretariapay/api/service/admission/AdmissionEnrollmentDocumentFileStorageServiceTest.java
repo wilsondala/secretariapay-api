@@ -165,21 +165,22 @@ class AdmissionEnrollmentDocumentFileStorageServiceTest {
 
         TransactionSynchronizationManager.initSynchronization();
         try {
-            AdmissionEnrollmentDocumentFileStorageService.DocumentFileResponse response = service().store(
+            service().store(
                     applicationId,
                     AdmissionEnrollmentDocumentType.AUTHENTICATED_CERTIFICATE,
                     replacement,
                     "Secretaria"
             );
+            Path replacementPath = storedPath(applicationId);
 
             assertTrue(Files.isRegularFile(previousPath));
-            assertTrue(Files.isRegularFile(storedPath(applicationId, response)));
+            assertTrue(Files.isRegularFile(replacementPath));
             verify(fileRepository).delete(previous);
 
             completeSynchronization(TransactionSynchronization.STATUS_COMMITTED);
 
             assertFalse(Files.exists(previousPath));
-            assertTrue(Files.isRegularFile(storedPath(applicationId, response)));
+            assertTrue(Files.isRegularFile(replacementPath));
         } finally {
             clearSynchronization();
         }
@@ -210,13 +211,13 @@ class AdmissionEnrollmentDocumentFileStorageServiceTest {
 
         TransactionSynchronizationManager.initSynchronization();
         try {
-            AdmissionEnrollmentDocumentFileStorageService.DocumentFileResponse response = service().store(
+            service().store(
                     applicationId,
                     AdmissionEnrollmentDocumentType.AUTHENTICATED_CERTIFICATE,
                     replacement,
                     "Secretaria"
             );
-            Path replacementPath = storedPath(applicationId, response);
+            Path replacementPath = storedPath(applicationId);
 
             assertTrue(Files.isRegularFile(previousPath));
             assertTrue(Files.isRegularFile(replacementPath));
@@ -268,16 +269,10 @@ class AdmissionEnrollmentDocumentFileStorageServiceTest {
         return Files.write(directory.resolve(storedName), content);
     }
 
-    private Path storedPath(
-            UUID applicationId,
-            AdmissionEnrollmentDocumentFileStorageService.DocumentFileResponse response
-    ) {
-        String storedName = Path.of(response.contentUrl()).getParent().getFileName() == null
-                ? ""
-                : "";
+    private Path storedPath(UUID applicationId) {
         Path directory = tempDir.resolve(applicationId.toString());
-        try {
-            return Files.list(directory)
+        try (var paths = Files.list(directory)) {
+            return paths
                     .filter(path -> !path.getFileName().toString().equals("previous.pdf"))
                     .findFirst()
                     .orElseThrow();
