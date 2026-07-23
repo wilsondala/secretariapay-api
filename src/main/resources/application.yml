@@ -46,6 +46,11 @@ secretariapay:
       max-attempts: ${SECRETARIAPAY_ADMISSIONS_NOTIFICATIONS_MAX_ATTEMPTS:5}
       dispatch-cron: ${SECRETARIAPAY_ADMISSIONS_NOTIFICATIONS_DISPATCH_CRON:*/15 * * * * *}
 
+  enrollment:
+    # A cobrança de matrícula nasce somente após inscrição paga e checklist aprovado.
+    payment-due-days: ${SECRETARIAPAY_ENROLLMENT_PAYMENT_DUE_DAYS:3}
+    payment-provider: ${SECRETARIAPAY_ENROLLMENT_PAYMENT_PROVIDER:BAI_TRANSFERENCIA_BANCARIA_PILOTO}
+
   payment:
     bank-name: ${SECRETARIAPAY_PAYMENT_BANK_NAME:Banco Angolano de Investimento}
     account-holder: ${SECRETARIAPAY_PAYMENT_ACCOUNT_HOLDER:OMNEN INTELENGENDA}
