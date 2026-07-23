@@ -44,6 +44,7 @@ public class AdmissionEnrollmentDocumentChecklistService {
     private final AcademicEnrollmentRequestRepository enrollmentRequestRepository;
     private final AcademicEnrollmentInvoiceRepository enrollmentInvoiceRepository;
     private final EnrollmentService enrollmentService;
+    private final AdmissionEnrollmentDocumentFileStorageService documentFileStorageService;
     private final int enrollmentPaymentDueDays;
     private final String enrollmentPaymentProvider;
 
@@ -54,6 +55,7 @@ public class AdmissionEnrollmentDocumentChecklistService {
             AcademicEnrollmentRequestRepository enrollmentRequestRepository,
             AcademicEnrollmentInvoiceRepository enrollmentInvoiceRepository,
             EnrollmentService enrollmentService,
+            AdmissionEnrollmentDocumentFileStorageService documentFileStorageService,
             @Value("${secretariapay.enrollment.payment-due-days:3}") int enrollmentPaymentDueDays,
             @Value("${secretariapay.enrollment.payment-provider:BAI_TRANSFERENCIA_BANCARIA_PILOTO}") String enrollmentPaymentProvider
     ) {
@@ -63,6 +65,7 @@ public class AdmissionEnrollmentDocumentChecklistService {
         this.enrollmentRequestRepository = enrollmentRequestRepository;
         this.enrollmentInvoiceRepository = enrollmentInvoiceRepository;
         this.enrollmentService = enrollmentService;
+        this.documentFileStorageService = documentFileStorageService;
         this.enrollmentPaymentDueDays = Math.max(1, enrollmentPaymentDueDays);
         this.enrollmentPaymentProvider = clean(
                 enrollmentPaymentProvider,
@@ -107,12 +110,17 @@ public class AdmissionEnrollmentDocumentChecklistService {
         boolean studiedAbroad = Boolean.TRUE.equals(request.studiedAbroad());
         boolean equivalenceSatisfied = !studiedAbroad
                 || Boolean.TRUE.equals(request.educationEquivalenceCopy());
+        boolean requiredFilesPresent = documentFileStorageService.hasRequiredFiles(
+                applicationId,
+                studiedAbroad
+        );
         boolean documentsComplete = Boolean.TRUE.equals(request.twoPassportPhotos())
                 && Boolean.TRUE.equals(request.authenticatedCertificateCopy())
                 && Boolean.TRUE.equals(request.identityDocumentCopy())
                 && Boolean.TRUE.equals(request.secondaryEducationCompleted())
                 && ageEligible
-                && equivalenceSatisfied;
+                && equivalenceSatisfied
+                && requiredFilesPresent;
 
         AcademicEnrollmentRequest existingEnrollment = enrollmentRequestRepository
                 .findByAdmissionApplicationId(applicationId)
