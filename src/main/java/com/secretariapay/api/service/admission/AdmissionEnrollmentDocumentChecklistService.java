@@ -45,7 +45,9 @@ public class AdmissionEnrollmentDocumentChecklistService {
     private final AcademicEnrollmentInvoiceRepository enrollmentInvoiceRepository;
     private final EnrollmentService enrollmentService;
     private final AdmissionEnrollmentDocumentFileStorageService documentFileStorageService;
+    private final AdmissionOriginalDocumentComplianceService originalDocumentComplianceService;
     private final int enrollmentPaymentDueDays;
+    private final int originalDocumentsGraceDays;
     private final String enrollmentPaymentProvider;
 
     public AdmissionEnrollmentDocumentChecklistService(
@@ -56,7 +58,9 @@ public class AdmissionEnrollmentDocumentChecklistService {
             AcademicEnrollmentInvoiceRepository enrollmentInvoiceRepository,
             EnrollmentService enrollmentService,
             AdmissionEnrollmentDocumentFileStorageService documentFileStorageService,
+            AdmissionOriginalDocumentComplianceService originalDocumentComplianceService,
             @Value("${secretariapay.enrollment.payment-due-days:3}") int enrollmentPaymentDueDays,
+            @Value("${secretariapay.enrollment.original-documents-grace-days:30}") int originalDocumentsGraceDays,
             @Value("${secretariapay.enrollment.payment-provider:BAI_TRANSFERENCIA_BANCARIA_PILOTO}") String enrollmentPaymentProvider
     ) {
         this.applicationRepository = applicationRepository;
@@ -66,7 +70,9 @@ public class AdmissionEnrollmentDocumentChecklistService {
         this.enrollmentInvoiceRepository = enrollmentInvoiceRepository;
         this.enrollmentService = enrollmentService;
         this.documentFileStorageService = documentFileStorageService;
+        this.originalDocumentComplianceService = originalDocumentComplianceService;
         this.enrollmentPaymentDueDays = Math.max(1, enrollmentPaymentDueDays);
+        this.originalDocumentsGraceDays = Math.max(1, originalDocumentsGraceDays);
         this.enrollmentPaymentProvider = clean(
                 enrollmentPaymentProvider,
                 "BAI_TRANSFERENCIA_BANCARIA_PILOTO"
@@ -134,24 +140,27 @@ public class AdmissionEnrollmentDocumentChecklistService {
                 && Boolean.TRUE.equals(request.secondaryEducationCompleted())
                 && ageEligible
                 && equivalenceSatisfied
-                && requiredFilesPresent
-                && originalsPresented
-                && originalsVerified;
+                && requiredFilesPresent;
 
         AcademicEnrollmentRequest existingEnrollment = enrollmentRequestRepository
                 .findByAdmissionApplicationId(applicationId)
                 .orElse(null);
         if (existingEnrollment != null && !documentsComplete) {
             throw new IllegalArgumentException(
-                    "A matrícula já foi iniciada. A documentação não pode ser marcada como pendente sem cancelamento formal do processo."
+                    "A matrícula já foi iniciada. Os documentos digitais não podem ser marcados como pendentes sem cancelamento formal do processo."
             );
         }
 
         LocalDateTime now = LocalDateTime.now(LUANDA_ZONE);
         String reviewer = request.reviewedBy().trim();
         AdmissionEnrollmentDocumentReview review = reviewRepository.findByApplicationId(applicationId)
-                .orElseGet(AdmissionEnrollmentDocumentReview::new)
-                .setApplication(application)
+                .orElseGet(AdmissionEnrollmentDocumentReview::new);
+        LocalDate originalsDueDate = firstNonNull(
+                review.getOriginalsDueDate(),
+                resolveOriginalsDueDate(application)
+        );
+
+        review.setApplication(application)
                 .setTwoPassportPhotos(request.twoPassportPhotos())
                 .setAuthenticatedCertificateCopy(request.authenticatedCertificateCopy())
                 .setIdentityDocumentCopy(request.identityDocumentCopy())
@@ -162,8 +171,9 @@ public class AdmissionEnrollmentDocumentChecklistService {
                 .setOriginalsPresented(originalsPresented)
                 .setOriginalsVerified(originalsVerified)
                 .setOriginalsVerifiedBy(originalsVerified ? reviewer : null)
-                .setOriginalsVerifiedAt(originalsVerified ? now : null)
+                .setOriginalsVerifiedAt(originalsVerified ? firstNonNull(review.getOriginalsVerifiedAt(), now) : null)
                 .setOriginalsVerificationNotes(clean(request.originalsVerificationNotes(), null))
+                .setOriginalsDueDate(originalsDueDate)
                 .setDocumentsComplete(documentsComplete)
                 .setReviewedBy(reviewer)
                 .setNotes(clean(request.notes(), null))
@@ -173,10 +183,7 @@ public class AdmissionEnrollmentDocumentChecklistService {
         application.setDocumentsComplete(documentsComplete);
         if (documentsComplete) {
             application.setStatus(AdmissionApplicationStatus.CONFIRMED)
-                    .setConfirmedAt(firstNonNull(
-                            application.getConfirmedAt(),
-                            now
-                    ));
+                    .setConfirmedAt(firstNonNull(application.getConfirmedAt(), now));
         } else {
             application.setStatus(AdmissionApplicationStatus.DOCUMENTATION_PENDING)
                     .setConfirmedAt(null);
@@ -195,6 +202,7 @@ public class AdmissionEnrollmentDocumentChecklistService {
             );
         }
 
+        originalDocumentComplianceService.clearBlockIfOriginalsVerified(review);
         return toResponse(reviewRepository.findByApplicationId(applicationId).orElse(review));
     }
 
@@ -225,6 +233,9 @@ public class AdmissionEnrollmentDocumentChecklistService {
                 review.getOriginalsVerifiedBy(),
                 review.getOriginalsVerifiedAt(),
                 review.getOriginalsVerificationNotes(),
+                review.getOriginalsDueDate(),
+                review.getOriginalsBlockActive(),
+                review.getOriginalsBlockedAt(),
                 review.getDocumentsComplete(),
                 review.getReviewedBy(),
                 review.getNotes(),
@@ -240,12 +251,27 @@ public class AdmissionEnrollmentDocumentChecklistService {
         );
     }
 
+    private LocalDate resolveOriginalsDueDate(AdmissionApplication application) {
+        LocalDate today = LocalDate.now(LUANDA_ZONE);
+        LocalDate campaignEnd = application.getCampaign() == null
+                ? null
+                : application.getCampaign().getRegistrationEnd();
+        if (campaignEnd == null || campaignEnd.isBefore(today)) {
+            return today.plusDays(originalDocumentsGraceDays);
+        }
+        return campaignEnd;
+    }
+
     private boolean isAgeEligible(LocalDate birthDate) {
         if (birthDate == null || birthDate.isAfter(LocalDate.now(LUANDA_ZONE))) return false;
         return Period.between(birthDate, LocalDate.now(LUANDA_ZONE)).getYears() >= 18;
     }
 
     private LocalDateTime firstNonNull(LocalDateTime value, LocalDateTime fallback) {
+        return value == null ? fallback : value;
+    }
+
+    private LocalDate firstNonNull(LocalDate value, LocalDate fallback) {
         return value == null ? fallback : value;
     }
 
