@@ -518,11 +518,9 @@ public class AdmissionPaymentGuidePdfService {
                 + "|REFERENCE=" + paymentReference(invoice)
                 + "|AMOUNT=" + amountPlain(invoice.getAmount())
                 + "|CURRENCY=" + safe(invoice.getCurrency())
-                + "|DUE_DATE=" + (invoice.getDueDate() == null ? "" : invoice.getDueDate())
-                + "|BANK=" + bankName
-                + "|HOLDER=" + accountHolder
-                + "|IBAN=" + iban
-                + "|ACCOUNT_AKZ=" + accountNumber;
+                + "|DUE_DATE=" + safe(invoice.getDueDate())
+                + "|IBAN=" + iban.replace(" ", "")
+                + "|ACCOUNT=" + accountNumber;
     }
 
     private String validationPayload(
@@ -533,58 +531,40 @@ public class AdmissionPaymentGuidePdfService {
         return "SECRETARIAPAY|TYPE=ADMISSION_GUIDE_VALIDATION"
                 + "|APPLICATION=" + safe(application.getApplicationCode())
                 + "|INVOICE=" + safe(invoice.getInvoiceCode())
-                + "|DOCUMENT=" + safe(application.getDocumentNumber())
+                + "|VERSION=" + DOCUMENT_VERSION
                 + "|HASH=" + hash;
-    }
-
-    private String paymentReference(AdmissionInvoice invoice) {
-        String existing = invoice == null ? null : invoice.getPaymentReference();
-        if (existing != null && existing.trim().toUpperCase(Locale.ROOT).startsWith("SPAY-BAI-")) {
-            return existing.trim().toUpperCase(Locale.ROOT);
-        }
-
-        String invoiceCode = invoice == null ? "" : safe(invoice.getInvoiceCode());
-        String normalized = invoiceCode.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
-        if (normalized.isBlank() || "-".equals(normalized)) {
-            normalized = invoice != null && invoice.getId() != null
-                    ? invoice.getId().toString().replace("-", "").toUpperCase(Locale.ROOT)
-                    : "INSCRICAO";
-        }
-        if (normalized.length() > 22) {
-            normalized = normalized.substring(0, 13) + shortDigest(invoiceCode).substring(0, 8);
-        }
-        return "SPAY-BAI-" + normalized;
-    }
-
-    private String shortDigest(String value) {
-        try {
-            return HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256")
-                            .digest(safe(value).getBytes(StandardCharsets.UTF_8))
-            ).toUpperCase(Locale.ROOT);
-        } catch (Exception exception) {
-            return UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
-        }
     }
 
     private String documentHash(
             AdmissionApplication application,
             AdmissionInvoice invoice,
             LocalDateTime issuedAt
-    ) {
-        try {
-            String source = safe(application.getId())
-                    + "|" + safe(application.getApplicationCode())
-                    + "|" + safe(invoice.getInvoiceCode())
-                    + "|" + amountPlain(invoice.getAmount())
-                    + "|" + issuedAt;
-            return HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256")
-                            .digest(source.getBytes(StandardCharsets.UTF_8))
-            ).toUpperCase(Locale.ROOT);
-        } catch (Exception exception) {
-            return UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
+    ) throws Exception {
+        String raw = safe(application.getApplicationCode())
+                + "|" + safe(application.getDocumentNumber())
+                + "|" + safe(invoice.getInvoiceCode())
+                + "|" + amountPlain(invoice.getAmount())
+                + "|" + safe(invoice.getDueDate())
+                + "|" + issuedAt;
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest(raw.getBytes(StandardCharsets.UTF_8)))
+                .toUpperCase(Locale.ROOT);
+    }
+
+    private String paymentReference(AdmissionInvoice invoice) {
+        if (invoice.getPaymentReference() != null && !invoice.getPaymentReference().isBlank()) {
+            return invoice.getPaymentReference().trim();
         }
+        String code = safe(invoice.getInvoiceCode()).replaceAll("[^A-Za-z0-9]", "").toUpperCase(Locale.ROOT);
+        if (code.length() > 18) code = code.substring(code.length() - 18);
+        return "SPAY-BAI-" + code;
+    }
+
+    private String institutionName(Institution institution) {
+        if (institution != null && institution.getName() != null && !institution.getName().isBlank()) {
+            return institution.getName();
+        }
+        return "Instituto Superior Politécnico Metropolitano de Angola (IMETRO)";
     }
 
     private String invoiceStatus(AdmissionInvoiceStatus status) {
@@ -592,7 +572,7 @@ public class AdmissionPaymentGuidePdfService {
         return switch (status) {
             case PAID -> "PAGO";
             case UNDER_REVIEW -> "EM ANÁLISE";
-            case EXPIRED -> "VENCIDO";
+            case EXPIRED -> "EXPIRADO";
             case CANCELLED -> "CANCELADO";
             default -> "PENDENTE";
         };
@@ -601,51 +581,39 @@ public class AdmissionPaymentGuidePdfService {
     private String shiftLabel(String shift) {
         if (shift == null || shift.isBlank()) return "-";
         return switch (shift.trim().toUpperCase(Locale.ROOT)) {
-            case "MORNING", "MANHA", "MANHÃ" -> "Manhã";
-            case "AFTERNOON", "TARDE" -> "Tarde";
-            case "NIGHT", "NOITE" -> "Noite";
-            default -> shift.trim();
+            case "MANHA", "MANHÃ" -> "Manhã";
+            case "TARDE" -> "Tarde";
+            case "NOITE" -> "Noite";
+            default -> shift;
         };
     }
 
-    private String institutionName(Institution institution) {
-        if (institution != null && institution.getLegalName() != null && !institution.getLegalName().isBlank()) {
-            return institution.getLegalName();
-        }
-        if (institution != null && institution.getName() != null && !institution.getName().isBlank()) {
-            return institution.getName();
-        }
-        return "Instituto Superior Politécnico Metropolitano de Angola";
-    }
-
-    private String clean(String value, String fallback) {
-        return value == null || value.isBlank() ? fallback : value.trim();
-    }
-
-    private String safe(Object value) {
-        return value == null || String.valueOf(value).isBlank() ? "-" : String.valueOf(value).trim();
-    }
-
-    private String amountPlain(BigDecimal value) {
-        return value == null
-                ? "0.00"
-                : value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
-    }
-
-    private String formatDate(LocalDate value) {
-        return value == null ? "-" : value.format(DATE_FORMATTER);
+    private String formatDate(LocalDate date) {
+        return date == null ? "-" : date.format(DATE_FORMATTER);
     }
 
     private String formatMoney(BigDecimal value, String currency) {
-        BigDecimal safeValue = value == null ? BigDecimal.ZERO : value;
-        DecimalFormatSymbols symbols = new DecimalFormatSymbols(new Locale("pt", "AO"));
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.forLanguageTag("pt-AO"));
         symbols.setGroupingSeparator('.');
         symbols.setDecimalSeparator(',');
         DecimalFormat formatter = new DecimalFormat("#,##0.00", symbols);
-        String safeCurrency = currency == null || currency.isBlank() ? "AOA" : currency;
-        return "AOA".equalsIgnoreCase(safeCurrency)
-                ? formatter.format(safeValue) + " Kz"
-                : formatter.format(safeValue) + " " + safeCurrency.toUpperCase(Locale.ROOT);
+        String suffix = "AOA".equalsIgnoreCase(safe(currency)) ? " Kz" : " " + safe(currency);
+        return formatter.format(value == null ? BigDecimal.ZERO : value) + suffix;
+    }
+
+    private String amountPlain(BigDecimal value) {
+        return value == null ? "0" : value.stripTrailingZeros().toPlainString();
+    }
+
+    private String clean(String value, String fallback) {
+        if (value == null || value.isBlank()) return fallback;
+        return value.trim();
+    }
+
+    private String safe(Object value) {
+        if (value == null) return "-";
+        String text = value.toString().trim();
+        return text.isBlank() ? "-" : text;
     }
 
     private void drawText(
@@ -658,10 +626,10 @@ public class AdmissionPaymentGuidePdfService {
             Color color
     ) throws Exception {
         content.beginText();
-        content.setNonStrokingColor(color);
         content.setFont(font, size);
+        content.setNonStrokingColor(color);
         content.newLineAtOffset(x, y);
-        content.showText(pdfSafe(text));
+        content.showText(toPdfText(text));
         content.endText();
     }
 
@@ -674,9 +642,9 @@ public class AdmissionPaymentGuidePdfService {
             float y,
             Color color
     ) throws Exception {
-        String safeText = pdfSafe(text);
-        float textWidth = font.getStringWidth(safeText) / 1000 * size;
-        drawText(content, safeText, font, size, centerX - textWidth / 2, y, color);
+        String normalized = toPdfText(text);
+        float width = font.getStringWidth(normalized) / 1000 * size;
+        drawText(content, normalized, font, size, centerX - width / 2, y, color);
     }
 
     private void drawFittedText(
@@ -690,19 +658,15 @@ public class AdmissionPaymentGuidePdfService {
             float maxWidth,
             Color color
     ) throws Exception {
-        String value = pdfSafe(text);
+        String normalized = toPdfText(text);
         float size = preferredSize;
-        while (size > minimumSize && font.getStringWidth(value) / 1000 * size > maxWidth) {
-            size -= .4f;
+        while (size > minimumSize && font.getStringWidth(normalized) / 1000 * size > maxWidth) {
+            size -= .3f;
         }
-        if (font.getStringWidth(value) / 1000 * size > maxWidth) {
-            while (value.length() > 4
-                    && font.getStringWidth(value + "...") / 1000 * size > maxWidth) {
-                value = value.substring(0, value.length() - 1);
-            }
-            value += "...";
+        if (font.getStringWidth(normalized) / 1000 * size > maxWidth) {
+            normalized = ellipsize(normalized, font, size, maxWidth);
         }
-        drawText(content, value, font, size, x, y, color);
+        drawText(content, normalized, font, size, x, y, color);
     }
 
     private void drawWrappedText(
@@ -716,13 +680,12 @@ public class AdmissionPaymentGuidePdfService {
             float lineHeight,
             Color color
     ) throws Exception {
-        String normalized = pdfSafe(text).replace("\n", " ");
-        String[] words = normalized.split("\\s+");
+        String[] words = toPdfText(text).split("\\s+");
         StringBuilder line = new StringBuilder();
         float currentY = y;
         for (String word : words) {
-            String candidate = line.length() == 0 ? word : line + " " + word;
-            if (font.getStringWidth(candidate) / 1000 * size > maxWidth && line.length() > 0) {
+            String candidate = line.isEmpty() ? word : line + " " + word;
+            if (font.getStringWidth(candidate) / 1000 * size > maxWidth && !line.isEmpty()) {
                 drawText(content, line.toString(), font, size, x, currentY, color);
                 currentY -= lineHeight;
                 line = new StringBuilder(word);
@@ -730,22 +693,28 @@ public class AdmissionPaymentGuidePdfService {
                 line = new StringBuilder(candidate);
             }
         }
-        if (line.length() > 0) {
+        if (!line.isEmpty()) {
             drawText(content, line.toString(), font, size, x, currentY, color);
         }
     }
 
-    private String pdfSafe(String value) {
+    private String ellipsize(String text, PDType1Font font, float size, float maxWidth) throws Exception {
+        String suffix = "...";
+        String candidate = text;
+        while (!candidate.isEmpty()
+                && font.getStringWidth(candidate + suffix) / 1000 * size > maxWidth) {
+            candidate = candidate.substring(0, candidate.length() - 1);
+        }
+        return candidate + suffix;
+    }
+
+    private String toPdfText(String value) {
         if (value == null) return "-";
         return value
-                .replace("•", "-")
-                .replace("–", "-")
-                .replace("—", "-")
-                .replace("“", "\"")
-                .replace("”", "\"")
-                .replace("’", "'")
-                .replace("º", "o")
-                .replace("ª", "a")
-                .replaceAll("[^\\x20-\\x7EÀ-ÖØ-öø-ÿ]", "");
+                .replace('–', '-')
+                .replace('—', '-')
+                .replace('’', '\'')
+                .replace('“', '"')
+                .replace('”', '"');
     }
 }
