@@ -57,21 +57,17 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
     @Mock
     private EnrollmentService enrollmentService;
 
+    @Mock
+    private AdmissionEnrollmentDocumentFileStorageService documentFileStorageService;
+
     @Test
     void shouldApproveOfficialChecklistAndCreateEnrollmentChargeForAdultCandidate() {
         UUID applicationId = UUID.randomUUID();
         AdmissionApplication application = paidApplication(applicationId, LocalDate.of(2000, 1, 10));
         AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
 
-        when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
-        when(admissionInvoiceRepository.findByApplicationId(applicationId))
-                .thenReturn(Optional.of(registrationInvoice));
-        when(enrollmentRequestRepository.findByAdmissionApplicationId(applicationId))
-                .thenReturn(Optional.empty());
-        when(reviewRepository.findByApplicationId(applicationId)).thenReturn(Optional.empty());
-        when(reviewRepository.save(any(AdmissionEnrollmentDocumentReview.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(applicationRepository.save(application)).thenReturn(application);
+        standardReviewStubs(applicationId, application, registrationInvoice, Optional.empty());
+        when(documentFileStorageService.hasRequiredFiles(applicationId, false)).thenReturn(true);
 
         AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
                 applicationId,
@@ -94,20 +90,32 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
     }
 
     @Test
+    void shouldKeepDocumentsPendingWhenRequiredFilesWereNotUploaded() {
+        UUID applicationId = UUID.randomUUID();
+        AdmissionApplication application = paidApplication(applicationId, LocalDate.of(2000, 1, 10));
+        AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
+
+        standardReviewStubs(applicationId, application, registrationInvoice, Optional.empty());
+        when(documentFileStorageService.hasRequiredFiles(applicationId, false)).thenReturn(false);
+
+        AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
+                applicationId,
+                completeDomesticRequest()
+        );
+
+        assertFalse(response.documentsComplete());
+        assertEquals(AdmissionApplicationStatus.DOCUMENTATION_PENDING, application.getStatus());
+        verify(enrollmentService, never()).createEnrollmentFromAdmission(any(), any());
+    }
+
+    @Test
     void shouldKeepDocumentsPendingWhenCandidateStudiedAbroadWithoutEquivalence() {
         UUID applicationId = UUID.randomUUID();
         AdmissionApplication application = paidApplication(applicationId, LocalDate.of(1998, 4, 20));
         AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
 
-        when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
-        when(admissionInvoiceRepository.findByApplicationId(applicationId))
-                .thenReturn(Optional.of(registrationInvoice));
-        when(enrollmentRequestRepository.findByAdmissionApplicationId(applicationId))
-                .thenReturn(Optional.empty());
-        when(reviewRepository.findByApplicationId(applicationId)).thenReturn(Optional.empty());
-        when(reviewRepository.save(any(AdmissionEnrollmentDocumentReview.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(applicationRepository.save(application)).thenReturn(application);
+        standardReviewStubs(applicationId, application, registrationInvoice, Optional.empty());
+        when(documentFileStorageService.hasRequiredFiles(applicationId, true)).thenReturn(false);
 
         AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
                 applicationId,
@@ -137,15 +145,8 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
         );
         AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
 
-        when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
-        when(admissionInvoiceRepository.findByApplicationId(applicationId))
-                .thenReturn(Optional.of(registrationInvoice));
-        when(enrollmentRequestRepository.findByAdmissionApplicationId(applicationId))
-                .thenReturn(Optional.empty());
-        when(reviewRepository.findByApplicationId(applicationId)).thenReturn(Optional.empty());
-        when(reviewRepository.save(any(AdmissionEnrollmentDocumentReview.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(applicationRepository.save(application)).thenReturn(application);
+        standardReviewStubs(applicationId, application, registrationInvoice, Optional.empty());
+        when(documentFileStorageService.hasRequiredFiles(applicationId, false)).thenReturn(true);
 
         AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
                 applicationId,
@@ -165,15 +166,13 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
         AcademicEnrollmentRequest existingEnrollment = new AcademicEnrollmentRequest()
                 .setRequestCode("IMT-MAT-20260723-EXISTENTE");
 
-        when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
-        when(admissionInvoiceRepository.findByApplicationId(applicationId))
-                .thenReturn(Optional.of(registrationInvoice));
-        when(enrollmentRequestRepository.findByAdmissionApplicationId(applicationId))
-                .thenReturn(Optional.of(existingEnrollment));
-        when(reviewRepository.findByApplicationId(applicationId)).thenReturn(Optional.empty());
-        when(reviewRepository.save(any(AdmissionEnrollmentDocumentReview.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(applicationRepository.save(application)).thenReturn(application);
+        standardReviewStubs(
+                applicationId,
+                application,
+                registrationInvoice,
+                Optional.of(existingEnrollment)
+        );
+        when(documentFileStorageService.hasRequiredFiles(applicationId, false)).thenReturn(true);
 
         AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
                 applicationId,
@@ -184,6 +183,23 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
         verify(enrollmentService, never()).createEnrollmentFromAdmission(any(), any());
     }
 
+    private void standardReviewStubs(
+            UUID applicationId,
+            AdmissionApplication application,
+            AdmissionInvoice registrationInvoice,
+            Optional<AcademicEnrollmentRequest> enrollment
+    ) {
+        when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
+        when(admissionInvoiceRepository.findByApplicationId(applicationId))
+                .thenReturn(Optional.of(registrationInvoice));
+        when(enrollmentRequestRepository.findByAdmissionApplicationId(applicationId))
+                .thenReturn(enrollment);
+        when(reviewRepository.findByApplicationId(applicationId)).thenReturn(Optional.empty());
+        when(reviewRepository.save(any(AdmissionEnrollmentDocumentReview.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(applicationRepository.save(application)).thenReturn(application);
+    }
+
     private AdmissionEnrollmentDocumentChecklistService service() {
         return new AdmissionEnrollmentDocumentChecklistService(
                 applicationRepository,
@@ -192,6 +208,7 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
                 enrollmentRequestRepository,
                 enrollmentInvoiceRepository,
                 enrollmentService,
+                documentFileStorageService,
                 3,
                 "BAI_TRANSFERENCIA_BANCARIA_PILOTO"
         );
