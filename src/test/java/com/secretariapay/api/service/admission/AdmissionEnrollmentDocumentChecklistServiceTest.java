@@ -1,0 +1,215 @@
+package com.secretariapay.api.service.admission;
+
+import com.secretariapay.api.dto.admission.AdmissionDto;
+import com.secretariapay.api.dto.enrollment.EnrollmentDto;
+import com.secretariapay.api.entity.admission.AdmissionApplication;
+import com.secretariapay.api.entity.admission.AdmissionEnrollmentDocumentReview;
+import com.secretariapay.api.entity.admission.AdmissionInvoice;
+import com.secretariapay.api.entity.enrollment.AcademicEnrollmentRequest;
+import com.secretariapay.api.entity.enums.admission.AdmissionApplicationStatus;
+import com.secretariapay.api.entity.enums.admission.AdmissionInvoiceStatus;
+import com.secretariapay.api.repository.admission.AdmissionApplicationRepository;
+import com.secretariapay.api.repository.admission.AdmissionEnrollmentDocumentReviewRepository;
+import com.secretariapay.api.repository.admission.AdmissionInvoiceRepository;
+import com.secretariapay.api.repository.enrollment.AcademicEnrollmentInvoiceRepository;
+import com.secretariapay.api.repository.enrollment.AcademicEnrollmentRequestRepository;
+import com.secretariapay.api.service.enrollment.EnrollmentService;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.LocalDate;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class AdmissionEnrollmentDocumentChecklistServiceTest {
+
+    @Mock
+    private AdmissionApplicationRepository applicationRepository;
+
+    @Mock
+    private AdmissionInvoiceRepository admissionInvoiceRepository;
+
+    @Mock
+    private AdmissionEnrollmentDocumentReviewRepository reviewRepository;
+
+    @Mock
+    private AcademicEnrollmentRequestRepository enrollmentRequestRepository;
+
+    @Mock
+    private AcademicEnrollmentInvoiceRepository enrollmentInvoiceRepository;
+
+    @Mock
+    private EnrollmentService enrollmentService;
+
+    @Test
+    void shouldApproveOfficialChecklistAndCreateEnrollmentChargeForAdultCandidate() {
+        UUID applicationId = UUID.randomUUID();
+        AdmissionApplication application = paidApplication(applicationId, LocalDate.of(2000, 1, 10));
+        AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
+
+        when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
+        when(admissionInvoiceRepository.findByApplicationId(applicationId))
+                .thenReturn(Optional.of(registrationInvoice));
+        when(enrollmentRequestRepository.findByAdmissionApplicationId(applicationId))
+                .thenReturn(Optional.empty());
+        when(reviewRepository.findByApplicationId(applicationId)).thenReturn(Optional.empty());
+        when(reviewRepository.save(any(AdmissionEnrollmentDocumentReview.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(applicationRepository.save(application)).thenReturn(application);
+
+        AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
+                applicationId,
+                completeDomesticRequest()
+        );
+
+        assertTrue(response.documentsComplete());
+        assertTrue(response.ageEligible());
+        assertEquals(AdmissionApplicationStatus.CONFIRMED, application.getStatus());
+
+        ArgumentCaptor<EnrollmentDto.EnrollmentFromAdmissionRequest> captor =
+                ArgumentCaptor.forClass(EnrollmentDto.EnrollmentFromAdmissionRequest.class);
+        verify(enrollmentService).createEnrollmentFromAdmission(
+                org.mockito.ArgumentMatchers.eq(applicationId),
+                captor.capture()
+        );
+        assertEquals(1, captor.getValue().targetYearLevel());
+        assertEquals("BAI_TRANSFERENCIA_BANCARIA_PILOTO", captor.getValue().provider());
+        assertEquals(LocalDate.now().plusDays(3), captor.getValue().dueDate());
+    }
+
+    @Test
+    void shouldKeepDocumentsPendingWhenCandidateStudiedAbroadWithoutEquivalence() {
+        UUID applicationId = UUID.randomUUID();
+        AdmissionApplication application = paidApplication(applicationId, LocalDate.of(1998, 4, 20));
+        AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
+
+        when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
+        when(admissionInvoiceRepository.findByApplicationId(applicationId))
+                .thenReturn(Optional.of(registrationInvoice));
+        when(enrollmentRequestRepository.findByAdmissionApplicationId(applicationId))
+                .thenReturn(Optional.empty());
+        when(reviewRepository.findByApplicationId(applicationId)).thenReturn(Optional.empty());
+        when(reviewRepository.save(any(AdmissionEnrollmentDocumentReview.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(applicationRepository.save(application)).thenReturn(application);
+
+        AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
+                applicationId,
+                new AdmissionDto.EnrollmentDocumentChecklistRequest(
+                        true,
+                        true,
+                        true,
+                        true,
+                        false,
+                        true,
+                        "Secretaria Académica",
+                        "Equivalência pendente."
+                )
+        );
+
+        assertFalse(response.documentsComplete());
+        assertEquals(AdmissionApplicationStatus.DOCUMENTATION_PENDING, application.getStatus());
+        verify(enrollmentService, never()).createEnrollmentFromAdmission(any(), any());
+    }
+
+    @Test
+    void shouldKeepDocumentsPendingWhenCandidateIsUnderEighteen() {
+        UUID applicationId = UUID.randomUUID();
+        AdmissionApplication application = paidApplication(applicationId, LocalDate.now().minusYears(17));
+        AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
+
+        when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
+        when(admissionInvoiceRepository.findByApplicationId(applicationId))
+                .thenReturn(Optional.of(registrationInvoice));
+        when(enrollmentRequestRepository.findByAdmissionApplicationId(applicationId))
+                .thenReturn(Optional.empty());
+        when(reviewRepository.findByApplicationId(applicationId)).thenReturn(Optional.empty());
+        when(reviewRepository.save(any(AdmissionEnrollmentDocumentReview.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(applicationRepository.save(application)).thenReturn(application);
+
+        AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
+                applicationId,
+                completeDomesticRequest()
+        );
+
+        assertFalse(response.ageEligible());
+        assertFalse(response.documentsComplete());
+        verify(enrollmentService, never()).createEnrollmentFromAdmission(any(), any());
+    }
+
+    @Test
+    void shouldNotDuplicateEnrollmentWhenChecklistIsReviewedAgain() {
+        UUID applicationId = UUID.randomUUID();
+        AdmissionApplication application = paidApplication(applicationId, LocalDate.of(1999, 8, 15));
+        AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
+        AcademicEnrollmentRequest existingEnrollment = new AcademicEnrollmentRequest()
+                .setRequestCode("IMT-MAT-20260723-EXISTENTE");
+
+        when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
+        when(admissionInvoiceRepository.findByApplicationId(applicationId))
+                .thenReturn(Optional.of(registrationInvoice));
+        when(enrollmentRequestRepository.findByAdmissionApplicationId(applicationId))
+                .thenReturn(Optional.of(existingEnrollment));
+        when(reviewRepository.findByApplicationId(applicationId)).thenReturn(Optional.empty());
+        when(reviewRepository.save(any(AdmissionEnrollmentDocumentReview.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(applicationRepository.save(application)).thenReturn(application);
+
+        AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
+                applicationId,
+                completeDomesticRequest()
+        );
+
+        assertTrue(response.documentsComplete());
+        verify(enrollmentService, never()).createEnrollmentFromAdmission(any(), any());
+    }
+
+    private AdmissionEnrollmentDocumentChecklistService service() {
+        return new AdmissionEnrollmentDocumentChecklistService(
+                applicationRepository,
+                admissionInvoiceRepository,
+                reviewRepository,
+                enrollmentRequestRepository,
+                enrollmentInvoiceRepository,
+                enrollmentService,
+                3,
+                "BAI_TRANSFERENCIA_BANCARIA_PILOTO"
+        );
+    }
+
+    private AdmissionApplication paidApplication(UUID applicationId, LocalDate birthDate) {
+        AdmissionApplication application = new AdmissionApplication()
+                .setApplicationCode("IMT-ADM-20260723-CHECKLIST")
+                .setBirthDate(birthDate)
+                .setStatus(AdmissionApplicationStatus.DOCUMENTATION_PENDING);
+        ReflectionTestUtils.setField(application, "id", applicationId);
+        return application;
+    }
+
+    private AdmissionDto.EnrollmentDocumentChecklistRequest completeDomesticRequest() {
+        return new AdmissionDto.EnrollmentDocumentChecklistRequest(
+                true,
+                true,
+                true,
+                false,
+                false,
+                true,
+                "Secretaria Académica",
+                "Documentação conferida."
+        );
+    }
+}
