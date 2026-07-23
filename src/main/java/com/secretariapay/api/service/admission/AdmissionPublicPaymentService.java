@@ -13,9 +13,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.HexFormat;
+import java.util.Locale;
+import java.util.UUID;
 
 @Service
 public class AdmissionPublicPaymentService {
@@ -118,8 +123,10 @@ public class AdmissionPublicPaymentService {
                     .orElseThrow(() -> new IllegalStateException("A cobrança foi emitida, mas não pôde ser consultada."));
         }
 
-        if (invoice.getPaymentReference() == null || invoice.getPaymentReference().isBlank()) {
-            invoice.setPaymentReference(invoice.getInvoiceCode());
+        if (invoice.getPaymentReference() == null
+                || invoice.getPaymentReference().isBlank()
+                || invoice.getPaymentReference().trim().equalsIgnoreCase(invoice.getInvoiceCode())) {
+            invoice.setPaymentReference(buildPaymentReference(invoice));
         }
         if (invoice.getProvider() == null || invoice.getProvider().isBlank()) {
             invoice.setProvider(provider);
@@ -190,7 +197,9 @@ public class AdmissionPublicPaymentService {
     private void ensureNotWithdrawn(AdmissionApplication application, AdmissionInvoice invoice) {
         if (application.getStatus() == AdmissionApplicationStatus.EXPIRED
                 || (invoice != null && invoice.getStatus() == AdmissionInvoiceStatus.EXPIRED)) {
-            throw new IllegalArgumentException("O prazo de pagamento terminou. A candidatura foi marcada como desistência por falta de pagamento.");
+            throw new IllegalArgumentException(
+                    "O prazo de pagamento terminou. A candidatura foi marcada como desistência por falta de pagamento."
+            );
         }
     }
 
@@ -310,6 +319,31 @@ public class AdmissionPublicPaymentService {
                 proof.getCreatedAt(),
                 proof.getUpdatedAt()
         );
+    }
+
+    private String buildPaymentReference(AdmissionInvoice invoice) {
+        String invoiceCode = invoice == null ? "" : clean(invoice.getInvoiceCode(), "INSCRICAO");
+        String normalized = invoiceCode.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
+        if (normalized.isBlank()) {
+            normalized = invoice != null && invoice.getId() != null
+                    ? invoice.getId().toString().replace("-", "").toUpperCase(Locale.ROOT)
+                    : "INSCRICAO";
+        }
+        if (normalized.length() > 22) {
+            normalized = normalized.substring(0, 13) + shortDigest(invoiceCode).substring(0, 8);
+        }
+        return "SPAY-BAI-" + normalized;
+    }
+
+    private String shortDigest(String value) {
+        try {
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256")
+                            .digest(clean(value, "INSCRICAO").getBytes(StandardCharsets.UTF_8))
+            ).toUpperCase(Locale.ROOT);
+        } catch (Exception exception) {
+            return UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
+        }
     }
 
     private String clean(String value, String fallback) {
