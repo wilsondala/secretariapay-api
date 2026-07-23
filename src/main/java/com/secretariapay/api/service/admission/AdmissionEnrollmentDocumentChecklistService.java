@@ -114,13 +114,29 @@ public class AdmissionEnrollmentDocumentChecklistService {
                 applicationId,
                 studiedAbroad
         );
+        boolean originalsPresented = Boolean.TRUE.equals(request.originalsPresented());
+        boolean originalsVerified = Boolean.TRUE.equals(request.originalsVerified());
+
+        if (originalsVerified && !originalsPresented) {
+            throw new IllegalArgumentException(
+                    "A autenticidade dos documentos somente pode ser confirmada depois da apresentação presencial dos originais."
+            );
+        }
+        if ((originalsPresented || originalsVerified) && !requiredFilesPresent) {
+            throw new IllegalArgumentException(
+                    "Anexe primeiro todas as cópias digitais obrigatórias antes de registar a conferência presencial dos originais."
+            );
+        }
+
         boolean documentsComplete = Boolean.TRUE.equals(request.twoPassportPhotos())
                 && Boolean.TRUE.equals(request.authenticatedCertificateCopy())
                 && Boolean.TRUE.equals(request.identityDocumentCopy())
                 && Boolean.TRUE.equals(request.secondaryEducationCompleted())
                 && ageEligible
                 && equivalenceSatisfied
-                && requiredFilesPresent;
+                && requiredFilesPresent
+                && originalsPresented
+                && originalsVerified;
 
         AcademicEnrollmentRequest existingEnrollment = enrollmentRequestRepository
                 .findByAdmissionApplicationId(applicationId)
@@ -131,6 +147,8 @@ public class AdmissionEnrollmentDocumentChecklistService {
             );
         }
 
+        LocalDateTime now = LocalDateTime.now(LUANDA_ZONE);
+        String reviewer = request.reviewedBy().trim();
         AdmissionEnrollmentDocumentReview review = reviewRepository.findByApplicationId(applicationId)
                 .orElseGet(AdmissionEnrollmentDocumentReview::new)
                 .setApplication(application)
@@ -141,10 +159,15 @@ public class AdmissionEnrollmentDocumentChecklistService {
                 .setEducationEquivalenceCopy(request.educationEquivalenceCopy())
                 .setSecondaryEducationCompleted(request.secondaryEducationCompleted())
                 .setAgeEligible(ageEligible)
+                .setOriginalsPresented(originalsPresented)
+                .setOriginalsVerified(originalsVerified)
+                .setOriginalsVerifiedBy(originalsVerified ? reviewer : null)
+                .setOriginalsVerifiedAt(originalsVerified ? now : null)
+                .setOriginalsVerificationNotes(clean(request.originalsVerificationNotes(), null))
                 .setDocumentsComplete(documentsComplete)
-                .setReviewedBy(request.reviewedBy().trim())
+                .setReviewedBy(reviewer)
                 .setNotes(clean(request.notes(), null))
-                .setReviewedAt(LocalDateTime.now(LUANDA_ZONE));
+                .setReviewedAt(now);
         reviewRepository.save(review);
 
         application.setDocumentsComplete(documentsComplete);
@@ -152,7 +175,7 @@ public class AdmissionEnrollmentDocumentChecklistService {
             application.setStatus(AdmissionApplicationStatus.CONFIRMED)
                     .setConfirmedAt(firstNonNull(
                             application.getConfirmedAt(),
-                            LocalDateTime.now(LUANDA_ZONE)
+                            now
                     ));
         } else {
             application.setStatus(AdmissionApplicationStatus.DOCUMENTATION_PENDING)
@@ -197,6 +220,11 @@ public class AdmissionEnrollmentDocumentChecklistService {
                 review.getEducationEquivalenceCopy(),
                 review.getSecondaryEducationCompleted(),
                 review.getAgeEligible(),
+                review.getOriginalsPresented(),
+                review.getOriginalsVerified(),
+                review.getOriginalsVerifiedBy(),
+                review.getOriginalsVerifiedAt(),
+                review.getOriginalsVerificationNotes(),
                 review.getDocumentsComplete(),
                 review.getReviewedBy(),
                 review.getNotes(),
