@@ -4,6 +4,7 @@ import com.secretariapay.api.dto.admission.AdmissionDto;
 import com.secretariapay.api.entity.enums.admission.AdmissionApplicationStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionLeadStatus;
 import com.secretariapay.api.service.admission.AdmissionDocumentationService;
+import com.secretariapay.api.service.admission.AdmissionEnrollmentDocumentChecklistService;
 import com.secretariapay.api.service.admission.AdmissionLeadWorkflowService;
 import com.secretariapay.api.service.admission.AdmissionPaymentApprovalWorkflowService;
 import com.secretariapay.api.service.admission.AdmissionService;
@@ -27,17 +28,20 @@ public class AdmissionController {
 
     private final AdmissionService service;
     private final AdmissionDocumentationService documentationService;
+    private final AdmissionEnrollmentDocumentChecklistService enrollmentDocumentChecklistService;
     private final AdmissionLeadWorkflowService leadWorkflowService;
     private final AdmissionPaymentApprovalWorkflowService paymentApprovalWorkflowService;
 
     public AdmissionController(
             AdmissionService service,
             AdmissionDocumentationService documentationService,
+            AdmissionEnrollmentDocumentChecklistService enrollmentDocumentChecklistService,
             AdmissionLeadWorkflowService leadWorkflowService,
             AdmissionPaymentApprovalWorkflowService paymentApprovalWorkflowService
     ) {
         this.service = service;
         this.documentationService = documentationService;
+        this.enrollmentDocumentChecklistService = enrollmentDocumentChecklistService;
         this.leadWorkflowService = leadWorkflowService;
         this.paymentApprovalWorkflowService = paymentApprovalWorkflowService;
     }
@@ -114,6 +118,23 @@ public class AdmissionController {
             @Valid @RequestBody AdmissionDto.ApplicationDocumentsRequest request
     ) {
         return documentationService.reviewDocuments(applicationId, request);
+    }
+
+    @GetMapping("/applications/{applicationId}/enrollment-documents")
+    @PreAuthorize(READ)
+    public AdmissionDto.EnrollmentDocumentChecklistResponse getEnrollmentDocuments(
+            @PathVariable UUID applicationId
+    ) {
+        return enrollmentDocumentChecklistService.get(applicationId);
+    }
+
+    @PutMapping("/applications/{applicationId}/enrollment-documents")
+    @PreAuthorize(ADMISSIONS)
+    public AdmissionDto.EnrollmentDocumentChecklistResponse reviewEnrollmentDocuments(
+            @PathVariable UUID applicationId,
+            @Valid @RequestBody AdmissionDto.EnrollmentDocumentChecklistRequest request
+    ) {
+        return enrollmentDocumentChecklistService.review(applicationId, request);
     }
 
     @PostMapping("/applications/{applicationId}/invoice")
