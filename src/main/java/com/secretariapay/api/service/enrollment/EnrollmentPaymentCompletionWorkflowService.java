@@ -61,13 +61,14 @@ public class EnrollmentPaymentCompletionWorkflowService {
             return;
         }
 
+        UUID applicationId = response.admissionApplicationId();
         AdmissionApplication application = applicationRepository
-                .findById(response.admissionApplicationId())
+                .findById(applicationId)
                 .orElse(null);
         if (application == null) return;
 
         LocalDate originalsDueDate = reviewRepository
-                .findByApplicationId(application.getId())
+                .findByApplicationId(applicationId)
                 .map(AdmissionEnrollmentDocumentReview::getOriginalsDueDate)
                 .orElse(application.getCampaign() == null
                         ? null
