@@ -42,6 +42,8 @@ secretariapay:
     public-payment-provider: ${SECRETARIAPAY_ADMISSIONS_PUBLIC_PAYMENT_PROVIDER:BAI_TRANSFERENCIA_BANCARIA_PILOTO}
     payment-proof-storage-path: ${SECRETARIAPAY_ADMISSIONS_PAYMENT_PROOF_STORAGE_PATH:data/admission-payment-proofs}
     payment-proof-max-size-bytes: ${SECRETARIAPAY_ADMISSIONS_PAYMENT_PROOF_MAX_SIZE_BYTES:5242880}
+    enrollment-document-storage-path: ${SECRETARIAPAY_ADMISSIONS_ENROLLMENT_DOCUMENT_STORAGE_PATH:data/admission-enrollment-documents}
+    enrollment-document-max-size-bytes: ${SECRETARIAPAY_ADMISSIONS_ENROLLMENT_DOCUMENT_MAX_SIZE_BYTES:5242880}
     # A expiração automática também permanece desativada por padrão.
     payment-expiry-enabled: ${SECRETARIAPAY_ADMISSIONS_PAYMENT_EXPIRY_ENABLED:false}
     payment-expiry-cron: ${SECRETARIAPAY_ADMISSIONS_PAYMENT_EXPIRY_CRON:0 15 * * * *}
