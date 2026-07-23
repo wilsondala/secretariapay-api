@@ -11,8 +11,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 
@@ -21,9 +23,11 @@ public class AdmissionOperationalNotificationService {
 
     static final String APPLICATION_SUBMITTED_EVENT = "APPLICATION_SUBMITTED";
     static final String ENROLLMENT_DOCUMENTS_REQUESTED_EVENT = "ENROLLMENT_DOCUMENTS_REQUESTED";
+    static final String ENROLLMENT_COMPLETED_ORIGINALS_PENDING_EVENT = "ENROLLMENT_COMPLETED_ORIGINALS_PENDING";
     private static final String WHATSAPP_CHANNEL = "WHATSAPP";
     private static final String MISSING_RECIPIENT = "SEM_CONTACTO";
     private static final ZoneId LUANDA_ZONE = ZoneId.of("Africa/Luanda");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final AdmissionOperationalNotificationRepository repository;
     private final WhatsAppCloudApiClient whatsAppClient;
@@ -71,6 +75,22 @@ public class AdmissionOperationalNotificationService {
         );
     }
 
+    @Transactional
+    public void enqueueEnrollmentCompletedOriginalsPending(
+            AdmissionApplication application,
+            String studentNumber,
+            LocalDate originalsDueDate
+    ) {
+        if (!hasApplicationCode(application)) return;
+        String candidateContact = firstNonBlank(application.getWhatsapp(), application.getPhone());
+        enqueue(
+                application,
+                ENROLLMENT_COMPLETED_ORIGINALS_PENDING_EVENT,
+                candidateContact,
+                buildEnrollmentCompletedMessage(application, studentNumber, originalsDueDate)
+        );
+    }
+
     private void enqueue(
             AdmissionApplication application,
             String eventType,
@@ -103,7 +123,7 @@ public class AdmissionOperationalNotificationService {
 
         if (missingContact) {
             notification.setLastError(
-                    "A candidatura não possui WhatsApp nem telefone para solicitar os documentos da matrícula."
+                    "A candidatura não possui WhatsApp nem telefone para receber a comunicação da matrícula."
             );
         }
 
@@ -230,29 +250,22 @@ public class AdmissionOperationalNotificationService {
 
                 Caro(a) %s,
 
-                A DCR confirmou o pagamento da sua inscrição. O seu processo documental da matrícula foi liberado.
+                A DCR confirmou o pagamento da sua inscrição. O envio digital dos documentos da matrícula está liberado.
 
                 Código da candidatura: %s
                 Curso: %s
                 Turno: %s
                 Ano académico: %s
 
-                1. Envie pelo robô SecretáriaPay as cópias digitais dos documentos obrigatórios:
+                Envie pelo robô SecretáriaPay:
                 • 2 fotografias do tipo passe
                 • Fotocópia autenticada do certificado de habilitações
                 • Fotocópia do Bilhete de Identidade
-                • Equivalência do Ministério da Educação, somente para candidatos que estudaram no estrangeiro
+                • Equivalência do Ministério da Educação, somente se estudou no estrangeiro
 
-                2. Depois do envio digital, apresente-se presencialmente na Secretaria Académica com os documentos originais:
-                • Certificado original de habilitações
-                • Bilhete de Identidade original
-                • Equivalência original, quando aplicável
+                Assim que todos os documentos digitais obrigatórios estiverem completos e legíveis, será disponibilizada a guia de matrícula no valor de 23.500,00 Kz. Depois da confirmação do pagamento, a matrícula será concluída e o seu número de estudante será gerado.
 
-                A Secretaria confrontará as cópias enviadas com os originais para confirmar a autenticidade. A cobrança da matrícula de 23.500,00 Kz somente será liberada depois dessa conferência presencial.
-
-                Requisitos de elegibilidade:
-                • Ensino médio concluído
-                • Idade mínima de 18 anos
+                Atenção: os documentos originais deverão ser apresentados presencialmente na Secretaria Académica antes do encerramento do período de matrícula. A falta de apresentação dentro do prazo poderá causar bloqueio temporário dos serviços académicos e financeiros até à regularização.
 
                 SecretariaPay IMETRO
                 """.formatted(
@@ -261,6 +274,50 @@ public class AdmissionOperationalNotificationService {
                 course,
                 shiftLabel(application.getDesiredShift()),
                 clean(application.getAcademicYear(), "Não informado")
+        ).trim();
+    }
+
+    private String buildEnrollmentCompletedMessage(
+            AdmissionApplication application,
+            String studentNumber,
+            LocalDate originalsDueDate
+    ) {
+        String course = application.getDesiredCourse() == null
+                ? "Não informado"
+                : clean(application.getDesiredCourse().getName(), "Não informado");
+        String deadline = originalsDueDate == null
+                ? "antes do encerramento do período de matrícula"
+                : "até " + originalsDueDate.format(DATE_FORMAT);
+
+        return """
+                Matrícula confirmada — documentos originais pendentes
+
+                Caro(a) %s,
+
+                O pagamento da sua guia de matrícula foi confirmado e a sua matrícula no IMETRO foi concluída com sucesso.
+
+                Número de matrícula: %s
+                Curso: %s
+                Turno: %s
+                Ano académico: %s
+
+                Para concluir a conferência documental, compareça presencialmente à Secretaria Académica %s e apresente:
+                • Certificado original de habilitações
+                • Bilhete de Identidade original
+                • Equivalência original do Ministério da Educação, quando aplicável
+
+                A Secretaria confrontará os originais com as cópias digitais já enviadas. Caso os originais não sejam apresentados dentro do prazo, o estudante poderá ficar temporariamente bloqueado nos serviços académicos e financeiros até regularizar a documentação.
+
+                Guarde esta mensagem e o seu número de matrícula.
+
+                SecretariaPay IMETRO
+                """.formatted(
+                clean(application.getFullName(), "Estudante"),
+                clean(studentNumber, "A confirmar"),
+                course,
+                shiftLabel(application.getDesiredShift()),
+                clean(application.getAcademicYear(), "Não informado"),
+                deadline
         ).trim();
     }
 
