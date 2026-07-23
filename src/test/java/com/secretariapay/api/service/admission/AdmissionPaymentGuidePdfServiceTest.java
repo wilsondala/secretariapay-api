@@ -58,7 +58,7 @@ class AdmissionPaymentGuidePdfServiceTest {
         when(application.getDesiredCourse()).thenReturn(course);
         when(application.getInstitution()).thenReturn(institution);
         when(course.getName()).thenReturn("Arquitectura");
-        when(institution.getLegalName())
+        when(institution.getName())
                 .thenReturn("Instituto Superior Politécnico Metropolitano de Angola");
 
         AdmissionInvoice invoice = new AdmissionInvoice()
