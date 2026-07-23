@@ -3,6 +3,7 @@ package com.secretariapay.api.controller.publicapi;
 import com.secretariapay.api.dto.admission.AdmissionDto;
 import com.secretariapay.api.entity.enums.admission.AdmissionSourceChannel;
 import com.secretariapay.api.service.admission.AdmissionPaymentGuidePdfService;
+import com.secretariapay.api.service.admission.AdmissionPaymentProofFileStorageService;
 import com.secretariapay.api.service.admission.AdmissionPublicApplicationWorkflowService;
 import com.secretariapay.api.service.admission.AdmissionPublicPaymentService;
 import com.secretariapay.api.service.admission.AdmissionService;
@@ -13,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -25,17 +27,20 @@ public class PublicAdmissionController {
     private final AdmissionPublicApplicationWorkflowService applicationWorkflowService;
     private final AdmissionPublicPaymentService publicPaymentService;
     private final AdmissionPaymentGuidePdfService paymentGuidePdfService;
+    private final AdmissionPaymentProofFileStorageService paymentProofFileStorageService;
 
     public PublicAdmissionController(
             AdmissionService service,
             AdmissionPublicApplicationWorkflowService applicationWorkflowService,
             AdmissionPublicPaymentService publicPaymentService,
-            AdmissionPaymentGuidePdfService paymentGuidePdfService
+            AdmissionPaymentGuidePdfService paymentGuidePdfService,
+            AdmissionPaymentProofFileStorageService paymentProofFileStorageService
     ) {
         this.service = service;
         this.applicationWorkflowService = applicationWorkflowService;
         this.publicPaymentService = publicPaymentService;
         this.paymentGuidePdfService = paymentGuidePdfService;
+        this.paymentProofFileStorageService = paymentProofFileStorageService;
     }
 
     @GetMapping("/catalog")
@@ -96,6 +101,23 @@ public class PublicAdmissionController {
             @Valid @RequestBody AdmissionDto.PublicPaymentProofRequest request
     ) {
         return publicPaymentService.submitPaymentProof(applicationCode, request);
+    }
+
+    @PostMapping(
+            value = "/applications/{applicationCode}/payment-proof/upload",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    @ResponseStatus(HttpStatus.CREATED)
+    public AdmissionDto.PublicPaymentResponse uploadApplicationPaymentProof(
+            @PathVariable String applicationCode,
+            @RequestPart("documentNumber") String documentNumber,
+            @RequestPart("file") MultipartFile file
+    ) {
+        return paymentProofFileStorageService.storeAndSubmit(
+                applicationCode,
+                documentNumber,
+                file
+        );
     }
 
     @PostMapping("/invoices/{invoiceId}/payment-proofs")
