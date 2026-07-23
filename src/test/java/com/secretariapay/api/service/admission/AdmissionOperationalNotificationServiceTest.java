@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -65,6 +66,66 @@ class AdmissionOperationalNotificationServiceTest {
         assertTrue(notification.getMessageBody().contains("Arquitectura"));
         assertTrue(notification.getMessageBody().contains("**********A001"));
         assertTrue(notification.getMessageBody().contains("http://localhost:5173/admissions"));
+    }
+
+    @Test
+    void shouldRequestOfficialEnrollmentDocumentsFromCandidateWhatsapp() {
+        Course course = org.mockito.Mockito.mock(Course.class);
+        when(course.getName()).thenReturn("Arquitectura");
+
+        AdmissionApplication application = new AdmissionApplication()
+                .setApplicationCode("IMT-ADM-20260723-DOCUMENTOS")
+                .setFullName("Candidato Teste")
+                .setDesiredCourse(course)
+                .setDesiredShift("MANHA")
+                .setAcademicYear("2026/2027")
+                .setWhatsapp("+244 923 200 777");
+
+        when(repository.existsByIdempotencyKey(any(String.class))).thenReturn(false);
+        when(repository.save(any(AdmissionOperationalNotification.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service(false).enqueueEnrollmentDocumentsRequested(application);
+
+        ArgumentCaptor<AdmissionOperationalNotification> captor =
+                ArgumentCaptor.forClass(AdmissionOperationalNotification.class);
+        verify(repository).save(captor.capture());
+
+        AdmissionOperationalNotification notification = captor.getValue();
+        assertEquals("ENROLLMENT_DOCUMENTS_REQUESTED", notification.getEventType());
+        assertEquals(AdmissionNotificationStatus.PENDING, notification.getStatus());
+        assertEquals("+244 923 200 777", notification.getRecipient());
+        assertTrue(notification.getMessageBody().contains("Inscrição confirmada"));
+        assertTrue(notification.getMessageBody().contains("2 fotografias do tipo passe"));
+        assertTrue(notification.getMessageBody().contains("certificado de habilitações"));
+        assertTrue(notification.getMessageBody().contains("Bilhete de Identidade"));
+        assertTrue(notification.getMessageBody().contains("Ministério da Educação"));
+        assertTrue(notification.getMessageBody().contains("Idade mínima de 18 anos"));
+        assertTrue(notification.getMessageBody().contains("23.500,00 Kz"));
+    }
+
+    @Test
+    void shouldAuditMissingCandidateWhatsappWithoutDispatching() {
+        AdmissionApplication application = new AdmissionApplication()
+                .setApplicationCode("IMT-ADM-20260723-SEM-CONTACTO")
+                .setFullName("Candidato sem contacto");
+
+        when(repository.existsByIdempotencyKey(any(String.class))).thenReturn(false);
+        when(repository.save(any(AdmissionOperationalNotification.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service(false).enqueueEnrollmentDocumentsRequested(application);
+
+        ArgumentCaptor<AdmissionOperationalNotification> captor =
+                ArgumentCaptor.forClass(AdmissionOperationalNotification.class);
+        verify(repository).save(captor.capture());
+
+        AdmissionOperationalNotification notification = captor.getValue();
+        assertEquals(AdmissionNotificationStatus.EXHAUSTED, notification.getStatus());
+        assertEquals("SEM_CONTACTO", notification.getRecipient());
+        assertNotNull(notification.getLastError());
+        assertTrue(notification.getLastError().contains("não possui WhatsApp nem telefone"));
+        verify(whatsAppClient, never()).sendText(any(String.class), any(String.class));
     }
 
     @Test
