@@ -5,6 +5,7 @@ import com.secretariapay.api.entity.enums.admission.AdmissionApplicationStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionLeadStatus;
 import com.secretariapay.api.service.admission.AdmissionDocumentationService;
 import com.secretariapay.api.service.admission.AdmissionLeadWorkflowService;
+import com.secretariapay.api.service.admission.AdmissionPaymentApprovalWorkflowService;
 import com.secretariapay.api.service.admission.AdmissionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -27,15 +28,18 @@ public class AdmissionController {
     private final AdmissionService service;
     private final AdmissionDocumentationService documentationService;
     private final AdmissionLeadWorkflowService leadWorkflowService;
+    private final AdmissionPaymentApprovalWorkflowService paymentApprovalWorkflowService;
 
     public AdmissionController(
             AdmissionService service,
             AdmissionDocumentationService documentationService,
-            AdmissionLeadWorkflowService leadWorkflowService
+            AdmissionLeadWorkflowService leadWorkflowService,
+            AdmissionPaymentApprovalWorkflowService paymentApprovalWorkflowService
     ) {
         this.service = service;
         this.documentationService = documentationService;
         this.leadWorkflowService = leadWorkflowService;
+        this.paymentApprovalWorkflowService = paymentApprovalWorkflowService;
     }
 
     @PostMapping("/leads")
@@ -137,7 +141,7 @@ public class AdmissionController {
             @PathVariable UUID proofId,
             @Valid @RequestBody AdmissionDto.ReviewPaymentProofRequest request
     ) {
-        return service.approvePaymentProof(proofId, request);
+        return paymentApprovalWorkflowService.approvePaymentProof(proofId, request);
     }
 
     @PostMapping("/payment-proofs/{proofId}/reject")
@@ -155,7 +159,7 @@ public class AdmissionController {
             @PathVariable UUID invoiceId,
             @Valid @RequestBody AdmissionDto.ReviewPaymentProofRequest request
     ) {
-        return service.confirmInvoicePayment(invoiceId, request);
+        return paymentApprovalWorkflowService.confirmInvoicePayment(invoiceId, request);
     }
 
     @GetMapping("/dashboard")
