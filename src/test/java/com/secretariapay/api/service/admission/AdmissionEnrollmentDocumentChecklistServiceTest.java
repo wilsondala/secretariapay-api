@@ -41,27 +41,23 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
 
     @Mock
     private AdmissionApplicationRepository applicationRepository;
-
     @Mock
     private AdmissionInvoiceRepository admissionInvoiceRepository;
-
     @Mock
     private AdmissionEnrollmentDocumentReviewRepository reviewRepository;
-
     @Mock
     private AcademicEnrollmentRequestRepository enrollmentRequestRepository;
-
     @Mock
     private AcademicEnrollmentInvoiceRepository enrollmentInvoiceRepository;
-
     @Mock
     private EnrollmentService enrollmentService;
-
     @Mock
     private AdmissionEnrollmentDocumentFileStorageService documentFileStorageService;
+    @Mock
+    private AdmissionOriginalDocumentComplianceService originalDocumentComplianceService;
 
     @Test
-    void shouldApproveChecklistOnlyAfterOriginalsVerification() {
+    void shouldCreateEnrollmentChargeWithCompleteDigitalDocumentsEvenWithoutOriginals() {
         UUID applicationId = UUID.randomUUID();
         AdmissionApplication application = paidApplication(applicationId, LocalDate.of(2000, 1, 10));
         AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
@@ -71,14 +67,12 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
 
         AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
                 applicationId,
-                completeDomesticRequest()
+                completeDomesticRequest(false, false)
         );
 
         assertTrue(response.documentsComplete());
         assertTrue(response.ageEligible());
-        assertTrue(response.originalsPresented());
-        assertTrue(response.originalsVerified());
-        assertEquals("Secretaria Académica", response.originalsVerifiedBy());
+        assertFalse(response.originalsVerified());
         assertEquals(AdmissionApplicationStatus.CONFIRMED, application.getStatus());
 
         ArgumentCaptor<EnrollmentDto.EnrollmentFromAdmissionRequest> captor =
@@ -93,27 +87,6 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
     }
 
     @Test
-    void shouldKeepDocumentsPendingUntilOriginalsArePresentedAndVerified() {
-        UUID applicationId = UUID.randomUUID();
-        AdmissionApplication application = paidApplication(applicationId, LocalDate.of(2000, 1, 10));
-        AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
-
-        standardReviewStubs(applicationId, application, registrationInvoice, Optional.empty());
-        when(documentFileStorageService.hasRequiredFiles(applicationId, false)).thenReturn(true);
-
-        AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
-                applicationId,
-                pendingOriginalsRequest()
-        );
-
-        assertFalse(response.documentsComplete());
-        assertFalse(response.originalsPresented());
-        assertFalse(response.originalsVerified());
-        assertEquals(AdmissionApplicationStatus.DOCUMENTATION_PENDING, application.getStatus());
-        verify(enrollmentService, never()).createEnrollmentFromAdmission(any(), any());
-    }
-
-    @Test
     void shouldKeepDocumentsPendingWhenRequiredFilesWereNotUploaded() {
         UUID applicationId = UUID.randomUUID();
         AdmissionApplication application = paidApplication(applicationId, LocalDate.of(2000, 1, 10));
@@ -124,7 +97,7 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
 
         AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
                 applicationId,
-                pendingOriginalsRequest()
+                completeDomesticRequest(false, false)
         );
 
         assertFalse(response.documentsComplete());
@@ -154,7 +127,7 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
                         false,
                         "Secretaria Académica",
                         "Equivalência pendente.",
-                        "Aguardar equivalência e apresentação presencial."
+                        null
                 )
         );
 
@@ -177,7 +150,7 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
 
         AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
                 applicationId,
-                completeDomesticRequest()
+                completeDomesticRequest(false, false)
         );
 
         assertFalse(response.ageEligible());
@@ -186,7 +159,7 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
     }
 
     @Test
-    void shouldNotDuplicateEnrollmentWhenChecklistIsReviewedAgain() {
+    void shouldNotDuplicateEnrollmentWhenDigitalChecklistIsReviewedAgain() {
         UUID applicationId = UUID.randomUUID();
         AdmissionApplication application = paidApplication(applicationId, LocalDate.of(1999, 8, 15));
         AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
@@ -203,10 +176,44 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
 
         AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
                 applicationId,
-                completeDomesticRequest()
+                completeDomesticRequest(false, false)
         );
 
         assertTrue(response.documentsComplete());
+        verify(enrollmentService, never()).createEnrollmentFromAdmission(any(), any());
+    }
+
+    @Test
+    void shouldClearDocumentationBlockAfterOriginalsAreVerifiedLater() {
+        UUID applicationId = UUID.randomUUID();
+        AdmissionApplication application = paidApplication(applicationId, LocalDate.of(1999, 8, 15));
+        AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
+        AcademicEnrollmentRequest existingEnrollment = new AcademicEnrollmentRequest()
+                .setRequestCode("IMT-MAT-20260723-CONCLUIDA");
+        AdmissionEnrollmentDocumentReview existingReview = new AdmissionEnrollmentDocumentReview()
+                .setApplication(application)
+                .setOriginalsDueDate(LocalDate.now(LUANDA_ZONE).plusDays(10))
+                .setReviewedBy("Secretaria Académica");
+
+        when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
+        when(admissionInvoiceRepository.findByApplicationId(applicationId))
+                .thenReturn(Optional.of(registrationInvoice));
+        when(enrollmentRequestRepository.findByAdmissionApplicationId(applicationId))
+                .thenReturn(Optional.of(existingEnrollment));
+        when(reviewRepository.findByApplicationId(applicationId)).thenReturn(Optional.of(existingReview));
+        when(reviewRepository.save(any(AdmissionEnrollmentDocumentReview.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(applicationRepository.save(application)).thenReturn(application);
+        when(documentFileStorageService.hasRequiredFiles(applicationId, false)).thenReturn(true);
+
+        AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
+                applicationId,
+                completeDomesticRequest(true, true)
+        );
+
+        assertTrue(response.documentsComplete());
+        assertTrue(response.originalsVerified());
+        verify(originalDocumentComplianceService).clearBlockIfOriginalsVerified(existingReview);
         verify(enrollmentService, never()).createEnrollmentFromAdmission(any(), any());
     }
 
@@ -236,7 +243,9 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
                 enrollmentInvoiceRepository,
                 enrollmentService,
                 documentFileStorageService,
+                originalDocumentComplianceService,
                 3,
+                30,
                 "BAI_TRANSFERENCIA_BANCARIA_PILOTO"
         );
     }
@@ -250,7 +259,10 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
         return application;
     }
 
-    private AdmissionDto.EnrollmentDocumentChecklistRequest completeDomesticRequest() {
+    private AdmissionDto.EnrollmentDocumentChecklistRequest completeDomesticRequest(
+            boolean originalsPresented,
+            boolean originalsVerified
+    ) {
         return new AdmissionDto.EnrollmentDocumentChecklistRequest(
                 true,
                 true,
@@ -258,27 +270,11 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
                 false,
                 false,
                 true,
-                true,
-                true,
+                originalsPresented,
+                originalsVerified,
                 "Secretaria Académica",
-                "Documentação conferida.",
-                "Originais apresentados e confrontados presencialmente."
-        );
-    }
-
-    private AdmissionDto.EnrollmentDocumentChecklistRequest pendingOriginalsRequest() {
-        return new AdmissionDto.EnrollmentDocumentChecklistRequest(
-                true,
-                true,
-                true,
-                false,
-                false,
-                true,
-                false,
-                false,
-                "Secretaria Académica",
-                "Cópias digitais conferidas.",
-                "Aguardar apresentação presencial dos originais."
+                "Documentação digital conferida.",
+                originalsVerified ? "Originais apresentados sem divergências." : null
         );
     }
 }
