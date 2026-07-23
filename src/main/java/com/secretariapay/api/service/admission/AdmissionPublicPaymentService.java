@@ -4,6 +4,8 @@ import com.secretariapay.api.dto.admission.AdmissionDto;
 import com.secretariapay.api.entity.admission.AdmissionApplication;
 import com.secretariapay.api.entity.admission.AdmissionInvoice;
 import com.secretariapay.api.entity.admission.AdmissionPaymentProof;
+import com.secretariapay.api.entity.enums.admission.AdmissionApplicationStatus;
+import com.secretariapay.api.entity.enums.admission.AdmissionInvoiceStatus;
 import com.secretariapay.api.repository.admission.AdmissionApplicationRepository;
 import com.secretariapay.api.repository.admission.AdmissionInvoiceRepository;
 import com.secretariapay.api.repository.admission.AdmissionPaymentProofRepository;
@@ -12,8 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Locale;
 
 @Service
 public class AdmissionPublicPaymentService {
@@ -52,7 +54,7 @@ public class AdmissionPublicPaymentService {
             @Value("${secretariapay.payment.account-number:06014467710001}") String accountNumber,
             @Value("${secretariapay.payment.multicaixa-reference:Multicaixa Express / transferência bancária para a conta AKZ indicada}") String multicaixaReference,
             @Value("${secretariapay.payment.mobile-money-info:Unitel Money/Afrimoney quando autorizado pela instituição}") String mobileMoneyInfo,
-            @Value("${secretariapay.institution.whatsapp:+244 923 168 085}") String supportWhatsapp,
+            @Value("${secretariapay.institution.whatsapp:+244 991 640 259}") String supportWhatsapp,
             @Value("${secretariapay.institution.financial-email:secretaria.financeira@imetroangola.com}") String supportEmail
     ) {
         this.applicationRepository = applicationRepository;
@@ -69,16 +71,19 @@ public class AdmissionPublicPaymentService {
         this.accountNumber = clean(accountNumber, "06014467710001");
         this.multicaixaReference = clean(multicaixaReference, "Multicaixa Express / transferência bancária para a conta AKZ indicada");
         this.mobileMoneyInfo = clean(mobileMoneyInfo, "Unitel Money/Afrimoney quando autorizado pela instituição");
-        this.supportWhatsapp = clean(supportWhatsapp, "+244 923 168 085");
+        this.supportWhatsapp = clean(supportWhatsapp, "+244 991 640 259");
         this.supportEmail = clean(supportEmail, "secretaria.financeira@imetroangola.com");
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AdmissionDto.PublicPaymentResponse getStatus(
             String applicationCode,
             AdmissionDto.PublicApplicationAccessRequest request
     ) {
-        return toResponse(findAuthorizedApplication(applicationCode, request.documentNumber()));
+        AdmissionApplication application = findAuthorizedApplication(applicationCode, request.documentNumber());
+        AdmissionInvoice invoice = invoiceRepository.findByApplicationId(application.getId()).orElse(null);
+        expireIfOverdue(application, invoice);
+        return toResponse(application);
     }
 
     @Transactional
@@ -91,6 +96,9 @@ public class AdmissionPublicPaymentService {
         ensureSubmitted(application);
 
         AdmissionInvoice invoice = invoiceRepository.findByApplicationId(application.getId()).orElse(null);
+        expireIfOverdue(application, invoice);
+        ensureNotWithdrawn(application, invoice);
+
         if (invoice == null) {
             if (application.getCampaign() == null || application.getCampaign().getRegistrationFee() == null) {
                 throw new IllegalArgumentException("A campanha não possui taxa oficial de inscrição configurada.");
@@ -132,6 +140,12 @@ public class AdmissionPublicPaymentService {
         AdmissionInvoice invoice = invoiceRepository.findByApplicationId(application.getId())
                 .orElseThrow(() -> new IllegalArgumentException("A cobrança da inscrição ainda não foi emitida."));
 
+        expireIfOverdue(application, invoice);
+        ensureNotWithdrawn(application, invoice);
+        if (invoice.getStatus() != AdmissionInvoiceStatus.PENDING) {
+            throw new IllegalArgumentException("O comprovativo não pode ser enviado no estado atual da cobrança.");
+        }
+
         admissionService.submitPaymentProof(
                 invoice.getId(),
                 new AdmissionDto.PaymentProofRequest(
@@ -169,10 +183,43 @@ public class AdmissionPublicPaymentService {
 
     private void ensurePilotEnabled() {
         if (!pilotEnabled) {
-            throw new IllegalArgumentException(
-                    "O pagamento público provisório está desativado neste ambiente."
-            );
+            throw new IllegalArgumentException("O pagamento público provisório está desativado neste ambiente.");
         }
+    }
+
+    private void ensureNotWithdrawn(AdmissionApplication application, AdmissionInvoice invoice) {
+        if (application.getStatus() == AdmissionApplicationStatus.EXPIRED
+                || (invoice != null && invoice.getStatus() == AdmissionInvoiceStatus.EXPIRED)) {
+            throw new IllegalArgumentException("O prazo de pagamento terminou. A candidatura foi marcada como desistência por falta de pagamento.");
+        }
+    }
+
+    private void expireIfOverdue(AdmissionApplication application, AdmissionInvoice invoice) {
+        if (invoice == null
+                || invoice.getStatus() != AdmissionInvoiceStatus.PENDING
+                || invoice.getDueDate() == null
+                || !invoice.getDueDate().isBefore(LocalDate.now(LUANDA_ZONE))) {
+            return;
+        }
+
+        invoice.setStatus(AdmissionInvoiceStatus.EXPIRED);
+        application.setStatus(AdmissionApplicationStatus.EXPIRED);
+        application.setNotes(appendNote(
+                application.getNotes(),
+                "Desistência automática por falta de pagamento. A guia "
+                        + invoice.getInvoiceCode()
+                        + " venceu em "
+                        + invoice.getDueDate()
+                        + "."
+        ));
+        invoiceRepository.save(invoice);
+        applicationRepository.save(application);
+    }
+
+    private String appendNote(String current, String note) {
+        String entry = "[" + LocalDateTime.now(LUANDA_ZONE) + "] " + note;
+        if (current == null || current.isBlank()) return entry;
+        return current.trim() + System.lineSeparator() + entry;
     }
 
     private AdmissionDto.PublicPaymentResponse toResponse(AdmissionApplication application) {
