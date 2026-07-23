@@ -88,6 +88,7 @@ public class AdmissionPublicPaymentService {
         AdmissionApplication application = findAuthorizedApplication(applicationCode, request.documentNumber());
         AdmissionInvoice invoice = invoiceRepository.findByApplicationId(application.getId()).orElse(null);
         expireIfOverdue(application, invoice);
+        normalizeOfficialReference(invoice);
         return toResponse(application);
     }
 
@@ -123,15 +124,7 @@ public class AdmissionPublicPaymentService {
                     .orElseThrow(() -> new IllegalStateException("A cobrança foi emitida, mas não pôde ser consultada."));
         }
 
-        if (invoice.getPaymentReference() == null
-                || invoice.getPaymentReference().isBlank()
-                || invoice.getPaymentReference().trim().equalsIgnoreCase(invoice.getInvoiceCode())) {
-            invoice.setPaymentReference(buildPaymentReference(invoice));
-        }
-        if (invoice.getProvider() == null || invoice.getProvider().isBlank()) {
-            invoice.setProvider(provider);
-        }
-        invoiceRepository.save(invoice);
+        normalizeOfficialReference(invoice);
 
         return toResponse(applicationRepository.findByApplicationCodeIgnoreCase(application.getApplicationCode())
                 .orElse(application));
@@ -149,6 +142,7 @@ public class AdmissionPublicPaymentService {
 
         expireIfOverdue(application, invoice);
         ensureNotWithdrawn(application, invoice);
+        normalizeOfficialReference(invoice);
         if (invoice.getStatus() != AdmissionInvoiceStatus.PENDING) {
             throw new IllegalArgumentException("O comprovativo não pode ser enviado no estado atual da cobrança.");
         }
@@ -223,6 +217,25 @@ public class AdmissionPublicPaymentService {
         ));
         invoiceRepository.save(invoice);
         applicationRepository.save(application);
+    }
+
+    private void normalizeOfficialReference(AdmissionInvoice invoice) {
+        if (invoice == null) return;
+
+        boolean changed = false;
+        if (invoice.getPaymentReference() == null
+                || invoice.getPaymentReference().isBlank()
+                || invoice.getPaymentReference().trim().equalsIgnoreCase(invoice.getInvoiceCode())) {
+            invoice.setPaymentReference(buildPaymentReference(invoice));
+            changed = true;
+        }
+        if (invoice.getProvider() == null || invoice.getProvider().isBlank()) {
+            invoice.setProvider(provider);
+            changed = true;
+        }
+        if (changed) {
+            invoiceRepository.save(invoice);
+        }
     }
 
     private String appendNote(String current, String note) {
