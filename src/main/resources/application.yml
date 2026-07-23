@@ -38,6 +38,13 @@ secretariapay:
     # A expiração automática também permanece desativada por padrão.
     payment-expiry-enabled: ${SECRETARIAPAY_ADMISSIONS_PAYMENT_EXPIRY_ENABLED:false}
     payment-expiry-cron: ${SECRETARIAPAY_ADMISSIONS_PAYMENT_EXPIRY_CRON:0 15 * * * *}
+    notifications:
+      # O registo no outbox é sempre criado. O envio externo só ocorre quando habilitado.
+      enabled: ${SECRETARIAPAY_ADMISSIONS_NOTIFICATIONS_ENABLED:false}
+      recipient-whatsapp: ${SECRETARIAPAY_ADMISSIONS_NOTIFICATION_WHATSAPP:+244 991 640 259}
+      internal-panel-url: ${SECRETARIAPAY_ADMISSIONS_INTERNAL_PANEL_URL:http://localhost:5173/admissions}
+      max-attempts: ${SECRETARIAPAY_ADMISSIONS_NOTIFICATIONS_MAX_ATTEMPTS:5}
+      dispatch-cron: ${SECRETARIAPAY_ADMISSIONS_NOTIFICATIONS_DISPATCH_CRON:*/15 * * * * *}
 
   payment:
     bank-name: ${SECRETARIAPAY_PAYMENT_BANK_NAME:Banco Angolano de Investimento}
