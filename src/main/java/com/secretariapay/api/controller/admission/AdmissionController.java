@@ -3,6 +3,7 @@ package com.secretariapay.api.controller.admission;
 import com.secretariapay.api.dto.admission.AdmissionDto;
 import com.secretariapay.api.entity.enums.admission.AdmissionApplicationStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionLeadStatus;
+import com.secretariapay.api.service.admission.AdmissionDigitalDocumentCompletionService;
 import com.secretariapay.api.service.admission.AdmissionDocumentationService;
 import com.secretariapay.api.service.admission.AdmissionEnrollmentDocumentChecklistService;
 import com.secretariapay.api.service.admission.AdmissionLeadWorkflowService;
@@ -29,6 +30,7 @@ public class AdmissionController {
     private final AdmissionService service;
     private final AdmissionDocumentationService documentationService;
     private final AdmissionEnrollmentDocumentChecklistService enrollmentDocumentChecklistService;
+    private final AdmissionDigitalDocumentCompletionService digitalDocumentCompletionService;
     private final AdmissionLeadWorkflowService leadWorkflowService;
     private final AdmissionPaymentApprovalWorkflowService paymentApprovalWorkflowService;
 
@@ -36,12 +38,14 @@ public class AdmissionController {
             AdmissionService service,
             AdmissionDocumentationService documentationService,
             AdmissionEnrollmentDocumentChecklistService enrollmentDocumentChecklistService,
+            AdmissionDigitalDocumentCompletionService digitalDocumentCompletionService,
             AdmissionLeadWorkflowService leadWorkflowService,
             AdmissionPaymentApprovalWorkflowService paymentApprovalWorkflowService
     ) {
         this.service = service;
         this.documentationService = documentationService;
         this.enrollmentDocumentChecklistService = enrollmentDocumentChecklistService;
+        this.digitalDocumentCompletionService = digitalDocumentCompletionService;
         this.leadWorkflowService = leadWorkflowService;
         this.paymentApprovalWorkflowService = paymentApprovalWorkflowService;
     }
@@ -135,6 +139,20 @@ public class AdmissionController {
             @Valid @RequestBody AdmissionDto.EnrollmentDocumentChecklistRequest request
     ) {
         return enrollmentDocumentChecklistService.review(applicationId, request);
+    }
+
+    @PostMapping("/applications/{applicationId}/enrollment-documents/robot-evaluate")
+    @PreAuthorize(ADMISSIONS)
+    public AdmissionDto.EnrollmentDocumentChecklistResponse evaluateRobotDocuments(
+            @PathVariable UUID applicationId,
+            @RequestParam(defaultValue = "false") boolean studiedAbroad,
+            @RequestParam(required = false) String submittedBy
+    ) {
+        return digitalDocumentCompletionService.evaluateRobotSubmission(
+                applicationId,
+                studiedAbroad,
+                submittedBy
+        );
     }
 
     @PostMapping("/applications/{applicationId}/invoice")
