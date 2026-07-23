@@ -35,6 +35,9 @@ secretariapay:
     public-payment-due-days: ${SECRETARIAPAY_ADMISSIONS_PUBLIC_PAYMENT_DUE_DAYS:3}
     public-payment-environment-label: ${SECRETARIAPAY_ADMISSIONS_PUBLIC_PAYMENT_ENVIRONMENT_LABEL:HOMOLOGAÇÃO LOCAL}
     public-payment-provider: ${SECRETARIAPAY_ADMISSIONS_PUBLIC_PAYMENT_PROVIDER:BAI_TRANSFERENCIA_BANCARIA_PILOTO}
+    # A expiração automática também permanece desativada por padrão.
+    payment-expiry-enabled: ${SECRETARIAPAY_ADMISSIONS_PAYMENT_EXPIRY_ENABLED:false}
+    payment-expiry-cron: ${SECRETARIAPAY_ADMISSIONS_PAYMENT_EXPIRY_CRON:0 15 * * * *}
 
   payment:
     bank-name: ${SECRETARIAPAY_PAYMENT_BANK_NAME:Banco Angolano de Investimento}
