@@ -44,6 +44,21 @@ public class AdmissionEnrollmentDocumentReview {
     @Column(name = "age_eligible", nullable = false)
     private Boolean ageEligible = false;
 
+    @Column(name = "originals_presented", nullable = false)
+    private Boolean originalsPresented = false;
+
+    @Column(name = "originals_verified", nullable = false)
+    private Boolean originalsVerified = false;
+
+    @Column(name = "originals_verified_by", length = 180)
+    private String originalsVerifiedBy;
+
+    @Column(name = "originals_verified_at")
+    private LocalDateTime originalsVerifiedAt;
+
+    @Column(name = "originals_verification_notes", columnDefinition = "text")
+    private String originalsVerificationNotes;
+
     @Column(name = "documents_complete", nullable = false)
     private Boolean documentsComplete = false;
 
@@ -90,6 +105,8 @@ public class AdmissionEnrollmentDocumentReview {
         if (educationEquivalenceCopy == null) educationEquivalenceCopy = false;
         if (secondaryEducationCompleted == null) secondaryEducationCompleted = false;
         if (ageEligible == null) ageEligible = false;
+        if (originalsPresented == null) originalsPresented = false;
+        if (originalsVerified == null) originalsVerified = false;
         if (documentsComplete == null) documentsComplete = false;
     }
 
@@ -110,6 +127,16 @@ public class AdmissionEnrollmentDocumentReview {
     public AdmissionEnrollmentDocumentReview setSecondaryEducationCompleted(Boolean secondaryEducationCompleted) { this.secondaryEducationCompleted = secondaryEducationCompleted; return this; }
     public Boolean getAgeEligible() { return ageEligible; }
     public AdmissionEnrollmentDocumentReview setAgeEligible(Boolean ageEligible) { this.ageEligible = ageEligible; return this; }
+    public Boolean getOriginalsPresented() { return originalsPresented; }
+    public AdmissionEnrollmentDocumentReview setOriginalsPresented(Boolean originalsPresented) { this.originalsPresented = originalsPresented; return this; }
+    public Boolean getOriginalsVerified() { return originalsVerified; }
+    public AdmissionEnrollmentDocumentReview setOriginalsVerified(Boolean originalsVerified) { this.originalsVerified = originalsVerified; return this; }
+    public String getOriginalsVerifiedBy() { return originalsVerifiedBy; }
+    public AdmissionEnrollmentDocumentReview setOriginalsVerifiedBy(String originalsVerifiedBy) { this.originalsVerifiedBy = originalsVerifiedBy; return this; }
+    public LocalDateTime getOriginalsVerifiedAt() { return originalsVerifiedAt; }
+    public AdmissionEnrollmentDocumentReview setOriginalsVerifiedAt(LocalDateTime originalsVerifiedAt) { this.originalsVerifiedAt = originalsVerifiedAt; return this; }
+    public String getOriginalsVerificationNotes() { return originalsVerificationNotes; }
+    public AdmissionEnrollmentDocumentReview setOriginalsVerificationNotes(String originalsVerificationNotes) { this.originalsVerificationNotes = originalsVerificationNotes; return this; }
     public Boolean getDocumentsComplete() { return documentsComplete; }
     public AdmissionEnrollmentDocumentReview setDocumentsComplete(Boolean documentsComplete) { this.documentsComplete = documentsComplete; return this; }
     public String getReviewedBy() { return reviewedBy; }
