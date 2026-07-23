@@ -3,6 +3,7 @@ package com.secretariapay.api.controller.publicapi;
 import com.secretariapay.api.dto.admission.AdmissionDto;
 import com.secretariapay.api.entity.enums.admission.AdmissionSourceChannel;
 import com.secretariapay.api.service.admission.AdmissionPaymentGuidePdfService;
+import com.secretariapay.api.service.admission.AdmissionPublicApplicationWorkflowService;
 import com.secretariapay.api.service.admission.AdmissionPublicPaymentService;
 import com.secretariapay.api.service.admission.AdmissionService;
 import jakarta.validation.Valid;
@@ -21,15 +22,18 @@ import java.util.UUID;
 public class PublicAdmissionController {
 
     private final AdmissionService service;
+    private final AdmissionPublicApplicationWorkflowService applicationWorkflowService;
     private final AdmissionPublicPaymentService publicPaymentService;
     private final AdmissionPaymentGuidePdfService paymentGuidePdfService;
 
     public PublicAdmissionController(
             AdmissionService service,
+            AdmissionPublicApplicationWorkflowService applicationWorkflowService,
             AdmissionPublicPaymentService publicPaymentService,
             AdmissionPaymentGuidePdfService paymentGuidePdfService
     ) {
         this.service = service;
+        this.applicationWorkflowService = applicationWorkflowService;
         this.publicPaymentService = publicPaymentService;
         this.paymentGuidePdfService = paymentGuidePdfService;
     }
@@ -48,7 +52,7 @@ public class PublicAdmissionController {
     @PostMapping("/applications")
     @ResponseStatus(HttpStatus.CREATED)
     public AdmissionDto.ApplicationResponse createApplication(@Valid @RequestBody AdmissionDto.ApplicationRequest request) {
-        return service.createApplication(request, AdmissionSourceChannel.FORM);
+        return applicationWorkflowService.createApplication(request);
     }
 
     @PostMapping("/applications/{applicationCode}/payment/status")
