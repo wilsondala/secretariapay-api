@@ -15,6 +15,8 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -78,6 +80,7 @@ public class AdmissionEnrollmentDocumentFileStorageService {
     ) {
         AdmissionApplication application = eligibleApplication(applicationId);
         FileType fileType = validate(file, documentType);
+        List<AdmissionEnrollmentDocumentFile> previousFiles = List.of();
 
         if (documentType == AdmissionEnrollmentDocumentType.PASSPORT_PHOTO) {
             long currentPhotos = fileRepository.countByApplicationIdAndDocumentType(
@@ -90,9 +93,10 @@ public class AdmissionEnrollmentDocumentFileStorageService {
                 );
             }
         } else {
-            List<AdmissionEnrollmentDocumentFile> previous = fileRepository
-                    .findByApplicationIdAndDocumentTypeOrderByUploadedAtAsc(applicationId, documentType);
-            previous.forEach(this::deleteEntityAndPhysicalFile);
+            previousFiles = fileRepository.findByApplicationIdAndDocumentTypeOrderByUploadedAtAsc(
+                    applicationId,
+                    documentType
+            );
         }
 
         String storedName = UUID.randomUUID() + "." + fileType.extension();
@@ -107,6 +111,7 @@ public class AdmissionEnrollmentDocumentFileStorageService {
             try (InputStream input = file.getInputStream()) {
                 Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
             }
+            registerNewFileRollbackCleanup(target);
 
             AdmissionEnrollmentDocumentFile entity = fileRepository.save(
                     new AdmissionEnrollmentDocumentFile()
@@ -119,6 +124,8 @@ public class AdmissionEnrollmentDocumentFileStorageService {
                             .setUploadedBy(clean(uploadedBy, "Secretaria / Admissões"))
                             .setUploadedAt(LocalDateTime.now(LUANDA_ZONE))
             );
+
+            previousFiles.forEach(this::deleteEntityAndSchedulePhysicalFile);
             return toResponse(entity);
         } catch (RuntimeException exception) {
             deleteQuietly(target);
@@ -137,7 +144,7 @@ public class AdmissionEnrollmentDocumentFileStorageService {
         AdmissionEnrollmentDocumentFile entity = fileRepository.findById(fileId)
                 .orElseThrow(() -> new NotFoundException("Documento não encontrado."));
         eligibleApplication(entity.getApplication().getId());
-        deleteEntityAndPhysicalFile(entity);
+        deleteEntityAndSchedulePhysicalFile(entity);
     }
 
     @Transactional(readOnly = true)
@@ -267,9 +274,39 @@ public class AdmissionEnrollmentDocumentFileStorageService {
                 && (signature[2] & 0xFF) == 0xFF;
     }
 
-    private void deleteEntityAndPhysicalFile(AdmissionEnrollmentDocumentFile entity) {
+    private void deleteEntityAndSchedulePhysicalFile(AdmissionEnrollmentDocumentFile entity) {
+        Path physicalFile = resolvePhysicalFile(entity);
         fileRepository.delete(entity);
-        deleteQuietly(resolvePhysicalFile(entity));
+        deleteAfterCommitOrNow(physicalFile);
+    }
+
+    private void deleteAfterCommitOrNow(Path target) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            deleteQuietly(target);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                deleteQuietly(target);
+            }
+        });
+    }
+
+    private void registerNewFileRollbackCleanup(Path target) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != TransactionSynchronization.STATUS_COMMITTED) {
+                    deleteQuietly(target);
+                }
+            }
+        });
     }
 
     private Path resolvePhysicalFile(AdmissionEnrollmentDocumentFile entity) {
