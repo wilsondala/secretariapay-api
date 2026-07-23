@@ -20,7 +20,9 @@ import java.util.Locale;
 public class AdmissionOperationalNotificationService {
 
     static final String APPLICATION_SUBMITTED_EVENT = "APPLICATION_SUBMITTED";
+    static final String ENROLLMENT_DOCUMENTS_REQUESTED_EVENT = "ENROLLMENT_DOCUMENTS_REQUESTED";
     private static final String WHATSAPP_CHANNEL = "WHATSAPP";
+    private static final String MISSING_RECIPIENT = "SEM_CONTACTO";
     private static final ZoneId LUANDA_ZONE = ZoneId.of("Africa/Luanda");
 
     private final AdmissionOperationalNotificationRepository repository;
@@ -48,25 +50,64 @@ public class AdmissionOperationalNotificationService {
 
     @Transactional
     public void enqueueApplicationSubmitted(AdmissionApplication application) {
-        if (application == null || application.getApplicationCode() == null) return;
+        if (!hasApplicationCode(application)) return;
+        enqueue(
+                application,
+                APPLICATION_SUBMITTED_EVENT,
+                recipientWhatsapp,
+                buildApplicationSubmittedMessage(application)
+        );
+    }
 
-        String idempotencyKey = APPLICATION_SUBMITTED_EVENT
+    @Transactional
+    public void enqueueEnrollmentDocumentsRequested(AdmissionApplication application) {
+        if (!hasApplicationCode(application)) return;
+        String candidateContact = firstNonBlank(application.getWhatsapp(), application.getPhone());
+        enqueue(
+                application,
+                ENROLLMENT_DOCUMENTS_REQUESTED_EVENT,
+                candidateContact,
+                buildEnrollmentDocumentsMessage(application)
+        );
+    }
+
+    private void enqueue(
+            AdmissionApplication application,
+            String eventType,
+            String recipient,
+            String messageBody
+    ) {
+        String normalizedRecipient = normalizePhone(recipient);
+        boolean missingContact = normalizedRecipient.isBlank();
+        String recipientKey = missingContact ? MISSING_RECIPIENT : normalizedRecipient;
+        String storedRecipient = missingContact ? MISSING_RECIPIENT : recipient.trim();
+        String idempotencyKey = eventType
                 + ":" + WHATSAPP_CHANNEL
                 + ":" + application.getApplicationCode().trim().toUpperCase(Locale.ROOT)
-                + ":" + normalizePhone(recipientWhatsapp);
+                + ":" + recipientKey;
 
         if (repository.existsByIdempotencyKey(idempotencyKey)) return;
 
-        repository.save(new AdmissionOperationalNotification()
+        AdmissionOperationalNotification notification = new AdmissionOperationalNotification()
                 .setApplication(application)
-                .setEventType(APPLICATION_SUBMITTED_EVENT)
+                .setEventType(eventType)
                 .setChannel(WHATSAPP_CHANNEL)
-                .setRecipient(recipientWhatsapp)
-                .setMessageBody(buildApplicationSubmittedMessage(application))
+                .setRecipient(storedRecipient)
+                .setMessageBody(messageBody)
                 .setIdempotencyKey(idempotencyKey)
-                .setStatus(AdmissionNotificationStatus.PENDING)
+                .setStatus(missingContact
+                        ? AdmissionNotificationStatus.EXHAUSTED
+                        : AdmissionNotificationStatus.PENDING)
                 .setAttempts(0)
-                .setNextAttemptAt(LocalDateTime.now(LUANDA_ZONE)));
+                .setNextAttemptAt(LocalDateTime.now(LUANDA_ZONE));
+
+        if (missingContact) {
+            notification.setLastError(
+                    "A candidatura não possui WhatsApp nem telefone para solicitar os documentos da matrícula."
+            );
+        }
+
+        repository.save(notification);
     }
 
     @Scheduled(
@@ -179,6 +220,45 @@ public class AdmissionOperationalNotificationService {
         ).trim();
     }
 
+    private String buildEnrollmentDocumentsMessage(AdmissionApplication application) {
+        String course = application.getDesiredCourse() == null
+                ? "Não informado"
+                : clean(application.getDesiredCourse().getName(), "Não informado");
+
+        return """
+                Inscrição confirmada — Próxima etapa: matrícula
+
+                Caro(a) %s,
+
+                A DCR confirmou o pagamento da sua inscrição. O seu processo de matrícula foi liberado.
+
+                Código da candidatura: %s
+                Curso: %s
+                Turno: %s
+                Ano académico: %s
+
+                Para continuar, prepare os documentos obrigatórios:
+                • 2 fotografias do tipo passe
+                • Fotocópia autenticada do certificado de habilitações
+                • Fotocópia do Bilhete de Identidade
+                • Equivalência do Ministério da Educação, somente para candidatos que estudaram no estrangeiro
+
+                Requisitos de elegibilidade:
+                • Ensino médio concluído
+                • Idade mínima de 18 anos
+
+                A Secretaria Académica fará a validação dos documentos e informará os próximos passos para a cobrança da matrícula de 23.500,00 Kz.
+
+                SecretariaPay IMETRO
+                """.formatted(
+                clean(application.getFullName(), "Candidato(a)"),
+                application.getApplicationCode(),
+                course,
+                shiftLabel(application.getDesiredShift()),
+                clean(application.getAcademicYear(), "Não informado")
+        ).trim();
+    }
+
     static String maskDocument(String document) {
         String value = clean(document, null);
         if (value == null) return "Não informado";
@@ -186,6 +266,12 @@ public class AdmissionOperationalNotificationService {
         int visible = Math.min(4, value.length());
         return "*".repeat(Math.max(4, value.length() - visible))
                 + value.substring(value.length() - visible);
+    }
+
+    private boolean hasApplicationCode(AdmissionApplication application) {
+        return application != null
+                && application.getApplicationCode() != null
+                && !application.getApplicationCode().isBlank();
     }
 
     private String shiftLabel(String shift) {
