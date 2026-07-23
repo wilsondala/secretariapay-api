@@ -230,24 +230,29 @@ public class AdmissionOperationalNotificationService {
 
                 Caro(a) %s,
 
-                A DCR confirmou o pagamento da sua inscrição. O seu processo de matrícula foi liberado.
+                A DCR confirmou o pagamento da sua inscrição. O seu processo documental da matrícula foi liberado.
 
                 Código da candidatura: %s
                 Curso: %s
                 Turno: %s
                 Ano académico: %s
 
-                Para continuar, prepare os documentos obrigatórios:
+                1. Envie pelo robô SecretáriaPay as cópias digitais dos documentos obrigatórios:
                 • 2 fotografias do tipo passe
                 • Fotocópia autenticada do certificado de habilitações
                 • Fotocópia do Bilhete de Identidade
                 • Equivalência do Ministério da Educação, somente para candidatos que estudaram no estrangeiro
 
+                2. Depois do envio digital, apresente-se presencialmente na Secretaria Académica com os documentos originais:
+                • Certificado original de habilitações
+                • Bilhete de Identidade original
+                • Equivalência original, quando aplicável
+
+                A Secretaria confrontará as cópias enviadas com os originais para confirmar a autenticidade. A cobrança da matrícula de 23.500,00 Kz somente será liberada depois dessa conferência presencial.
+
                 Requisitos de elegibilidade:
                 • Ensino médio concluído
                 • Idade mínima de 18 anos
-
-                A Secretaria Académica fará a validação dos documentos e informará os próximos passos para a cobrança da matrícula de 23.500,00 Kz.
 
                 SecretariaPay IMETRO
                 """.formatted(
