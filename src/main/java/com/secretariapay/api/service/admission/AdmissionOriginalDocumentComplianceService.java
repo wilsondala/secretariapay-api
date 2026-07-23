@@ -46,6 +46,7 @@ public class AdmissionOriginalDocumentComplianceService {
             cron = "${secretariapay.enrollment.original-documents-blocking-cron:0 30 2 * * *}",
             zone = "Africa/Luanda"
     )
+    @Transactional
     public void runScheduledBlocking() {
         if (blockingEnabled) blockOverdueStudents();
     }
