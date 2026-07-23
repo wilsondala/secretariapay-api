@@ -61,7 +61,7 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
     private AdmissionEnrollmentDocumentFileStorageService documentFileStorageService;
 
     @Test
-    void shouldApproveOfficialChecklistAndCreateEnrollmentChargeForAdultCandidate() {
+    void shouldApproveChecklistOnlyAfterOriginalsVerification() {
         UUID applicationId = UUID.randomUUID();
         AdmissionApplication application = paidApplication(applicationId, LocalDate.of(2000, 1, 10));
         AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
@@ -76,6 +76,9 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
 
         assertTrue(response.documentsComplete());
         assertTrue(response.ageEligible());
+        assertTrue(response.originalsPresented());
+        assertTrue(response.originalsVerified());
+        assertEquals("Secretaria Académica", response.originalsVerifiedBy());
         assertEquals(AdmissionApplicationStatus.CONFIRMED, application.getStatus());
 
         ArgumentCaptor<EnrollmentDto.EnrollmentFromAdmissionRequest> captor =
@@ -90,6 +93,27 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
     }
 
     @Test
+    void shouldKeepDocumentsPendingUntilOriginalsArePresentedAndVerified() {
+        UUID applicationId = UUID.randomUUID();
+        AdmissionApplication application = paidApplication(applicationId, LocalDate.of(2000, 1, 10));
+        AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
+
+        standardReviewStubs(applicationId, application, registrationInvoice, Optional.empty());
+        when(documentFileStorageService.hasRequiredFiles(applicationId, false)).thenReturn(true);
+
+        AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
+                applicationId,
+                pendingOriginalsRequest()
+        );
+
+        assertFalse(response.documentsComplete());
+        assertFalse(response.originalsPresented());
+        assertFalse(response.originalsVerified());
+        assertEquals(AdmissionApplicationStatus.DOCUMENTATION_PENDING, application.getStatus());
+        verify(enrollmentService, never()).createEnrollmentFromAdmission(any(), any());
+    }
+
+    @Test
     void shouldKeepDocumentsPendingWhenRequiredFilesWereNotUploaded() {
         UUID applicationId = UUID.randomUUID();
         AdmissionApplication application = paidApplication(applicationId, LocalDate.of(2000, 1, 10));
@@ -100,7 +124,7 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
 
         AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
                 applicationId,
-                completeDomesticRequest()
+                pendingOriginalsRequest()
         );
 
         assertFalse(response.documentsComplete());
@@ -126,8 +150,11 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
                         true,
                         false,
                         true,
+                        false,
+                        false,
                         "Secretaria Académica",
-                        "Equivalência pendente."
+                        "Equivalência pendente.",
+                        "Aguardar equivalência e apresentação presencial."
                 )
         );
 
@@ -231,8 +258,27 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
                 false,
                 false,
                 true,
+                true,
+                true,
                 "Secretaria Académica",
-                "Documentação conferida."
+                "Documentação conferida.",
+                "Originais apresentados e confrontados presencialmente."
+        );
+    }
+
+    private AdmissionDto.EnrollmentDocumentChecklistRequest pendingOriginalsRequest() {
+        return new AdmissionDto.EnrollmentDocumentChecklistRequest(
+                true,
+                true,
+                true,
+                false,
+                false,
+                true,
+                false,
+                false,
+                "Secretaria Académica",
+                "Cópias digitais conferidas.",
+                "Aguardar apresentação presencial dos originais."
         );
     }
 }
