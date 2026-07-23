@@ -17,6 +17,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,8 +42,8 @@ class AdmissionPaymentExpiryServiceTest {
 
         assertEquals(0, service.expireOverduePayments());
         verify(invoiceRepository, never()).findAllByStatusAndDueDateBefore(
-                AdmissionInvoiceStatus.PENDING,
-                LocalDate.now()
+                eq(AdmissionInvoiceStatus.PENDING),
+                any(LocalDate.class)
         );
     }
 
@@ -60,8 +62,8 @@ class AdmissionPaymentExpiryServiceTest {
                 .setStatus(AdmissionInvoiceStatus.PENDING);
 
         when(invoiceRepository.findAllByStatusAndDueDateBefore(
-                AdmissionInvoiceStatus.PENDING,
-                LocalDate.now()
+                eq(AdmissionInvoiceStatus.PENDING),
+                any(LocalDate.class)
         )).thenReturn(List.of(invoice));
 
         AdmissionPaymentExpiryService service = new AdmissionPaymentExpiryService(
@@ -79,10 +81,10 @@ class AdmissionPaymentExpiryServiceTest {
     }
 
     @Test
-    void shouldNotExpireProofAlreadyUnderReview() {
+    void shouldNotExpireWhenThereAreNoPendingOverdueInvoices() {
         when(invoiceRepository.findAllByStatusAndDueDateBefore(
-                AdmissionInvoiceStatus.PENDING,
-                LocalDate.now()
+                eq(AdmissionInvoiceStatus.PENDING),
+                any(LocalDate.class)
         )).thenReturn(List.of());
 
         AdmissionPaymentExpiryService service = new AdmissionPaymentExpiryService(
@@ -92,6 +94,6 @@ class AdmissionPaymentExpiryServiceTest {
         );
 
         assertEquals(0, service.expireOverduePayments());
-        verify(applicationRepository, never()).save(org.mockito.ArgumentMatchers.any());
+        verify(applicationRepository, never()).save(any());
     }
 }
