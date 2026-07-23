@@ -55,15 +55,22 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
     private AdmissionEnrollmentDocumentFileStorageService documentFileStorageService;
     @Mock
     private AdmissionOriginalDocumentComplianceService originalDocumentComplianceService;
+    @Mock
+    private AdmissionEnrollmentChargeNotificationService enrollmentChargeNotificationService;
 
     @Test
     void shouldCreateEnrollmentChargeWithCompleteDigitalDocumentsEvenWithoutOriginals() {
         UUID applicationId = UUID.randomUUID();
         AdmissionApplication application = paidApplication(applicationId, LocalDate.of(2000, 1, 10));
         AdmissionInvoice registrationInvoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
+        EnrollmentDto.EnrollmentResponse enrollmentResponse = org.mockito.Mockito.mock(EnrollmentDto.EnrollmentResponse.class);
 
         standardReviewStubs(applicationId, application, registrationInvoice, Optional.empty());
         when(documentFileStorageService.hasRequiredFiles(applicationId, false)).thenReturn(true);
+        when(enrollmentService.createEnrollmentFromAdmission(
+                org.mockito.ArgumentMatchers.eq(applicationId),
+                any(EnrollmentDto.EnrollmentFromAdmissionRequest.class)
+        )).thenReturn(enrollmentResponse);
 
         AdmissionDto.EnrollmentDocumentChecklistResponse response = service().review(
                 applicationId,
@@ -84,6 +91,7 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
         assertEquals(1, captor.getValue().targetYearLevel());
         assertEquals("BAI_TRANSFERENCIA_BANCARIA_PILOTO", captor.getValue().provider());
         assertEquals(LocalDate.now(LUANDA_ZONE).plusDays(3), captor.getValue().dueDate());
+        verify(enrollmentChargeNotificationService).enqueue(application, enrollmentResponse);
     }
 
     @Test
@@ -103,6 +111,7 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
         assertFalse(response.documentsComplete());
         assertEquals(AdmissionApplicationStatus.DOCUMENTATION_PENDING, application.getStatus());
         verify(enrollmentService, never()).createEnrollmentFromAdmission(any(), any());
+        verify(enrollmentChargeNotificationService, never()).enqueue(any(), any());
     }
 
     @Test
@@ -181,6 +190,7 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
 
         assertTrue(response.documentsComplete());
         verify(enrollmentService, never()).createEnrollmentFromAdmission(any(), any());
+        verify(enrollmentChargeNotificationService, never()).enqueue(any(), any());
     }
 
     @Test
@@ -244,6 +254,7 @@ class AdmissionEnrollmentDocumentChecklistServiceTest {
                 enrollmentService,
                 documentFileStorageService,
                 originalDocumentComplianceService,
+                enrollmentChargeNotificationService,
                 3,
                 30,
                 "BAI_TRANSFERENCIA_BANCARIA_PILOTO"
