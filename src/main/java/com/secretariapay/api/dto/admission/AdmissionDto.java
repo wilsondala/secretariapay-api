@@ -226,8 +226,11 @@ public final class AdmissionDto {
             @NotNull Boolean studiedAbroad,
             @NotNull Boolean educationEquivalenceCopy,
             @NotNull Boolean secondaryEducationCompleted,
+            @NotNull Boolean originalsPresented,
+            @NotNull Boolean originalsVerified,
             @NotBlank String reviewedBy,
-            String notes
+            String notes,
+            String originalsVerificationNotes
     ) {}
 
     public record EnrollmentDocumentChecklistResponse(
@@ -241,6 +244,11 @@ public final class AdmissionDto {
             Boolean educationEquivalenceCopy,
             Boolean secondaryEducationCompleted,
             Boolean ageEligible,
+            Boolean originalsPresented,
+            Boolean originalsVerified,
+            String originalsVerifiedBy,
+            LocalDateTime originalsVerifiedAt,
+            String originalsVerificationNotes,
             Boolean documentsComplete,
             String reviewedBy,
             String notes,
