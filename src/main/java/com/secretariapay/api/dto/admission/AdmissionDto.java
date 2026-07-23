@@ -94,6 +94,44 @@ public final class AdmissionDto {
             String mimeType
     ) {}
 
+    public record PublicApplicationAccessRequest(
+            @NotBlank String documentNumber
+    ) {}
+
+    public record PublicPaymentProofRequest(
+            @NotBlank String documentNumber,
+            @NotBlank String fileUrl,
+            String fileName,
+            String mimeType
+    ) {}
+
+    public record PublicPaymentInstructionsResponse(
+            boolean enabled,
+            boolean provisional,
+            String environmentLabel,
+            String bankName,
+            String accountHolder,
+            String iban,
+            String accountNumber,
+            String multicaixaReference,
+            String mobileMoneyInfo,
+            String supportWhatsapp,
+            String supportEmail,
+            String notice
+    ) {}
+
+    public record PublicPaymentResponse(
+            String applicationCode,
+            String fullName,
+            String desiredCourseName,
+            String desiredShift,
+            String academicYear,
+            AdmissionApplicationStatus applicationStatus,
+            InvoiceResponse invoice,
+            PaymentProofResponse latestPaymentProof,
+            PublicPaymentInstructionsResponse paymentInstructions
+    ) {}
+
     public record ReviewPaymentProofRequest(
             @NotBlank String reviewedBy,
             String reviewNote,
