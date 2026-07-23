@@ -17,9 +17,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -94,7 +97,7 @@ class AdmissionEnrollmentDocumentFileStorageServiceTest {
                 "file",
                 "foto.pdf",
                 "application/pdf",
-                "%PDF-1.7".getBytes()
+                pdfBytes()
         );
 
         when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
@@ -137,6 +140,96 @@ class AdmissionEnrollmentDocumentFileStorageServiceTest {
         assertFalse(service().hasRequiredFiles(applicationId, true));
     }
 
+    @Test
+    void shouldDeletePreviousPhysicalFileOnlyAfterCommitWhenReplacing() throws Exception {
+        UUID applicationId = UUID.randomUUID();
+        AdmissionApplication application = eligibleApplication(applicationId);
+        AdmissionInvoice invoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
+        AdmissionEnrollmentDocumentFile previous = previousCertificate(application, "previous.pdf");
+        Path previousPath = createPhysicalFile(applicationId, previous.getStoredName(), pdfBytes());
+        MockMultipartFile replacement = new MockMultipartFile(
+                "file",
+                "certificado-novo.pdf",
+                "application/pdf",
+                pdfBytes()
+        );
+
+        when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
+        when(invoiceRepository.findByApplicationId(applicationId)).thenReturn(Optional.of(invoice));
+        when(fileRepository.findByApplicationIdAndDocumentTypeOrderByUploadedAtAsc(
+                applicationId,
+                AdmissionEnrollmentDocumentType.AUTHENTICATED_CERTIFICATE
+        )).thenReturn(List.of(previous));
+        when(fileRepository.save(any(AdmissionEnrollmentDocumentFile.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            AdmissionEnrollmentDocumentFileStorageService.DocumentFileResponse response = service().store(
+                    applicationId,
+                    AdmissionEnrollmentDocumentType.AUTHENTICATED_CERTIFICATE,
+                    replacement,
+                    "Secretaria"
+            );
+
+            assertTrue(Files.isRegularFile(previousPath));
+            assertTrue(Files.isRegularFile(storedPath(applicationId, response)));
+            verify(fileRepository).delete(previous);
+
+            completeSynchronization(TransactionSynchronization.STATUS_COMMITTED);
+
+            assertFalse(Files.exists(previousPath));
+            assertTrue(Files.isRegularFile(storedPath(applicationId, response)));
+        } finally {
+            clearSynchronization();
+        }
+    }
+
+    @Test
+    void shouldPreservePreviousFileAndRemoveNewFileWhenTransactionRollsBack() throws Exception {
+        UUID applicationId = UUID.randomUUID();
+        AdmissionApplication application = eligibleApplication(applicationId);
+        AdmissionInvoice invoice = new AdmissionInvoice().setStatus(AdmissionInvoiceStatus.PAID);
+        AdmissionEnrollmentDocumentFile previous = previousCertificate(application, "previous.pdf");
+        Path previousPath = createPhysicalFile(applicationId, previous.getStoredName(), pdfBytes());
+        MockMultipartFile replacement = new MockMultipartFile(
+                "file",
+                "certificado-novo.pdf",
+                "application/pdf",
+                pdfBytes()
+        );
+
+        when(applicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
+        when(invoiceRepository.findByApplicationId(applicationId)).thenReturn(Optional.of(invoice));
+        when(fileRepository.findByApplicationIdAndDocumentTypeOrderByUploadedAtAsc(
+                applicationId,
+                AdmissionEnrollmentDocumentType.AUTHENTICATED_CERTIFICATE
+        )).thenReturn(List.of(previous));
+        when(fileRepository.save(any(AdmissionEnrollmentDocumentFile.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            AdmissionEnrollmentDocumentFileStorageService.DocumentFileResponse response = service().store(
+                    applicationId,
+                    AdmissionEnrollmentDocumentType.AUTHENTICATED_CERTIFICATE,
+                    replacement,
+                    "Secretaria"
+            );
+            Path replacementPath = storedPath(applicationId, response);
+
+            assertTrue(Files.isRegularFile(previousPath));
+            assertTrue(Files.isRegularFile(replacementPath));
+
+            completeSynchronization(TransactionSynchronization.STATUS_ROLLED_BACK);
+
+            assertTrue(Files.isRegularFile(previousPath));
+            assertFalse(Files.exists(replacementPath));
+        } finally {
+            clearSynchronization();
+        }
+    }
+
     private AdmissionEnrollmentDocumentFileStorageService service() {
         return new AdmissionEnrollmentDocumentFileStorageService(
                 applicationRepository,
@@ -155,11 +248,67 @@ class AdmissionEnrollmentDocumentFileStorageServiceTest {
         return application;
     }
 
+    private AdmissionEnrollmentDocumentFile previousCertificate(
+            AdmissionApplication application,
+            String storedName
+    ) {
+        return new AdmissionEnrollmentDocumentFile()
+                .setApplication(application)
+                .setDocumentType(AdmissionEnrollmentDocumentType.AUTHENTICATED_CERTIFICATE)
+                .setStoredName(storedName)
+                .setOriginalFileName("certificado-anterior.pdf")
+                .setMimeType("application/pdf")
+                .setFileSize(pdfBytes().length)
+                .setUploadedBy("Secretaria");
+    }
+
+    private Path createPhysicalFile(UUID applicationId, String storedName, byte[] content) throws Exception {
+        Path directory = tempDir.resolve(applicationId.toString());
+        Files.createDirectories(directory);
+        return Files.write(directory.resolve(storedName), content);
+    }
+
+    private Path storedPath(
+            UUID applicationId,
+            AdmissionEnrollmentDocumentFileStorageService.DocumentFileResponse response
+    ) {
+        String storedName = Path.of(response.contentUrl()).getParent().getFileName() == null
+                ? ""
+                : "";
+        Path directory = tempDir.resolve(applicationId.toString());
+        try {
+            return Files.list(directory)
+                    .filter(path -> !path.getFileName().toString().equals("previous.pdf"))
+                    .findFirst()
+                    .orElseThrow();
+        } catch (Exception exception) {
+            throw new IllegalStateException("Ficheiro novo não encontrado no teste.", exception);
+        }
+    }
+
+    private void completeSynchronization(int status) {
+        List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+        if (status == TransactionSynchronization.STATUS_COMMITTED) {
+            synchronizations.forEach(TransactionSynchronization::afterCommit);
+        }
+        synchronizations.forEach(synchronization -> synchronization.afterCompletion(status));
+    }
+
+    private void clearSynchronization() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
     private byte[] pngBytes() {
         return new byte[] {
                 (byte) 0x89, 0x50, 0x4E, 0x47,
                 0x0D, 0x0A, 0x1A, 0x0A,
                 0x00, 0x00, 0x00, 0x00
         };
+    }
+
+    private byte[] pdfBytes() {
+        return "%PDF-1.7\n".getBytes();
     }
 }
