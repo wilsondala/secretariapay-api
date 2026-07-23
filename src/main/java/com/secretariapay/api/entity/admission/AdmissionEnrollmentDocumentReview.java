@@ -2,6 +2,7 @@ package com.secretariapay.api.entity.admission;
 
 import jakarta.persistence.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -59,6 +60,15 @@ public class AdmissionEnrollmentDocumentReview {
     @Column(name = "originals_verification_notes", columnDefinition = "text")
     private String originalsVerificationNotes;
 
+    @Column(name = "originals_due_date")
+    private LocalDate originalsDueDate;
+
+    @Column(name = "originals_block_active", nullable = false)
+    private Boolean originalsBlockActive = false;
+
+    @Column(name = "originals_blocked_at")
+    private LocalDateTime originalsBlockedAt;
+
     @Column(name = "documents_complete", nullable = false)
     private Boolean documentsComplete = false;
 
@@ -107,6 +117,7 @@ public class AdmissionEnrollmentDocumentReview {
         if (ageEligible == null) ageEligible = false;
         if (originalsPresented == null) originalsPresented = false;
         if (originalsVerified == null) originalsVerified = false;
+        if (originalsBlockActive == null) originalsBlockActive = false;
         if (documentsComplete == null) documentsComplete = false;
     }
 
@@ -137,6 +148,12 @@ public class AdmissionEnrollmentDocumentReview {
     public AdmissionEnrollmentDocumentReview setOriginalsVerifiedAt(LocalDateTime originalsVerifiedAt) { this.originalsVerifiedAt = originalsVerifiedAt; return this; }
     public String getOriginalsVerificationNotes() { return originalsVerificationNotes; }
     public AdmissionEnrollmentDocumentReview setOriginalsVerificationNotes(String originalsVerificationNotes) { this.originalsVerificationNotes = originalsVerificationNotes; return this; }
+    public LocalDate getOriginalsDueDate() { return originalsDueDate; }
+    public AdmissionEnrollmentDocumentReview setOriginalsDueDate(LocalDate originalsDueDate) { this.originalsDueDate = originalsDueDate; return this; }
+    public Boolean getOriginalsBlockActive() { return originalsBlockActive; }
+    public AdmissionEnrollmentDocumentReview setOriginalsBlockActive(Boolean originalsBlockActive) { this.originalsBlockActive = originalsBlockActive; return this; }
+    public LocalDateTime getOriginalsBlockedAt() { return originalsBlockedAt; }
+    public AdmissionEnrollmentDocumentReview setOriginalsBlockedAt(LocalDateTime originalsBlockedAt) { this.originalsBlockedAt = originalsBlockedAt; return this; }
     public Boolean getDocumentsComplete() { return documentsComplete; }
     public AdmissionEnrollmentDocumentReview setDocumentsComplete(Boolean documentsComplete) { this.documentsComplete = documentsComplete; return this; }
     public String getReviewedBy() { return reviewedBy; }
