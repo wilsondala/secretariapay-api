@@ -1,6 +1,7 @@
 package com.secretariapay.api.controller.admission;
 
 import com.secretariapay.api.entity.enums.admission.AdmissionEnrollmentDocumentType;
+import com.secretariapay.api.service.admission.AdmissionDigitalDocumentCompletionService;
 import com.secretariapay.api.service.admission.AdmissionEnrollmentDocumentFileStorageService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
@@ -26,11 +27,14 @@ public class AdmissionEnrollmentDocumentFileController {
     private static final String ADMISSIONS = "hasAnyAuthority(" + ADMINS + ",'ADMISSOES','ROLE_ADMISSOES','SECRETARIA','ROLE_SECRETARIA')";
 
     private final AdmissionEnrollmentDocumentFileStorageService storageService;
+    private final AdmissionDigitalDocumentCompletionService digitalCompletionService;
 
     public AdmissionEnrollmentDocumentFileController(
-            AdmissionEnrollmentDocumentFileStorageService storageService
+            AdmissionEnrollmentDocumentFileStorageService storageService,
+            AdmissionDigitalDocumentCompletionService digitalCompletionService
     ) {
         this.storageService = storageService;
+        this.digitalCompletionService = digitalCompletionService;
     }
 
     @GetMapping("/applications/{applicationId}/enrollment-document-files")
@@ -50,12 +54,24 @@ public class AdmissionEnrollmentDocumentFileController {
             @PathVariable UUID applicationId,
             @PathVariable AdmissionEnrollmentDocumentType documentType,
             @RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "false") boolean autoEvaluate,
+            @RequestParam(defaultValue = "false") boolean studiedAbroad,
             Authentication authentication
     ) {
         String uploadedBy = authentication == null || authentication.getName() == null
                 ? "Secretaria / Admissões"
                 : authentication.getName();
-        return storageService.store(applicationId, documentType, file, uploadedBy);
+        AdmissionEnrollmentDocumentFileStorageService.DocumentFileResponse stored =
+                storageService.store(applicationId, documentType, file, uploadedBy);
+
+        if (autoEvaluate) {
+            digitalCompletionService.evaluateRobotSubmission(
+                    applicationId,
+                    studiedAbroad,
+                    "Robô SecretáriaPay / " + uploadedBy
+            );
+        }
+        return stored;
     }
 
     @DeleteMapping("/enrollment-document-files/{fileId}")
