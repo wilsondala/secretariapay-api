@@ -69,7 +69,7 @@ class AdmissionOperationalNotificationServiceTest {
     }
 
     @Test
-    void shouldRequestOfficialEnrollmentDocumentsFromCandidateWhatsapp() {
+    void shouldRequestDigitalDocumentsAndOriginalsFromCandidateWhatsapp() {
         Course course = org.mockito.Mockito.mock(Course.class);
         when(course.getName()).thenReturn("Arquitectura");
 
@@ -96,10 +96,13 @@ class AdmissionOperationalNotificationServiceTest {
         assertEquals(AdmissionNotificationStatus.PENDING, notification.getStatus());
         assertEquals("+244 923 200 777", notification.getRecipient());
         assertTrue(notification.getMessageBody().contains("Inscrição confirmada"));
+        assertTrue(notification.getMessageBody().contains("Envie pelo robô SecretáriaPay"));
         assertTrue(notification.getMessageBody().contains("2 fotografias do tipo passe"));
         assertTrue(notification.getMessageBody().contains("certificado de habilitações"));
         assertTrue(notification.getMessageBody().contains("Bilhete de Identidade"));
         assertTrue(notification.getMessageBody().contains("Ministério da Educação"));
+        assertTrue(notification.getMessageBody().contains("documentos originais"));
+        assertTrue(notification.getMessageBody().contains("conferência presencial"));
         assertTrue(notification.getMessageBody().contains("Idade mínima de 18 anos"));
         assertTrue(notification.getMessageBody().contains("23.500,00 Kz"));
     }
