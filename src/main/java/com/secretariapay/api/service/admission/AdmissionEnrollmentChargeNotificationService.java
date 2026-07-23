@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.text.NumberFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -110,10 +109,12 @@ public class AdmissionEnrollmentChargeNotificationService {
     }
 
     private String money(BigDecimal amount, String currency) {
-        NumberFormat formatter = NumberFormat.getNumberInstance(new Locale("pt", "AO"));
-        formatter.setMinimumFractionDigits(2);
-        formatter.setMaximumFractionDigits(2);
-        return formatter.format(amount == null ? BigDecimal.ZERO : amount)
+        BigDecimal safeAmount = amount == null ? BigDecimal.ZERO : amount;
+        String formatted = String.format(Locale.ROOT, "%,.2f", safeAmount)
+                .replace(",", "_")
+                .replace(".", ",")
+                .replace("_", ".");
+        return formatted
                 + " "
                 + (currency == null || currency.isBlank() || "AOA".equalsIgnoreCase(currency) ? "Kz" : currency);
     }
