@@ -31,6 +31,13 @@ public class SecurityConfig {
             "ADMIN_GLOBAL", "ROLE_ADMIN_GLOBAL",
             "ADMIN_INSTITUTION", "ROLE_ADMIN_INSTITUTION",
             "ADMIN_IMETRO", "ROLE_ADMIN_IMETRO",
+            "TIC", "ROLE_TIC"
+    };
+
+    private static final String[] ADMIN_USER_AUTHORITIES = {
+            "ADMIN_GLOBAL", "ROLE_ADMIN_GLOBAL",
+            "ADMIN_INSTITUTION", "ROLE_ADMIN_INSTITUTION",
+            "ADMIN_IMETRO", "ROLE_ADMIN_IMETRO",
             "DIRECAO", "ROLE_DIRECAO",
             "TIC", "ROLE_TIC"
     };
@@ -130,6 +137,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/secretariapay/whatsapp/webhook").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/secretariapay/whatsapp/webhook").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/financial/appypay/webhook").permitAll()
+                        .requestMatchers("/api/v1/admin/users", "/api/v1/admin/users/**")
+                        .hasAnyAuthority(ADMIN_USER_AUTHORITIES)
                         .requestMatchers("/api/v1/admin/**").hasAnyAuthority(ADMIN_AUTHORITIES)
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
