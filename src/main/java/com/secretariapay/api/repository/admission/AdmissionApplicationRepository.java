@@ -14,5 +14,10 @@ public interface AdmissionApplicationRepository extends JpaRepository<AdmissionA
     List<AdmissionApplication> findByInstitutionIdAndDesiredCourseIdAndDesiredShiftIgnoreCaseOrderByCreatedAtDesc(UUID institutionId, UUID courseId, String desiredShift);
     Optional<AdmissionApplication> findByApplicationCodeIgnoreCase(String applicationCode);
     boolean existsByApplicationCode(String applicationCode);
-    boolean existsByInstitutionIdAndDocumentNumberIgnoreCaseAndStatusNotIn(UUID institutionId, String documentNumber, List<AdmissionApplicationStatus> statuses);
+    boolean existsByInstitutionIdAndAcademicYearAndDocumentNumberIgnoreCaseAndStatusNotIn(
+            UUID institutionId,
+            String academicYear,
+            String documentNumber,
+            List<AdmissionApplicationStatus> statuses
+    );
 }

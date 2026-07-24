@@ -3,6 +3,7 @@ package com.secretariapay.api.controller.admission;
 import com.secretariapay.api.dto.admission.AdmissionDto;
 import com.secretariapay.api.entity.enums.admission.AdmissionApplicationStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionLeadStatus;
+import com.secretariapay.api.service.admission.AdmissionDocumentationService;
 import com.secretariapay.api.service.admission.AdmissionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -23,9 +24,14 @@ public class AdmissionController {
     private static final String FINANCE = "hasAnyAuthority(" + ADMINS + ",'DCR_COORDENACAO','ROLE_DCR_COORDENACAO','DCR_OPERADOR','ROLE_DCR_OPERADOR','FINANCEIRO','ROLE_FINANCEIRO','TESOURARIA','ROLE_TESOURARIA')";
 
     private final AdmissionService service;
+    private final AdmissionDocumentationService documentationService;
 
-    public AdmissionController(AdmissionService service) {
+    public AdmissionController(
+            AdmissionService service,
+            AdmissionDocumentationService documentationService
+    ) {
         this.service = service;
+        this.documentationService = documentationService;
     }
 
     @PostMapping("/leads")
@@ -91,6 +97,15 @@ public class AdmissionController {
             @Valid @RequestBody AdmissionDto.ApplicationStatusRequest request
     ) {
         return service.updateApplicationStatus(applicationId, request);
+    }
+
+    @PatchMapping("/applications/{applicationId}/documents")
+    @PreAuthorize(ADMISSIONS)
+    public AdmissionDto.ApplicationResponse reviewDocuments(
+            @PathVariable UUID applicationId,
+            @Valid @RequestBody AdmissionDto.ApplicationDocumentsRequest request
+    ) {
+        return documentationService.reviewDocuments(applicationId, request);
     }
 
     @PostMapping("/applications/{applicationId}/invoice")

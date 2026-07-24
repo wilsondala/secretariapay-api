@@ -4,6 +4,8 @@ import com.secretariapay.api.dto.admission.AdmissionDto;
 import com.secretariapay.api.entity.academic.Course;
 import com.secretariapay.api.entity.academic.Institution;
 import com.secretariapay.api.entity.admission.AdmissionApplication;
+import com.secretariapay.api.entity.admission.AdmissionCampaign;
+import com.secretariapay.api.entity.admission.AdmissionCourseOffering;
 import com.secretariapay.api.entity.admission.AdmissionInvoice;
 import com.secretariapay.api.entity.admission.AdmissionLead;
 import com.secretariapay.api.entity.admission.AdmissionPaymentProof;
@@ -11,10 +13,14 @@ import com.secretariapay.api.entity.enums.admission.AdmissionApplicationStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionInvoiceStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionLeadStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionPaymentProofStatus;
+import com.secretariapay.api.entity.enums.admission.AdmissionShift;
+import com.secretariapay.api.entity.enums.admission.AdmissionSourceChannel;
 import com.secretariapay.api.exception.NotFoundException;
 import com.secretariapay.api.repository.academic.CourseRepository;
 import com.secretariapay.api.repository.academic.InstitutionRepository;
 import com.secretariapay.api.repository.admission.AdmissionApplicationRepository;
+import com.secretariapay.api.repository.admission.AdmissionCampaignRepository;
+import com.secretariapay.api.repository.admission.AdmissionCourseOfferingRepository;
 import com.secretariapay.api.repository.admission.AdmissionInvoiceRepository;
 import com.secretariapay.api.repository.admission.AdmissionLeadRepository;
 import com.secretariapay.api.repository.admission.AdmissionPaymentProofRepository;
@@ -22,17 +28,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class AdmissionService {
 
     private static final DateTimeFormatter CODE_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final ZoneId LUANDA_ZONE = ZoneId.of("Africa/Luanda");
     private static final List<AdmissionApplicationStatus> TERMINAL_APPLICATION_STATUSES = List.of(
             AdmissionApplicationStatus.REJECTED,
             AdmissionApplicationStatus.CANCELLED,
@@ -45,6 +56,8 @@ public class AdmissionService {
     private final AdmissionPaymentProofRepository proofRepository;
     private final InstitutionRepository institutionRepository;
     private final CourseRepository courseRepository;
+    private final AdmissionCampaignRepository campaignRepository;
+    private final AdmissionCourseOfferingRepository offeringRepository;
 
     public AdmissionService(
             AdmissionLeadRepository leadRepository,
@@ -52,7 +65,9 @@ public class AdmissionService {
             AdmissionInvoiceRepository invoiceRepository,
             AdmissionPaymentProofRepository proofRepository,
             InstitutionRepository institutionRepository,
-            CourseRepository courseRepository
+            CourseRepository courseRepository,
+            AdmissionCampaignRepository campaignRepository,
+            AdmissionCourseOfferingRepository offeringRepository
     ) {
         this.leadRepository = leadRepository;
         this.applicationRepository = applicationRepository;
@@ -60,14 +75,26 @@ public class AdmissionService {
         this.proofRepository = proofRepository;
         this.institutionRepository = institutionRepository;
         this.courseRepository = courseRepository;
+        this.campaignRepository = campaignRepository;
+        this.offeringRepository = offeringRepository;
     }
 
     @Transactional
     public AdmissionDto.LeadResponse createLead(AdmissionDto.LeadRequest request) {
+        return createLead(request, null);
+    }
+
+    @Transactional
+    public AdmissionDto.LeadResponse createLead(AdmissionDto.LeadRequest request, String forcedLeadSource) {
         Institution institution = findInstitution(request.institutionId());
         Course course = request.desiredCourseId() == null
                 ? null
                 : findCourse(request.desiredCourseId(), institution.getId());
+
+        if (course != null && request.desiredShift() != null && !request.desiredShift().isBlank()) {
+            AdmissionCampaign campaign = findActiveCampaign(institution.getId());
+            validateOffering(campaign, course.getId(), normalizeShiftEnum(request.desiredShift()));
+        }
 
         AdmissionLead lead = findDuplicateLead(request);
         if (lead == null) {
@@ -77,7 +104,7 @@ public class AdmissionService {
         } else {
             lead.setLastContactAt(LocalDateTime.now());
         }
-        applyLeadData(lead, request, course);
+        applyLeadData(lead, request, course, forcedLeadSource);
         return toLeadResponse(leadRepository.save(lead));
     }
 
@@ -99,12 +126,39 @@ public class AdmissionService {
 
     @Transactional
     public AdmissionDto.ApplicationResponse createApplication(AdmissionDto.ApplicationRequest request) {
+        return createApplication(request, AdmissionSourceChannel.INTERNAL);
+    }
+
+    @Transactional
+    public AdmissionDto.ApplicationResponse createApplication(
+            AdmissionDto.ApplicationRequest request,
+            AdmissionSourceChannel sourceChannel
+    ) {
+        AdmissionSourceChannel effectiveSource = sourceChannel == null
+                ? AdmissionSourceChannel.INTERNAL
+                : sourceChannel;
         Institution institution = findInstitution(request.institutionId());
         Course course = findCourse(request.desiredCourseId(), institution.getId());
+        AdmissionCampaign campaign = findActiveCampaign(institution.getId());
+        AdmissionShift shift = normalizeShiftEnum(request.desiredShift());
 
-        if (applicationRepository.existsByInstitutionIdAndDocumentNumberIgnoreCaseAndStatusNotIn(
-                institution.getId(), request.documentNumber().trim(), TERMINAL_APPLICATION_STATUSES)) {
-            throw new IllegalArgumentException("Já existe uma candidatura ativa para este documento de identificação.");
+        if (!campaign.getAcademicYear().equalsIgnoreCase(request.academicYear().trim())) {
+            throw new IllegalArgumentException(
+                    "O ano académico informado não corresponde à campanha ativa: " + campaign.getAcademicYear() + "."
+            );
+        }
+        validateOffering(campaign, course.getId(), shift);
+        validatePublicChannel(campaign, effectiveSource);
+
+        if (applicationRepository.existsByInstitutionIdAndAcademicYearAndDocumentNumberIgnoreCaseAndStatusNotIn(
+                institution.getId(),
+                campaign.getAcademicYear(),
+                request.documentNumber().trim(),
+                TERMINAL_APPLICATION_STATUSES)) {
+            throw new IllegalArgumentException(
+                    "Já existe uma candidatura ativa para este documento no ano académico "
+                            + campaign.getAcademicYear() + "."
+            );
         }
 
         AdmissionLead lead = request.leadId() == null ? null : findLead(request.leadId());
@@ -115,10 +169,12 @@ public class AdmissionService {
         AdmissionApplication application = new AdmissionApplication()
                 .setApplicationCode(generateApplicationCode())
                 .setInstitution(institution)
+                .setCampaign(campaign)
+                .setSourceChannel(effectiveSource)
                 .setLead(lead)
                 .setDesiredCourse(course)
-                .setDesiredShift(normalizeShift(request.desiredShift()))
-                .setAcademicYear(request.academicYear().trim())
+                .setDesiredShift(shift.name())
+                .setAcademicYear(campaign.getAcademicYear())
                 .setFullName(request.fullName().trim())
                 .setDocumentType(trimToNull(request.documentType()))
                 .setDocumentNumber(request.documentNumber().trim())
@@ -220,9 +276,13 @@ public class AdmissionService {
         if (!Boolean.TRUE.equals(application.getTermsAccepted())) {
             throw new IllegalArgumentException("Não é possível emitir cobrança sem a aceitação dos termos da candidatura.");
         }
-        if (request.dueDate().isBefore(LocalDate.now())) {
+        if (request.dueDate().isBefore(LocalDate.now(LUANDA_ZONE))) {
             throw new IllegalArgumentException("A data de vencimento não pode estar no passado.");
         }
+
+        BigDecimal officialAmount = application.getCampaign() == null
+                ? request.amount()
+                : application.getCampaign().getRegistrationFee();
 
         AdmissionInvoice invoice = invoiceRepository.findByApplicationId(applicationId).orElseGet(AdmissionInvoice::new);
         if (invoice.getId() == null) {
@@ -230,7 +290,7 @@ public class AdmissionService {
         } else if (invoice.getStatus() == AdmissionInvoiceStatus.PAID) {
             throw new IllegalArgumentException("A cobrança desta candidatura já foi paga.");
         }
-        invoice.setAmount(request.amount())
+        invoice.setAmount(officialAmount)
                 .setDueDate(request.dueDate())
                 .setPaymentReference(trimToNull(request.paymentReference()))
                 .setProvider(trimToNull(request.provider()))
@@ -338,6 +398,60 @@ public class AdmissionService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public AdmissionDto.CatalogResponse getCatalog(UUID institutionId) {
+        AdmissionCampaign campaign = findActiveCampaign(institutionId);
+        List<AdmissionCourseOffering> offerings = offeringRepository.findActiveCatalog(campaign.getId());
+
+        Map<String, Map<UUID, List<AdmissionCourseOffering>>> grouped = new LinkedHashMap<>();
+        for (AdmissionCourseOffering offering : offerings) {
+            grouped.computeIfAbsent(offering.getDepartmentCode(), ignored -> new LinkedHashMap<>())
+                    .computeIfAbsent(offering.getCourse().getId(), ignored -> new java.util.ArrayList<>())
+                    .add(offering);
+        }
+
+        List<AdmissionDto.CatalogDepartmentResponse> departments = grouped.entrySet().stream()
+                .map(department -> new AdmissionDto.CatalogDepartmentResponse(
+                        department.getKey(),
+                        department.getValue().values().stream()
+                                .map(courseOfferings -> {
+                                    AdmissionCourseOffering first = courseOfferings.getFirst();
+                                    return new AdmissionDto.CatalogCourseResponse(
+                                            first.getCourse().getId(),
+                                            first.getCourse().getCode(),
+                                            first.getCourse().getName(),
+                                            first.getDecreeReference(),
+                                            courseOfferings.stream()
+                                                    .map(item -> new AdmissionDto.CatalogShiftResponse(
+                                                            item.getShift().name(),
+                                                            item.getShift().getLabel()
+                                                    ))
+                                                    .toList()
+                                    );
+                                })
+                                .toList()
+                ))
+                .toList();
+
+        return new AdmissionDto.CatalogResponse(
+                campaign.getInstitution().getId(),
+                campaign.getInstitution().getName(),
+                campaign.getId(),
+                campaign.getCampaignCode(),
+                campaign.getAcademicYear(),
+                campaign.getRegistrationStart(),
+                campaign.getRegistrationEnd(),
+                isRegistrationOpen(campaign),
+                campaign.getRegistrationFee(),
+                campaign.getEnrollmentFee(),
+                campaign.getReenrollmentFee(),
+                campaign.getCurrency(),
+                Boolean.TRUE.equals(campaign.getPublicFormEnabled()),
+                Boolean.TRUE.equals(campaign.getWhatsappEnabled()),
+                departments
+        );
+    }
+
     private AdmissionDto.ApplicationResponse completePayment(
             AdmissionInvoice invoice,
             AdmissionDto.ReviewPaymentProofRequest request
@@ -384,7 +498,15 @@ public class AdmissionService {
         return null;
     }
 
-    private void applyLeadData(AdmissionLead lead, AdmissionDto.LeadRequest request, Course course) {
+    private void applyLeadData(
+            AdmissionLead lead,
+            AdmissionDto.LeadRequest request,
+            Course course,
+            String forcedLeadSource
+    ) {
+        String source = trimToNull(forcedLeadSource);
+        if (source == null) source = trimToNull(request.leadSource());
+
         lead.setDesiredCourse(course)
                 .setFullName(request.fullName().trim())
                 .setPhone(trimToNull(request.phone()))
@@ -394,9 +516,50 @@ public class AdmissionService {
                 .setDesiredShift(trimToNull(request.desiredShift()) == null ? null : normalizeShift(request.desiredShift()))
                 .setProvince(trimToNull(request.province()))
                 .setMunicipality(trimToNull(request.municipality()))
-                .setLeadSource(trimToNull(request.leadSource()))
+                .setLeadSource(source)
                 .setConsentGiven(Boolean.TRUE.equals(request.consentGiven()))
                 .setNotes(trimToNull(request.notes()));
+    }
+
+    private AdmissionCampaign findActiveCampaign(UUID institutionId) {
+        return campaignRepository.findFirstByInstitutionIdAndActiveTrueOrderByRegistrationStartDesc(institutionId)
+                .orElseThrow(() -> new NotFoundException("Não existe campanha ativa de admissões para a instituição."));
+    }
+
+    private void validateOffering(AdmissionCampaign campaign, UUID courseId, AdmissionShift shift) {
+        if (!offeringRepository.existsByCampaignIdAndCourseIdAndShiftAndActiveTrue(
+                campaign.getId(), courseId, shift)) {
+            throw new IllegalArgumentException(
+                    "O curso ou turno escolhido não está disponível na campanha "
+                            + campaign.getAcademicYear() + "."
+            );
+        }
+    }
+
+    private void validatePublicChannel(AdmissionCampaign campaign, AdmissionSourceChannel sourceChannel) {
+        if (sourceChannel == AdmissionSourceChannel.INTERNAL || sourceChannel == AdmissionSourceChannel.IMPORT) return;
+
+        if (sourceChannel == AdmissionSourceChannel.FORM
+                && !Boolean.TRUE.equals(campaign.getPublicFormEnabled())) {
+            throw new IllegalArgumentException("As inscrições pelo formulário estão temporariamente indisponíveis.");
+        }
+        if (sourceChannel == AdmissionSourceChannel.WHATSAPP
+                && !Boolean.TRUE.equals(campaign.getWhatsappEnabled())) {
+            throw new IllegalArgumentException("As inscrições pelo WhatsApp estão temporariamente indisponíveis.");
+        }
+        if (!isRegistrationOpen(campaign)) {
+            throw new IllegalArgumentException(
+                    "As inscrições estarão disponíveis de " + campaign.getRegistrationStart()
+                            + " até " + campaign.getRegistrationEnd() + "."
+            );
+        }
+    }
+
+    private boolean isRegistrationOpen(AdmissionCampaign campaign) {
+        LocalDate today = LocalDate.now(LUANDA_ZONE);
+        return Boolean.TRUE.equals(campaign.getActive())
+                && !today.isBefore(campaign.getRegistrationStart())
+                && !today.isAfter(campaign.getRegistrationEnd());
     }
 
     private Institution findInstitution(UUID id) {
@@ -452,7 +615,7 @@ public class AdmissionService {
     private String generateApplicationCode() {
         String code;
         do {
-            code = "IMT-ADM-" + LocalDate.now().format(CODE_DATE) + "-"
+            code = "IMT-ADM-" + LocalDate.now(LUANDA_ZONE).format(CODE_DATE) + "-"
                     + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
         } while (applicationRepository.existsByApplicationCode(code));
         return code;
@@ -466,8 +629,22 @@ public class AdmissionService {
         return code;
     }
 
+    private AdmissionShift normalizeShiftEnum(String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("O turno é obrigatório.");
+        }
+        String normalized = Normalizer.normalize(value.trim(), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toUpperCase(Locale.ROOT);
+        try {
+            return AdmissionShift.valueOf(normalized);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Turno inválido. Utilize Manhã, Tarde ou Noite.");
+        }
+    }
+
     private String normalizeShift(String value) {
-        return value.trim().toUpperCase(Locale.ROOT);
+        return normalizeShiftEnum(value).name();
     }
 
     private String trimToNull(String value) {
@@ -517,11 +694,14 @@ public class AdmissionService {
                 application.getApplicationCode(),
                 application.getInstitution().getId(),
                 application.getInstitution().getName(),
+                application.getCampaign() == null ? null : application.getCampaign().getId(),
+                application.getCampaign() == null ? null : application.getCampaign().getCampaignCode(),
                 application.getLead() == null ? null : application.getLead().getId(),
                 application.getDesiredCourse().getId(),
                 application.getDesiredCourse().getName(),
                 application.getDesiredShift(),
                 application.getAcademicYear(),
+                application.getSourceChannel(),
                 application.getFullName(),
                 application.getDocumentType(),
                 application.getDocumentNumber(),
