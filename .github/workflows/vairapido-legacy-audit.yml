@@ -18,44 +18,59 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          show-progress: false
 
-      - name: Inventariar ficheiros e referencias legadas
+      - name: Gerar relatório da auditoria
         shell: bash
         run: |
           set -u
-          echo '===== CANDIDATOS POR NOME DE FICHEIRO ====='
-          find . -type f \
-            ! -path './.git/*' \
-            ! -path './target/*' \
-            | sort \
-            | grep -Ei '/(transportcompany|transport_company|travelroute|trip|passenger|booking|ticket|boarding|multicountry|companyaccess|company_status|route_status|trip_status|booking_status|ticket_status|passenger_fare|trip_segment)' \
-            || true
+          REPORT=legacy-vairapido-backend.txt
+          {
+            echo '===== CANDIDATOS POR NOME DE FICHEIRO ====='
+            find . -type f \
+              ! -path './.git/*' \
+              ! -path './target/*' \
+              | sort \
+              | grep -Ei '/(transportcompany|transport_company|travelroute|trip|passenger|booking|ticket|boarding|multicountry|companyaccess|company_status|route_status|trip_status|booking_status|ticket_status|passenger_fare|trip_segment)' \
+              || true
 
-          echo
-          echo '===== FICHEIROS COM REFERENCIA EXPLICITA AO VAIRAPIDO ====='
-          grep -RIlE --exclude-dir=.git --exclude-dir=target \
-            'VaiR[aá]pido|vairapido|VAI_RAPIDO|VAIRAPIDO' . \
-            | sort || true
+            echo
+            echo '===== FICHEIROS COM REFERENCIA EXPLICITA AO VAIRAPIDO ====='
+            grep -RIlE --exclude-dir=.git --exclude-dir=target \
+              'VaiR[aá]pido|vairapido|VAI_RAPIDO|VAIRAPIDO' . \
+              | sort || true
 
-          echo
-          echo '===== FICHEIROS COM IDENTIFICADORES DO DOMINIO DE TRANSPORTE ====='
-          grep -RIlE --exclude-dir=.git --exclude-dir=target \
-            'transport_company|transportCompany|transport-companies|TravelRoute|TripController|TripService|TripRepository|Passenger|Booking|Ticket|boarding|multi-country|CompanyAccessService|COMPANY_ADMIN|ROLE_COMPANY_ADMIN|ROLE_OPERATOR|busPlate|vehicleDescription|originCity|destinationCity|seatNumber' \
-            src pom.xml README.md .env.example docker-compose.yml 2>/dev/null \
-            | sort || true
+            echo
+            echo '===== FICHEIROS COM IDENTIFICADORES DO DOMINIO DE TRANSPORTE ====='
+            grep -RIlE --exclude-dir=.git --exclude-dir=target \
+              'transport_company|transportCompany|transport-companies|TravelRoute|TripController|TripService|TripRepository|Passenger|Booking|Ticket|boarding|multi-country|CompanyAccessService|COMPANY_ADMIN|ROLE_COMPANY_ADMIN|ROLE_OPERATOR|busPlate|vehicleDescription|originCity|destinationCity|seatNumber' \
+              src pom.xml README.md .env.example docker-compose.yml 2>/dev/null \
+              | sort || true
 
-          echo
-          echo '===== MIGRATIONS COM ESTRUTURAS LEGADAS ====='
-          grep -RIlE --exclude-dir=.git --exclude-dir=target \
-            'transport_companies|transport_company_id|travel_routes|routes|trips|passengers|bookings|tickets|ticket_validation|boarding|seat_number|bus_plate|vehicle_description' \
-            src/main/resources/db 2>/dev/null \
-            | sort || true
+            echo
+            echo '===== MIGRATIONS COM ESTRUTURAS LEGADAS ====='
+            grep -RIlE --exclude-dir=.git --exclude-dir=target \
+              'transport_companies|transport_company_id|travel_routes|routes|trips|passengers|bookings|tickets|ticket_validation|boarding|seat_number|bus_plate|vehicle_description' \
+              src/main/resources/db 2>/dev/null \
+              | sort || true
 
-          echo
-          echo '===== CONTAGEM ====='
-          printf 'Ficheiros do repositorio: '
-          find . -type f ! -path './.git/*' ! -path './target/*' | wc -l
-          printf 'Candidatos legados por nome: '
-          find . -type f ! -path './.git/*' ! -path './target/*' \
-            | grep -Eic '/(transportcompany|transport_company|travelroute|trip|passenger|booking|ticket|boarding|multicountry|companyaccess|company_status|route_status|trip_status|booking_status|ticket_status|passenger_fare|trip_segment)' \
-            || true
+            echo
+            echo '===== CONTAGEM ====='
+            printf 'Ficheiros do repositorio: '
+            find . -type f ! -path './.git/*' ! -path './target/*' | wc -l
+            printf 'Candidatos legados por nome: '
+            find . -type f ! -path './.git/*' ! -path './target/*' \
+              | grep -Eic '/(transportcompany|transport_company|travelroute|trip|passenger|booking|ticket|boarding|multicountry|companyaccess|company_status|route_status|trip_status|booking_status|ticket_status|passenger_fare|trip_segment)' \
+              || true
+          } > "$REPORT"
+
+          cat "$REPORT"
+
+      - name: Publicar relatório
+        uses: actions/upload-artifact@v4
+        with:
+          name: legacy-vairapido-backend
+          path: legacy-vairapido-backend.txt
+          if-no-files-found: error
+          retention-days: 7
