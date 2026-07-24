@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - chore/remove-vairapido-legacy-before-production
+  pull_request:
+    branches:
+      - feat/public-admissions-portal-2026-2027
   workflow_dispatch:
 
 permissions:
