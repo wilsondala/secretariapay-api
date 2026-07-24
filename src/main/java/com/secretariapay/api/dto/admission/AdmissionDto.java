@@ -5,6 +5,7 @@ import com.secretariapay.api.entity.enums.admission.AdmissionInvoiceStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionLeadStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionPaymentProofStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionSourceChannel;
+import com.secretariapay.api.entity.enums.enrollment.EnrollmentRequestStatus;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -94,6 +95,44 @@ public final class AdmissionDto {
             String mimeType
     ) {}
 
+    public record PublicApplicationAccessRequest(
+            @NotBlank String documentNumber
+    ) {}
+
+    public record PublicPaymentProofRequest(
+            @NotBlank String documentNumber,
+            @NotBlank String fileUrl,
+            String fileName,
+            String mimeType
+    ) {}
+
+    public record PublicPaymentInstructionsResponse(
+            boolean enabled,
+            boolean provisional,
+            String environmentLabel,
+            String bankName,
+            String accountHolder,
+            String iban,
+            String accountNumber,
+            String multicaixaReference,
+            String mobileMoneyInfo,
+            String supportWhatsapp,
+            String supportEmail,
+            String notice
+    ) {}
+
+    public record PublicPaymentResponse(
+            String applicationCode,
+            String fullName,
+            String desiredCourseName,
+            String desiredShift,
+            String academicYear,
+            AdmissionApplicationStatus applicationStatus,
+            InvoiceResponse invoice,
+            PaymentProofResponse latestPaymentProof,
+            PublicPaymentInstructionsResponse paymentInstructions
+    ) {}
+
     public record ReviewPaymentProofRequest(
             @NotBlank String reviewedBy,
             String reviewNote,
@@ -178,6 +217,53 @@ public final class AdmissionDto {
             @NotNull Boolean documentsComplete,
             @NotBlank String reviewedBy,
             String notes
+    ) {}
+
+    public record EnrollmentDocumentChecklistRequest(
+            @NotNull Boolean twoPassportPhotos,
+            @NotNull Boolean authenticatedCertificateCopy,
+            @NotNull Boolean identityDocumentCopy,
+            @NotNull Boolean studiedAbroad,
+            @NotNull Boolean educationEquivalenceCopy,
+            @NotNull Boolean secondaryEducationCompleted,
+            @NotNull Boolean originalsPresented,
+            @NotNull Boolean originalsVerified,
+            @NotBlank String reviewedBy,
+            String notes,
+            String originalsVerificationNotes
+    ) {}
+
+    public record EnrollmentDocumentChecklistResponse(
+            UUID id,
+            UUID applicationId,
+            String applicationCode,
+            Boolean twoPassportPhotos,
+            Boolean authenticatedCertificateCopy,
+            Boolean identityDocumentCopy,
+            Boolean studiedAbroad,
+            Boolean educationEquivalenceCopy,
+            Boolean secondaryEducationCompleted,
+            Boolean ageEligible,
+            Boolean originalsPresented,
+            Boolean originalsVerified,
+            String originalsVerifiedBy,
+            LocalDateTime originalsVerifiedAt,
+            String originalsVerificationNotes,
+            LocalDate originalsDueDate,
+            Boolean originalsBlockActive,
+            LocalDateTime originalsBlockedAt,
+            Boolean documentsComplete,
+            String reviewedBy,
+            String notes,
+            LocalDateTime reviewedAt,
+            UUID enrollmentRequestId,
+            String enrollmentRequestCode,
+            EnrollmentRequestStatus enrollmentStatus,
+            BigDecimal enrollmentAmount,
+            String enrollmentCurrency,
+            LocalDate enrollmentDueDate,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
     ) {}
 
     public record ReportRow(

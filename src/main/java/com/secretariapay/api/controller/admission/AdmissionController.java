@@ -3,8 +3,11 @@ package com.secretariapay.api.controller.admission;
 import com.secretariapay.api.dto.admission.AdmissionDto;
 import com.secretariapay.api.entity.enums.admission.AdmissionApplicationStatus;
 import com.secretariapay.api.entity.enums.admission.AdmissionLeadStatus;
+import com.secretariapay.api.service.admission.AdmissionDigitalDocumentCompletionService;
 import com.secretariapay.api.service.admission.AdmissionDocumentationService;
+import com.secretariapay.api.service.admission.AdmissionEnrollmentDocumentChecklistService;
 import com.secretariapay.api.service.admission.AdmissionLeadWorkflowService;
+import com.secretariapay.api.service.admission.AdmissionPaymentApprovalWorkflowService;
 import com.secretariapay.api.service.admission.AdmissionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -26,16 +29,25 @@ public class AdmissionController {
 
     private final AdmissionService service;
     private final AdmissionDocumentationService documentationService;
+    private final AdmissionEnrollmentDocumentChecklistService enrollmentDocumentChecklistService;
+    private final AdmissionDigitalDocumentCompletionService digitalDocumentCompletionService;
     private final AdmissionLeadWorkflowService leadWorkflowService;
+    private final AdmissionPaymentApprovalWorkflowService paymentApprovalWorkflowService;
 
     public AdmissionController(
             AdmissionService service,
             AdmissionDocumentationService documentationService,
-            AdmissionLeadWorkflowService leadWorkflowService
+            AdmissionEnrollmentDocumentChecklistService enrollmentDocumentChecklistService,
+            AdmissionDigitalDocumentCompletionService digitalDocumentCompletionService,
+            AdmissionLeadWorkflowService leadWorkflowService,
+            AdmissionPaymentApprovalWorkflowService paymentApprovalWorkflowService
     ) {
         this.service = service;
         this.documentationService = documentationService;
+        this.enrollmentDocumentChecklistService = enrollmentDocumentChecklistService;
+        this.digitalDocumentCompletionService = digitalDocumentCompletionService;
         this.leadWorkflowService = leadWorkflowService;
+        this.paymentApprovalWorkflowService = paymentApprovalWorkflowService;
     }
 
     @PostMapping("/leads")
@@ -112,6 +124,37 @@ public class AdmissionController {
         return documentationService.reviewDocuments(applicationId, request);
     }
 
+    @GetMapping("/applications/{applicationId}/enrollment-documents")
+    @PreAuthorize(READ)
+    public AdmissionDto.EnrollmentDocumentChecklistResponse getEnrollmentDocuments(
+            @PathVariable UUID applicationId
+    ) {
+        return enrollmentDocumentChecklistService.get(applicationId);
+    }
+
+    @PutMapping("/applications/{applicationId}/enrollment-documents")
+    @PreAuthorize(ADMISSIONS)
+    public AdmissionDto.EnrollmentDocumentChecklistResponse reviewEnrollmentDocuments(
+            @PathVariable UUID applicationId,
+            @Valid @RequestBody AdmissionDto.EnrollmentDocumentChecklistRequest request
+    ) {
+        return enrollmentDocumentChecklistService.review(applicationId, request);
+    }
+
+    @PostMapping("/applications/{applicationId}/enrollment-documents/robot-evaluate")
+    @PreAuthorize(ADMISSIONS)
+    public AdmissionDto.EnrollmentDocumentChecklistResponse evaluateRobotDocuments(
+            @PathVariable UUID applicationId,
+            @RequestParam(defaultValue = "false") boolean studiedAbroad,
+            @RequestParam(required = false) String submittedBy
+    ) {
+        return digitalDocumentCompletionService.evaluateRobotSubmission(
+                applicationId,
+                studiedAbroad,
+                submittedBy
+        );
+    }
+
     @PostMapping("/applications/{applicationId}/invoice")
     @PreAuthorize(FINANCE)
     public AdmissionDto.ApplicationResponse issueInvoice(
@@ -137,7 +180,7 @@ public class AdmissionController {
             @PathVariable UUID proofId,
             @Valid @RequestBody AdmissionDto.ReviewPaymentProofRequest request
     ) {
-        return service.approvePaymentProof(proofId, request);
+        return paymentApprovalWorkflowService.approvePaymentProof(proofId, request);
     }
 
     @PostMapping("/payment-proofs/{proofId}/reject")
@@ -155,7 +198,7 @@ public class AdmissionController {
             @PathVariable UUID invoiceId,
             @Valid @RequestBody AdmissionDto.ReviewPaymentProofRequest request
     ) {
-        return service.confirmInvoicePayment(invoiceId, request);
+        return paymentApprovalWorkflowService.confirmInvoicePayment(invoiceId, request);
     }
 
     @GetMapping("/dashboard")
