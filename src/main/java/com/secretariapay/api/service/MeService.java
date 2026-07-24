@@ -1,9 +1,6 @@
 package com.secretariapay.api.service;
 
-import com.secretariapay.api.dto.dashboard.DashboardSummaryResponse;
 import com.secretariapay.api.dto.me.MeResponse;
-import com.secretariapay.api.dto.me.MyCompanyResponse;
-import com.secretariapay.api.entity.TransportCompany;
 import com.secretariapay.api.entity.User;
 import com.secretariapay.api.entity.enums.UserRole;
 import com.secretariapay.api.entity.enums.UserStatus;
@@ -19,125 +16,70 @@ import org.springframework.web.server.ResponseStatusException;
 public class MeService {
 
     private final UserRepository userRepository;
-    private final DashboardService dashboardService;
 
-    public MeService(
-            UserRepository userRepository,
-            DashboardService dashboardService
-    ) {
+    public MeService(UserRepository userRepository) {
         this.userRepository = userRepository;
-        this.dashboardService = dashboardService;
     }
 
     @Transactional(readOnly = true)
     public MeResponse getMe() {
-        return toMeResponse(getCurrentUserOrThrow());
-    }
-
-    @Transactional(readOnly = true)
-    public MyCompanyResponse getMyCompany() {
-        User user = getCurrentUserOrThrow();
-
-        TransportCompany company = user.getTransportCompany();
-
-        if (company == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Usuário autenticado não possui empresa vinculada."
-            );
-        }
-
-        return toMyCompanyResponse(company);
-    }
-
-    @Transactional(readOnly = true)
-    public DashboardSummaryResponse getMyDashboardSummary() {
-        User user = getCurrentUserOrThrow();
-
-        if (UserRole.ADMIN.equals(user.getRole())) {
-            return dashboardService.getSummary();
-        }
-
-        if (UserRole.COMPANY_ADMIN.equals(user.getRole())
-                && user.getTransportCompany() != null) {
-            return dashboardService.getCompanySummary(
-                    user.getTransportCompany().getId()
-            );
-        }
-
-        throw new ResponseStatusException(
-                HttpStatus.FORBIDDEN,
-                "Usuário não possui permissão para acessar dashboard."
-        );
+        return toResponse(getCurrentUserOrThrow());
     }
 
     private User getCurrentUserOrThrow() {
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null
                 || authentication.getName() == null
                 || "anonymousUser".equals(authentication.getName())) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Usuário não autenticado."
-            );
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Utilizador não autenticado.");
         }
 
         return userRepository.findByEmailIgnoreCase(authentication.getName())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED,
-                        "Usuário autenticado não encontrado."
+                        "Utilizador autenticado não encontrado."
                 ));
     }
 
-    private MeResponse toMeResponse(User user) {
-        boolean isAdmin = UserRole.ADMIN.equals(user.getRole());
-        boolean isOperator = UserRole.OPERATOR.equals(user.getRole());
-        boolean isCompanyAdmin = UserRole.COMPANY_ADMIN.equals(user.getRole());
-        boolean isActive = UserStatus.ACTIVE.equals(user.getStatus());
+    private MeResponse toResponse(User user) {
+        UserRole role = user.getRole();
+        boolean globalAdmin = UserRole.ADMIN_GLOBAL.equals(role);
+        boolean institutionAdmin = UserRole.ADMIN_INSTITUTION.equals(role)
+                || UserRole.ADMIN_IMETRO.equals(role);
+        boolean canAccessFinancialDashboard = globalAdmin
+                || institutionAdmin
+                || UserRole.DIRECAO.equals(role)
+                || UserRole.FINANCEIRO.equals(role)
+                || UserRole.TESOURARIA.equals(role)
+                || UserRole.DCR_COORDENACAO.equals(role)
+                || UserRole.AUDITORIA.equals(role)
+                || UserRole.TIC.equals(role);
+        boolean canManageUsers = globalAdmin
+                || institutionAdmin
+                || UserRole.DIRECAO.equals(role)
+                || UserRole.TIC.equals(role);
 
         MeResponse response = new MeResponse()
                 .setId(user.getId())
                 .setFullName(user.getFullName())
                 .setEmail(user.getEmail())
-                .setRole(user.getRole())
+                .setRole(role)
                 .setStatus(user.getStatus())
-                .setActive(isActive)
-                .setAdmin(isAdmin)
-                .setOperator(isOperator)
-                .setCompanyAdmin(isCompanyAdmin)
-                .setCanAccessGlobalDashboard(isAdmin)
-                .setCanAccessCompanyDashboard(
-                        isAdmin
-                                || (isCompanyAdmin && user.getTransportCompany() != null)
-                )
-                .setCanBoardTickets(isAdmin || isOperator)
+                .setActive(UserStatus.ACTIVE.equals(user.getStatus()))
+                .setGlobalAdmin(globalAdmin)
+                .setInstitutionAdmin(institutionAdmin)
+                .setCanAccessFinancialDashboard(canAccessFinancialDashboard)
+                .setCanManageUsers(canManageUsers)
                 .setCreatedAt(user.getCreatedAt())
                 .setUpdatedAt(user.getUpdatedAt());
 
-        if (user.getTransportCompany() != null) {
+        if (user.getInstitution() != null) {
             response
-                    .setTransportCompanyId(user.getTransportCompany().getId())
-                    .setTransportCompanyName(user.getTransportCompany().getName())
-                    .setTransportCompanyTradeName(user.getTransportCompany().getTradeName());
+                    .setInstitutionId(user.getInstitution().getId())
+                    .setInstitutionName(user.getInstitution().getName());
         }
 
         return response;
-    }
-
-    private MyCompanyResponse toMyCompanyResponse(TransportCompany company) {
-        return new MyCompanyResponse()
-                .setId(company.getId())
-                .setName(company.getName())
-                .setTradeName(company.getTradeName())
-                .setDocumentNumber(company.getDocumentNumber())
-                .setEmail(company.getEmail())
-                .setPhone(company.getPhone())
-                .setWhatsapp(company.getWhatsapp())
-                .setLogoUrl(company.getLogoUrl())
-                .setStatus(company.getStatus())
-                .setCreatedAt(company.getCreatedAt())
-                .setUpdatedAt(company.getUpdatedAt());
     }
 }

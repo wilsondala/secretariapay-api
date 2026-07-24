@@ -29,15 +29,11 @@ public class WhatsappSession {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 80)
-    private WhatsappConversationStep currentStep = WhatsappConversationStep.START;
+    private WhatsappConversationStep currentStep = WhatsappConversationStep.SECRETARIAPAY_START;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "passenger_id")
-    private Passenger passenger;
 
     @Column(columnDefinition = "TEXT")
     private String lastMessageText;
@@ -74,8 +70,12 @@ public class WhatsappSession {
             status = WhatsappSessionStatus.ACTIVE;
         }
 
+        if (sessionType == null) {
+            sessionType = WhatsappSessionType.SECRETARIAPAY_ACADEMICO;
+        }
+
         if (currentStep == null) {
-            currentStep = WhatsappConversationStep.START;
+            currentStep = WhatsappConversationStep.SECRETARIAPAY_START;
         }
     }
 
@@ -135,15 +135,6 @@ public class WhatsappSession {
 
     public WhatsappSession setUser(User user) {
         this.user = user;
-        return this;
-    }
-
-    public Passenger getPassenger() {
-        return passenger;
-    }
-
-    public WhatsappSession setPassenger(Passenger passenger) {
-        this.passenger = passenger;
         return this;
     }
 

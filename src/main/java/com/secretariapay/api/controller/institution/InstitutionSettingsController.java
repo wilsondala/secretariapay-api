@@ -21,25 +21,25 @@ public class InstitutionSettingsController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO')")
     public List<InstitutionSettingsResponse> findAll() {
         return service.findAll();
     }
 
     @GetMapping("/institution/{institutionId}")
-    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN', 'ROLE_ADMIN', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION')")
+    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION')")
     public InstitutionSettingsResponse findByInstitutionId(@PathVariable UUID institutionId) {
         return service.findByInstitutionId(institutionId);
     }
 
     @GetMapping("/slug/{publicSlug}")
-    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO')")
     public InstitutionSettingsResponse findByPublicSlug(@PathVariable String publicSlug) {
         return service.findByPublicSlug(publicSlug);
     }
 
     @PutMapping("/institution/{institutionId}")
-    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN', 'ROLE_ADMIN', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION')")
+    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION')")
     public InstitutionSettingsResponse createOrUpdate(
             @PathVariable UUID institutionId,
             @Valid @RequestBody InstitutionSettingsRequest request

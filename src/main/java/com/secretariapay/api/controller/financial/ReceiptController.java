@@ -19,8 +19,8 @@ import java.util.UUID;
 public class ReceiptController {
 
     private static final String READ_AUTHORITIES = "hasAnyAuthority(" +
-            "'ADMIN','ROLE_ADMIN'," +
-            "'COMPANY_ADMIN','ROLE_COMPANY_ADMIN'," +
+            "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL','ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION','ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
+            "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION','ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
             "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL'," +
             "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION'," +
             "'ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
@@ -34,8 +34,8 @@ public class ReceiptController {
             "'TIC','ROLE_TIC')";
 
     private static final String WRITE_AUTHORITIES = "hasAnyAuthority(" +
-            "'ADMIN','ROLE_ADMIN'," +
-            "'COMPANY_ADMIN','ROLE_COMPANY_ADMIN'," +
+            "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL','ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION','ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
+            "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION','ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
             "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL'," +
             "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION'," +
             "'ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
@@ -46,8 +46,8 @@ public class ReceiptController {
             "'DCR_OPERADOR','ROLE_DCR_OPERADOR')";
 
     private static final String CANCEL_AUTHORITIES = "hasAnyAuthority(" +
-            "'ADMIN','ROLE_ADMIN'," +
-            "'COMPANY_ADMIN','ROLE_COMPANY_ADMIN'," +
+            "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL','ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION','ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
+            "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION','ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
             "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL'," +
             "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION'," +
             "'ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
