@@ -21,16 +21,20 @@ jobs:
         with:
           show-progress: false
 
-      - name: Criar snapshot completo
+      - name: Registrar árvore e criar snapshot
         shell: bash
         run: |
+          git rev-parse 'HEAD^{tree}' > /tmp/git-tree-sha.txt
           tar --exclude='./.git' -czf /tmp/secretariapay-api-complete-source.tar.gz .
+          mv /tmp/git-tree-sha.txt "$GITHUB_WORKSPACE/"
           mv /tmp/secretariapay-api-complete-source.tar.gz "$GITHUB_WORKSPACE/"
 
       - name: Publicar snapshot
         uses: actions/upload-artifact@v4
         with:
           name: secretariapay-api-complete-source
-          path: secretariapay-api-complete-source.tar.gz
+          path: |
+            git-tree-sha.txt
+            secretariapay-api-complete-source.tar.gz
           if-no-files-found: error
           retention-days: 1
