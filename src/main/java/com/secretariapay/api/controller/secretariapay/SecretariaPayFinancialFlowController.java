@@ -21,8 +21,8 @@ public class SecretariaPayFinancialFlowController {
 
     @PostMapping("/charges/{chargeId}/send-guide")
     @PreAuthorize("hasAnyAuthority(" +
-            "'ADMIN', 'ROLE_ADMIN', " +
-            "'COMPANY_ADMIN', 'ROLE_COMPANY_ADMIN', " +
+            "'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +
+            "'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +
             "'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', " +
             "'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', " +
             "'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +
@@ -39,7 +39,7 @@ public class SecretariaPayFinancialFlowController {
     }
 
     @PostMapping("/payment-proofs/{paymentProofId}/approve-complete")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
     public SecretariaPayFinancialFlowResponse approveProofIssueReceiptAndNotify(
             @PathVariable UUID paymentProofId,
             @Valid @RequestBody PaymentProofReviewRequest request
@@ -48,7 +48,7 @@ public class SecretariaPayFinancialFlowController {
     }
 
     @PostMapping("/payment-proofs/{paymentProofId}/reject-complete")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
     public SecretariaPayFinancialFlowResponse rejectProofAndNotifyStudent(
             @PathVariable UUID paymentProofId,
             @Valid @RequestBody PaymentProofReviewRequest request

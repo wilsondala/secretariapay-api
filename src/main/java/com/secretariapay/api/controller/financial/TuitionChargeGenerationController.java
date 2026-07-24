@@ -27,8 +27,8 @@ public class TuitionChargeGenerationController {
 
     @PostMapping("/generate")
     @PreAuthorize("hasAnyAuthority(" +
-            "'ADMIN', 'ROLE_ADMIN', " +
-            "'COMPANY_ADMIN', 'ROLE_COMPANY_ADMIN', " +
+            "'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +
+            "'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +
             "'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', " +
             "'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', " +
             "'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +
@@ -41,8 +41,8 @@ public class TuitionChargeGenerationController {
 
     @PostMapping("/send-guides")
     @PreAuthorize("hasAnyAuthority(" +
-            "'ADMIN', 'ROLE_ADMIN', " +
-            "'COMPANY_ADMIN', 'ROLE_COMPANY_ADMIN', " +
+            "'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +
+            "'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +
             "'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', " +
             "'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', " +
             "'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +

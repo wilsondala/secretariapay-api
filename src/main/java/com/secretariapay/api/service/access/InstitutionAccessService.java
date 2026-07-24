@@ -18,8 +18,7 @@ public class InstitutionAccessService {
             return false;
         }
 
-        return UserRole.ADMIN_GLOBAL.equals(user.getRole())
-                || UserRole.ADMIN.equals(user.getRole());
+        return UserRole.ADMIN_GLOBAL.equals(user.getRole());
     }
 
     public boolean canAccessInstitution(UUID institutionId) {

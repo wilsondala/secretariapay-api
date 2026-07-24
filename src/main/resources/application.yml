@@ -30,10 +30,6 @@ app:
     jwt-expiration-minutes: 1440
 
 secretariapay:
-  business:
-    country: ${SECRETARIAPAY_BUSINESS_COUNTRY:AO}
-    currency: ${SECRETARIAPAY_BUSINESS_CURRENCY:AOA}
-
   admissions:
     # Desativado por padrão. Ativar apenas em ambiente local ou homologação controlada.
     public-payment-pilot-enabled: ${SECRETARIAPAY_ADMISSIONS_PUBLIC_PAYMENT_PILOT_ENABLED:false}

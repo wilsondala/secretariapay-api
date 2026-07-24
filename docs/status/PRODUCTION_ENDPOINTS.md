@@ -24,7 +24,7 @@ curl -X POST https://secretariapay-api.paixaoangola.com/api/v1/auth/register \
     "fullName": "Administrador SecretáriaPay",
     "email": "admin@secretariapay.com",
     "password": "Admin@123456",
-    "role": "ADMIN"
+    "role": "ADMIN_GLOBAL"
   }'
 ```
 

@@ -18,7 +18,7 @@ Este pacote adiciona a emissão de PDF institucional para recibos do Secretária
 - Valor pago em AOA.
 - Data de pagamento e emissão.
 - QR Code com validação pública.
-- Rodapé institucional da TRIA Company.
+- Rodapé institucional da SecretáriaPay Académico.
 
 ## Validação pública
 

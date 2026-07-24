@@ -1,8 +1,6 @@
 package com.secretariapay.api.controller;
 
-import com.secretariapay.api.dto.dashboard.DashboardSummaryResponse;
 import com.secretariapay.api.dto.me.MeResponse;
-import com.secretariapay.api.dto.me.MyCompanyResponse;
 import com.secretariapay.api.service.MeService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,15 +19,5 @@ public class MeController {
     @GetMapping
     public MeResponse me() {
         return service.getMe();
-    }
-
-    @GetMapping("/company")
-    public MyCompanyResponse myCompany() {
-        return service.getMyCompany();
-    }
-
-    @GetMapping("/dashboard/summary")
-    public DashboardSummaryResponse myDashboardSummary() {
-        return service.getMyDashboardSummary();
     }
 }

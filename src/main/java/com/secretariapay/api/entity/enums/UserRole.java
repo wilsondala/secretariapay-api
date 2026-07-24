@@ -14,10 +14,5 @@ public enum UserRole {
     DCR_COORDENACAO,
     DCR_OPERADOR,
     TIC,
-    AUDITORIA,
-
-    // Papéis legados mantidos temporariamente para não quebrar a base herdada do VaiRápido.
-    ADMIN,
-    COMPANY_ADMIN,
-    OPERATOR
+    AUDITORIA
 }

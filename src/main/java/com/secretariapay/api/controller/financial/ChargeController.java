@@ -17,8 +17,8 @@ import java.util.UUID;
 public class ChargeController {
 
     private static final String READ_AUTHORITIES = "hasAnyAuthority(" +
-            "'ADMIN', 'ROLE_ADMIN', " +
-            "'COMPANY_ADMIN', 'ROLE_COMPANY_ADMIN', " +
+            "'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +
+            "'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +
             "'ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', " +
             "'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', " +
             "'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', " +
@@ -40,7 +40,7 @@ public class ChargeController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
     public ChargeResponse create(@Valid @RequestBody ChargeRequest request) {
         return service.create(request);
     }
@@ -76,19 +76,19 @@ public class ChargeController {
     }
 
     @PostMapping("/mark-overdue")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
     public List<ChargeResponse> markOverdueCharges() {
         return service.markOverdueCharges();
     }
 
     @PatchMapping("/{id}/confirm-payment")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA', 'DCR_COORDENACAO', 'ROLE_DCR_COORDENACAO', 'DCR_OPERADOR', 'ROLE_DCR_OPERADOR')")
+    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA', 'DCR_COORDENACAO', 'ROLE_DCR_COORDENACAO', 'DCR_OPERADOR', 'ROLE_DCR_OPERADOR')")
     public ChargeResponse confirmPayment(@PathVariable UUID id) {
         return service.confirmPayment(id);
     }
 
     @PatchMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
+    @PreAuthorize("hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', 'FINANCEIRO', 'ROLE_FINANCEIRO', 'TESOURARIA', 'ROLE_TESOURARIA')")
     public ChargeResponse cancel(@PathVariable UUID id) {
         return service.cancel(id);
     }
