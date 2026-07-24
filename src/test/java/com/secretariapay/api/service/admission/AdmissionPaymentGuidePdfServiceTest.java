@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
@@ -96,6 +97,8 @@ class AdmissionPaymentGuidePdfServiceTest {
             assertTrue(text.contains("SPAY-BAI-IMTINSCRTESTEGUIA"));
             assertTrue(text.contains("+244 991 640 259"));
             assertTrue(text.contains("Versão 3.1"));
+            assertTrue(text.contains("SecretáriaPay Académico | IMETRO"));
+            assertFalse(text.contains("TRIA Company"));
         }
     }
 
