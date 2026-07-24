@@ -45,7 +45,7 @@ public class PublicLegalController {
                                     <p>
                                         O SecretáriaPay Académico é uma plataforma institucional de automação de propinas,
                                         cobranças, comprovativos, recibos digitais e atendimento académico via WhatsApp,
-                                        desenvolvida pela TRIA Company para apoiar instituições de ensino em Angola.
+                                        utilizada para apoiar a gestão académica e financeira de instituições de ensino em Angola.
                                     </p>
 
                                     <h2>2. Dados que podemos tratar</h2>
@@ -91,13 +91,13 @@ public class PublicLegalController {
                                         A retenção dos dados depende das regras da instituição contratante, obrigações legais,
                                         necessidades de auditoria financeira e políticas internas. Solicitações de acesso,
                                         correção ou exclusão devem ser encaminhadas pelos canais oficiais indicados pela
-                                        instituição ou pela TRIA Company.
+                                        instituição responsável pelo tratamento dos dados.
                                     </p>
 
                                     <h2>8. Contato</h2>
                                     <p>
                                         Para dúvidas sobre privacidade, proteção de dados ou solicitação de exclusão, entre em contato:
-                                        geral@triacompany.com
+                                        dcr_pay@imetroangola.com
                                     </p>
                                 </section>
                             </main>
@@ -193,7 +193,7 @@ public class PublicLegalController {
 
                                     <h2>9. Contato</h2>
                                     <p>
-                                        Para dúvidas sobre estes termos, entre em contato: geral@triacompany.com
+                                        Para dúvidas sobre estes termos, entre em contato: dcr_pay@imetroangola.com
                                     </p>
                                 </section>
                             </main>
@@ -232,7 +232,7 @@ public class PublicLegalController {
                                     <h2>Como solicitar a exclusão</h2>
                                     <p>
                                         Para solicitar análise de exclusão, correção ou acesso aos seus dados tratados pelo
-                                        SecretáriaPay, envie um e-mail para geral@triacompany.com com o assunto:
+                                        SecretáriaPay, envie um e-mail para dcr_pay@imetroangola.com com o assunto:
                                         "Exclusão de dados - SecretáriaPay".
                                     </p>
 

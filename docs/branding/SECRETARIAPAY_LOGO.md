@@ -21,6 +21,6 @@ Nos recibos do IMETRO, a hierarquia visual recomendada é:
 1. Logo/identidade da instituição no topo
 2. Nome oficial da instituição
 3. Título do documento
-4. Assinatura/rodapé: SecretáriaPay Académico / TRIA Company
+4. Assinatura/rodapé: SecretáriaPay Académico / SecretáriaPay Académico
 
 Assim o recibo continua sendo institucional da universidade, mas identifica a plataforma responsável pela automação.

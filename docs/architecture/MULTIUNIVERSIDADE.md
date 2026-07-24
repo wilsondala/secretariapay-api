@@ -1,6 +1,6 @@
 # SecretáriaPay Multiuniversidade
 
-O SecretáriaPay deve funcionar como plataforma SaaS da TRIA Company para atender várias universidades, institutos, colégios e centros de formação.
+O SecretáriaPay deve funcionar como plataforma SaaS da SecretáriaPay Académico para atender várias universidades, institutos, colégios e centros de formação.
 
 ## Regra principal
 
@@ -42,5 +42,5 @@ O IMETRO é o primeiro piloto, mas a plataforma deve estar pronta para receber o
 
 ## Estratégia
 
-A TRIA Company administra o produto como `ADMIN_GLOBAL`.
+A SecretáriaPay Académico administra o produto como `ADMIN_GLOBAL`.
 Cada universidade possui usuários próprios com acesso apenas aos seus dados.

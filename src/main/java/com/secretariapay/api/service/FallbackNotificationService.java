@@ -215,7 +215,7 @@ public class FallbackNotificationService {
                 + "<div style='border-left:4px solid #d4a336;background:#fffbeb;padding:14px 16px;border-radius:12px;color:#92400e;font-size:13px;line-height:1.6;'>Este documento não substitui o recibo institucional. O recibo será emitido somente após confirmação e validação pela DCR.</div>"
                 + "<p style='margin:26px 0 0;font-size:14px;color:#475569;'>Atenciosamente,<br><strong>" + sender + "</strong></p>"
                 + "</div>"
-                + "<div style='background:#061936;color:#cbd5e1;border-radius:0 0 24px 24px;padding:18px 26px;font-size:12px;'>SecretáriaPay Académico · TRIA Company · IMETRO</div>"
+                + "<div style='background:#061936;color:#cbd5e1;border-radius:0 0 24px 24px;padding:18px 26px;font-size:12px;'>SecretáriaPay Académico · SecretáriaPay Académico · IMETRO</div>"
                 + "</div></body></html>";
     }
 

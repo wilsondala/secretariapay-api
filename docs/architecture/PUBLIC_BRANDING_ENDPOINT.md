@@ -17,7 +17,7 @@ GET /api/v1/public/branding/secretariapay
   "primaryColor": "#0B3B82",
   "secondaryColor": "#16A34A",
   "accentColor": "#D4AF37",
-  "company": "TRIA Company",
+  "company": "SecretáriaPay Académico",
   "platform": "Academic Financial Automation",
   "countryFocus": "Angola"
 }

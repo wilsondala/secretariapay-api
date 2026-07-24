@@ -122,7 +122,7 @@ public class GuidePdfService {
         write(content, PDType1Font.HELVETICA_BOLD, 9, left, 82, "SecretáriaPay Académico");
         content.setNonStrokingColor(100, 116, 139);
         write(content, PDType1Font.HELVETICA, 9, left, 68,
-                "Gerado em " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " - TRIA Company / IMETRO.");
+                "Gerado em " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " - SecretáriaPay Académico / IMETRO.");
     }
 
     private void writeLine(PDPageContentStream content, float x, float y, String label, String value) throws Exception {

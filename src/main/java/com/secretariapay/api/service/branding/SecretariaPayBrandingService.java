@@ -18,7 +18,7 @@ public class SecretariaPayBrandingService {
                 .setPrimaryColor("#0B3B82")
                 .setSecondaryColor("#16A34A")
                 .setAccentColor("#D4AF37")
-                .setCompany("TRIA Company")
+                .setCompany("SecretáriaPay Académico — IMETRO")
                 .setPlatform("Academic Financial Automation")
                 .setCountryFocus("Angola");
     }

@@ -1,145 +1,64 @@
 # SecretáriaPay Académico API
 
-Backend da plataforma **SecretáriaPay Académico**, uma solução institucional da TRIA Company para automação de propinas, cobranças, comprovativos, recibos digitais e atendimento académico via WhatsApp.
+Backend institucional para gestão automatizada de propinas, cobranças, comprovativos, recibos digitais, admissões, matrículas, serviços académicos e atendimento via WhatsApp.
 
-## Objetivo do produto
+## Escopo
 
-O SecretáriaPay Académico foi criado para apoiar instituições de ensino superior na gestão automatizada do ciclo financeiro académico:
+O SecretáriaPay Académico centraliza:
 
-- cadastro de instituições, cursos, turmas e estudantes;
-- geração de cobranças de propinas, matrículas, inscrições e taxas;
-- recepção e validação de comprovativos;
-- emissão de recibos digitais com QR Code e validação pública;
-- mensagens de cobrança e regularização via WhatsApp;
-- histórico de mensagens e fila de envio;
-- dashboards financeiros;
-- preparação para bloqueio e desbloqueio académico conforme regras da instituição.
+- cadastro institucional, cursos, turmas e estudantes;
+- inscrições, admissões, matrículas e rematrículas;
+- geração e acompanhamento de cobranças académicas;
+- guias de pagamento, comprovativos e recibos digitais;
+- regras financeiras, multas, bloqueios e regularização académica;
+- pedidos de serviços e emissão de documentos académicos;
+- notificações e atendimento financeiro pelo WhatsApp;
+- painéis de DCR, Secretaria, Direção, TIC e Auditoria.
 
-## Cliente piloto
+## Stack
 
-Cliente piloto atual:
+- Java 21;
+- Spring Boot;
+- Spring Security e JWT;
+- PostgreSQL 16;
+- Flyway;
+- Docker e Docker Compose;
+- NGINX e SSL em produção.
 
-**Instituto Superior Politécnico Metropolitano de Angola (IMETRO)**  
-Luanda, Angola
+## Execução local
 
-## Stack principal
-
-- Java 21
-- Spring Boot 3.x
-- PostgreSQL
-- Flyway
-- Docker / Docker Compose
-- NGINX + SSL
-- JWT / Spring Security
-- WhatsApp Cloud API em modo seguro/mock até ativação explícita
-
-## Produção
-
-API em produção:
-
-```text
-https://secretariapay-api.paixaoangola.com
-```
-
-Health:
-
-```text
-GET /actuator/health
-GET /api/v1/health
-```
-
-## Endpoints públicos principais
-
-```text
-GET /api/v1/public/branding/secretariapay
-GET /api/v1/public/branding/institutions/imetro
-GET /branding/secretariapay-logo.png
-GET /api/v1/public/legal/privacy-policy
-GET /api/v1/public/legal/terms-of-service
-GET /api/v1/public/legal/data-deletion
-GET /api/v1/public/receipts/validate/{receiptCode}
-```
-
-## Módulos validados no MVP
-
-- Autenticação e usuário administrador
-- Instituições e configurações institucionais
-- Cursos e turmas
-- Estudantes
-- Cobranças financeiras
-- Comprovativos de pagamento
-- Aprovação de comprovativos
-- Recibos digitais
-- PDF de recibo com QR Code
-- Validação pública de recibo
-- Dashboard financeiro básico
-- Templates de mensagens SecretáriaPay
-- Histórico de mensagens
-- Fila de envio WhatsApp
-- Envio mockado seguro
-- Diagnóstico WhatsApp Cloud API
-- Branding público do sistema
-- Branding público institucional do IMETRO
-- Páginas legais públicas do SecretáriaPay
-
-## Consistência financeira das propinas
-
-A propina é tratada como um único lançamento financeiro por estudante e período.
-
-Regras aplicadas:
-
-- a geração mensal não cria nova propina quando já existe cobrança aberta ou paga no mesmo mês;
-- a confirmação de pagamento liquida a cobrança que originou a guia;
-- a confirmação manual utiliza a mesma lógica canónica de liquidação;
-- cobranças pagas, recibos e comprovativos nunca são eliminados;
-- duplicatas abertas antigas são canceladas logicamente por migration;
-- o banco impede mais de uma propina aberta por estudante e mês.
-
-## Modo WhatsApp
-
-Por segurança, o envio real pela Meta permanece desativado até configuração explícita.
-
-Variáveis esperadas para envio real:
-
-```text
-SECRETARIAPAY_WHATSAPP_ENABLED=true
-SECRETARIAPAY_WHATSAPP_PHONE_NUMBER_ID=...
-SECRETARIAPAY_WHATSAPP_ACCESS_TOKEN=...
-SECRETARIAPAY_WHATSAPP_GRAPH_API_VERSION=v20.0
-SECRETARIAPAY_WHATSAPP_GRAPH_API_BASE_URL=https://graph.facebook.com
-```
-
-Enquanto `SECRETARIAPAY_WHATSAPP_ENABLED=false`, a fila processa mensagens em modo seguro/mock.
-
-## Legado herdado
-
-Este projeto nasceu a partir de uma base técnica anterior do VaiRápido. Durante a consolidação do SecretáriaPay, alguns módulos legados de transporte ainda podem existir no código, mas estão em processo de isolamento e remoção controlada.
-
-Não remover diretamente entidades, migrations ou tabelas antigas sem validação de dependência e build.
-
-Fluxo obrigatório para limpeza:
-
-```text
-mapear → isolar → build local → testar produção → remover em blocos pequenos
-```
-
-## Comandos principais
-
-Build local:
-
-```powershell
-& "C:\tools\apache-maven-3.9.16\bin\mvn.cmd" clean package -DskipTests
-```
-
-Deploy na VPS:
+1. Crie o arquivo `.env.production` a partir do `.env.example`.
+2. Configure as credenciais locais.
+3. Suba os serviços:
 
 ```bash
-cd /opt/secretariapay-api
-git pull
 docker compose up -d --build
-curl http://127.0.0.1:8080/actuator/health
 ```
 
-## TRIA Company
+4. Valide a API:
 
-Produto desenvolvido pela **TRIA Company** como plataforma institucional de gestão automatizada de propinas, cobranças e regularização académica via WhatsApp.
+```bash
+curl http://localhost:8080/actuator/health
+```
+
+## Testes
+
+```bash
+mvn test
+```
+
+## Segurança operacional
+
+- não versionar segredos nem credenciais reais;
+- manter utilizadores de teste desativados em produção;
+- ativar integrações externas somente após homologação;
+- executar backup do PostgreSQL antes de aplicar migrations em produção;
+- validar Flyway, health check e logs após cada atualização.
+
+## Estrutura atual
+
+O código ativo é exclusivamente académico-financeiro. As antigas tabelas técnicas de transporte e bilhética permanecem apenas nas migrations históricas já aplicadas, cujos checksums não podem ser alterados. A migration de desacoplamento remove essas estruturas do banco em execução sem reescrever o histórico do Flyway.
+
+## Identidade
+
+Projeto independente identificado publicamente como **SecretáriaPay Académico**, com configuração institucional para o IMETRO.

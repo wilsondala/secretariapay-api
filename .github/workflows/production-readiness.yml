@@ -1,0 +1,28 @@
+name: Production Readiness Backend
+
+on:
+  pull_request:
+    branches:
+      - feat/public-admissions-portal-2026-2027
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run complete test suite
+        run: mvn -B -Dstyle.color=never test

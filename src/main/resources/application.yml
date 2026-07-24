@@ -11,6 +11,11 @@ spring:
     password: secretariapay123
     driver-class-name: org.postgresql.Driver
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
   jpa:
     hibernate:
       ddl-auto: none
@@ -25,9 +30,48 @@ app:
     jwt-expiration-minutes: 1440
 
 secretariapay:
-  business:
-    country: ${SECRETARIAPAY_BUSINESS_COUNTRY:AO}
-    currency: ${SECRETARIAPAY_BUSINESS_CURRENCY:AOA}
+  admissions:
+    # Desativado por padrão. Ativar apenas em ambiente local ou homologação controlada.
+    public-payment-pilot-enabled: ${SECRETARIAPAY_ADMISSIONS_PUBLIC_PAYMENT_PILOT_ENABLED:false}
+    public-payment-due-days: ${SECRETARIAPAY_ADMISSIONS_PUBLIC_PAYMENT_DUE_DAYS:3}
+    public-payment-environment-label: ${SECRETARIAPAY_ADMISSIONS_PUBLIC_PAYMENT_ENVIRONMENT_LABEL:HOMOLOGAÇÃO LOCAL}
+    public-payment-provider: ${SECRETARIAPAY_ADMISSIONS_PUBLIC_PAYMENT_PROVIDER:BAI_TRANSFERENCIA_BANCARIA_PILOTO}
+    payment-proof-storage-path: ${SECRETARIAPAY_ADMISSIONS_PAYMENT_PROOF_STORAGE_PATH:data/admission-payment-proofs}
+    payment-proof-max-size-bytes: ${SECRETARIAPAY_ADMISSIONS_PAYMENT_PROOF_MAX_SIZE_BYTES:5242880}
+    enrollment-document-storage-path: ${SECRETARIAPAY_ADMISSIONS_ENROLLMENT_DOCUMENT_STORAGE_PATH:data/admission-enrollment-documents}
+    enrollment-document-max-size-bytes: ${SECRETARIAPAY_ADMISSIONS_ENROLLMENT_DOCUMENT_MAX_SIZE_BYTES:5242880}
+    # A expiração automática também permanece desativada por padrão.
+    payment-expiry-enabled: ${SECRETARIAPAY_ADMISSIONS_PAYMENT_EXPIRY_ENABLED:false}
+    payment-expiry-cron: ${SECRETARIAPAY_ADMISSIONS_PAYMENT_EXPIRY_CRON:0 15 * * * *}
+    notifications:
+      # O registo no outbox é sempre criado. O envio externo só ocorre quando habilitado.
+      enabled: ${SECRETARIAPAY_ADMISSIONS_NOTIFICATIONS_ENABLED:false}
+      recipient-whatsapp: ${SECRETARIAPAY_ADMISSIONS_NOTIFICATION_WHATSAPP:+244 991 640 259}
+      internal-panel-url: ${SECRETARIAPAY_ADMISSIONS_INTERNAL_PANEL_URL:http://localhost:5173/admissions}
+      max-attempts: ${SECRETARIAPAY_ADMISSIONS_NOTIFICATIONS_MAX_ATTEMPTS:5}
+      dispatch-cron: ${SECRETARIAPAY_ADMISSIONS_NOTIFICATIONS_DISPATCH_CRON:*/15 * * * * *}
+
+  enrollment:
+    # A cobrança de matrícula nasce após inscrição paga e documentação digital completa.
+    payment-due-days: ${SECRETARIAPAY_ENROLLMENT_PAYMENT_DUE_DAYS:3}
+    payment-provider: ${SECRETARIAPAY_ENROLLMENT_PAYMENT_PROVIDER:BAI_TRANSFERENCIA_BANCARIA_PILOTO}
+    # Prazo alternativo quando a campanha já terminou ou não possui data de encerramento.
+    original-documents-grace-days: ${SECRETARIAPAY_ENROLLMENT_ORIGINAL_DOCUMENTS_GRACE_DAYS:30}
+    # Preparado para ativação futura. Permanece false durante a observação do piloto.
+    original-documents-blocking-enabled: ${SECRETARIAPAY_ENROLLMENT_ORIGINAL_DOCUMENTS_BLOCKING_ENABLED:false}
+    original-documents-blocking-cron: ${SECRETARIAPAY_ENROLLMENT_ORIGINAL_DOCUMENTS_BLOCKING_CRON:0 30 2 * * *}
+
+  payment:
+    bank-name: ${SECRETARIAPAY_PAYMENT_BANK_NAME:Banco Angolano de Investimento}
+    account-holder: ${SECRETARIAPAY_PAYMENT_ACCOUNT_HOLDER:OMNEN INTELENGENDA}
+    iban: ${SECRETARIAPAY_PAYMENT_IBAN:AO06 0040 0000 6014 4677 1017 1}
+    account-number: ${SECRETARIAPAY_PAYMENT_ACCOUNT_NUMBER:06014467710001}
+    multicaixa-reference: ${SECRETARIAPAY_PAYMENT_MULTICAIXA_REFERENCE:Multicaixa Express / transferência bancária para a conta AKZ indicada}
+    mobile-money-info: ${SECRETARIAPAY_PAYMENT_MOBILE_MONEY_INFO:Unitel Money/Afrimoney quando autorizado pela instituição}
+
+  institution:
+    whatsapp: ${SECRETARIAPAY_INSTITUTION_WHATSAPP:+244 991 640 259}
+    financial-email: ${SECRETARIAPAY_INSTITUTION_FINANCIAL_EMAIL:secretaria.financeira@imetroangola.com}
 
   whatsapp:
     verify-token: ${SECRETARIAPAY_WHATSAPP_VERIFY_TOKEN:secretariapay-dev-token}

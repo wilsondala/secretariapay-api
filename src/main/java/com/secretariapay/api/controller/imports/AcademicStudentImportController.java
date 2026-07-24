@@ -28,7 +28,7 @@ import java.util.UUID;
 @RequestMapping("/api/v1/academic-student-imports")
 public class AcademicStudentImportController {
 
-    private static final String IMPORT_AUTHORITIES = "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'DIRECAO', 'ROLE_DIRECAO', 'SECRETARIA', 'ROLE_SECRETARIA', 'TIC', 'ROLE_TIC')";
+    private static final String IMPORT_AUTHORITIES = "hasAnyAuthority('ADMIN_GLOBAL', 'ROLE_ADMIN_GLOBAL', 'ADMIN_INSTITUTION', 'ROLE_ADMIN_INSTITUTION', 'ADMIN_IMETRO', 'ROLE_ADMIN_IMETRO', 'DIRECAO', 'ROLE_DIRECAO', 'SECRETARIA', 'ROLE_SECRETARIA', 'TIC', 'ROLE_TIC')";
 
     private final AcademicStudentImportService service;
     private final AcademicStudentCsvImportService csvImportService;

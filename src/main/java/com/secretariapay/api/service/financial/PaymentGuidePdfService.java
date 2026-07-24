@@ -276,7 +276,7 @@ public class PaymentGuidePdfService {
         content.fill();
         drawText(content, "IMETRO - Secretaria Financeira", PDType1Font.HELVETICA_BOLD, 6.7f, 34, 24, Color.WHITE);
         drawCenteredText(content, institutionalSite + " | " + financialEmail, PDType1Font.HELVETICA, 6.2f, pageWidth / 2, 24, Color.WHITE);
-        drawText(content, "Powered by SecretáriaPay | TRIA Company", PDType1Font.HELVETICA_BOLD, 6.4f, pageWidth - 190, 24, Color.WHITE);
+        drawText(content, "Powered by SecretáriaPay | SecretáriaPay Académico", PDType1Font.HELVETICA_BOLD, 6.4f, pageWidth - 190, 24, Color.WHITE);
         drawCenteredText(content, "Documento financeiro | Versão " + DOCUMENT_VERSION + " | " + issuedAt.format(DATE_TIME_FORMATTER), PDType1Font.HELVETICA, 5.6f, pageWidth / 2, 10, new Color(220, 228, 240));
     }
 

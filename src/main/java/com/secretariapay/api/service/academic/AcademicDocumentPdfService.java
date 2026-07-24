@@ -220,7 +220,7 @@ public class AcademicDocumentPdfService {
     private void drawFooter(PDPageContentStream content, float pageWidth, AcademicDocumentRequest request) throws Exception {
         drawText(content, "IMETRO - Secretaria Académica", PDType1Font.HELVETICA, 6.5f, 42, 17, Color.WHITE);
         drawCentered(content, "Código: " + request.getDocumentCode(), PDType1Font.HELVETICA, 6.2f, pageWidth / 2, 17, Color.WHITE);
-        drawTextRight(content, "Powered by SecretáriaPay | TRIA Company", PDType1Font.HELVETICA, 6.2f, pageWidth - 42, 17, Color.WHITE);
+        drawTextRight(content, "Powered by SecretáriaPay | SecretáriaPay Académico", PDType1Font.HELVETICA, 6.2f, pageWidth - 42, 17, Color.WHITE);
     }
 
     private String defaultDeclarationText(Student student, AcademicClass academicClass, Course course) {

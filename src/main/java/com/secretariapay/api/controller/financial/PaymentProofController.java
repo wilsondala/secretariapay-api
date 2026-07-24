@@ -20,8 +20,8 @@ import java.util.UUID;
 public class PaymentProofController {
 
     private static final String READ_AUTHORITIES = "hasAnyAuthority(" +
-            "'ADMIN','ROLE_ADMIN'," +
-            "'COMPANY_ADMIN','ROLE_COMPANY_ADMIN'," +
+            "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL','ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION','ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
+            "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION','ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
             "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL'," +
             "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION'," +
             "'ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
@@ -33,8 +33,8 @@ public class PaymentProofController {
             "'AUDITORIA','ROLE_AUDITORIA')";
 
     private static final String REVIEW_AUTHORITIES = "hasAnyAuthority(" +
-            "'ADMIN','ROLE_ADMIN'," +
-            "'COMPANY_ADMIN','ROLE_COMPANY_ADMIN'," +
+            "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL','ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION','ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
+            "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION','ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
             "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL'," +
             "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION'," +
             "'ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
@@ -45,8 +45,8 @@ public class PaymentProofController {
             "'DCR_OPERADOR','ROLE_DCR_OPERADOR')";
 
     private static final String CHARGE_READ_AUTHORITIES = "hasAnyAuthority(" +
-            "'ADMIN','ROLE_ADMIN'," +
-            "'COMPANY_ADMIN','ROLE_COMPANY_ADMIN'," +
+            "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL','ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION','ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
+            "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION','ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +
             "'ADMIN_GLOBAL','ROLE_ADMIN_GLOBAL'," +
             "'ADMIN_INSTITUTION','ROLE_ADMIN_INSTITUTION'," +
             "'ADMIN_IMETRO','ROLE_ADMIN_IMETRO'," +

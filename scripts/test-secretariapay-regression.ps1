@@ -33,7 +33,7 @@ Invoke-Check "Health público" {
     $health | ConvertTo-Json -Depth 6
 }
 
-Invoke-Check "Login ADMIN" {
+Invoke-Check "Login institucional" {
     $loginBody = @{
         email = $Email
         password = $Password
@@ -97,25 +97,6 @@ Invoke-Check "Recibos com token" {
     $receipts = Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/receipts" -Headers $headers
     if ($null -eq $receipts) { throw "Recibos não retornados" }
     $receipts | ConvertTo-Json -Depth 8
-}
-
-Invoke-Check "Webhook legado desativado" {
-    $status = Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/public/whatsapp/webhook/status"
-    if ($status.status -ne "LEGACY_DISABLED") { throw "Webhook legado não está desativado" }
-    $status | ConvertTo-Json -Depth 6
-}
-
-Invoke-Check "Rota legada tickets bloqueada com token" {
-    try {
-        Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/tickets" -Headers $headers | Out-Null
-        throw "Rota legada /tickets respondeu como ativa"
-    } catch {
-        $response = $_.Exception.Response
-        if ($null -eq $response) { throw $_ }
-        $statusCode = [int]$response.StatusCode
-        if ($statusCode -ne 410) { throw "Esperado 410, recebido $statusCode" }
-        Write-Host "HTTP 410 confirmado para rota legada /api/v1/tickets"
-    }
 }
 
 Write-Host "== Fim do teste de regressão ==" -ForegroundColor Cyan

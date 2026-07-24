@@ -39,7 +39,7 @@ public class AuthService {
             throw new IllegalArgumentException("Já existe um usuário cadastrado com este e-mail.");
         }
 
-        UserRole role = request.getRole() == null ? UserRole.ADMIN : request.getRole();
+        UserRole role = request.getRole() == null ? UserRole.ADMIN_GLOBAL : request.getRole();
 
         User user = new User()
                 .setFullName(request.getFullName())

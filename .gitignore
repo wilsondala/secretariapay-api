@@ -8,6 +8,7 @@ target/
 bilhete-SecretariaPay.pdf
 .env.*.local
 .env.production
+/data/
 
 # Produção / backups locais
 .env.production.backup.*
