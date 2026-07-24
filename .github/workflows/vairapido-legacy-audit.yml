@@ -65,12 +65,18 @@ jobs:
               || true
           } > "$REPORT"
 
+          tar -czf secretariapay-api-audit-source.tar.gz \
+            src .github scripts docs pom.xml README.md Dockerfile docker-compose.yml \
+            .env.example .gitignore 2>/dev/null
+
           cat "$REPORT"
 
-      - name: Publicar relatório
+      - name: Publicar relatório e fonte da auditoria
         uses: actions/upload-artifact@v4
         with:
-          name: legacy-vairapido-backend
-          path: legacy-vairapido-backend.txt
+          name: legacy-vairapido-backend-source
+          path: |
+            legacy-vairapido-backend.txt
+            secretariapay-api-audit-source.tar.gz
           if-no-files-found: error
           retention-days: 7
