@@ -13,6 +13,8 @@ public class UserResponse {
     private String email;
     private UserRole role;
     private UserStatus status;
+    private Boolean mustChangePassword;
+    private LocalDateTime passwordChangedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -58,6 +60,24 @@ public class UserResponse {
 
     public UserResponse setStatus(UserStatus status) {
         this.status = status;
+        return this;
+    }
+
+    public Boolean getMustChangePassword() {
+        return mustChangePassword;
+    }
+
+    public UserResponse setMustChangePassword(Boolean mustChangePassword) {
+        this.mustChangePassword = mustChangePassword;
+        return this;
+    }
+
+    public LocalDateTime getPasswordChangedAt() {
+        return passwordChangedAt;
+    }
+
+    public UserResponse setPasswordChangedAt(LocalDateTime passwordChangedAt) {
+        this.passwordChangedAt = passwordChangedAt;
         return this;
     }
 

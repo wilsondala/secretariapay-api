@@ -52,6 +52,8 @@ public class AdminUserService {
                 .setRole(request.getRole() == null ? UserRole.DCR_OPERADOR : request.getRole())
                 .setStatus(request.getStatus() == null ? UserStatus.ACTIVE : request.getStatus())
                 .setWhatsapp(trimToNull(request.getWhatsapp()))
+                .setMustChangePassword(true)
+                .setPasswordChangedAt(null)
                 .setInstitution(resolveInstitution(request.getInstitutionId()));
         return AdminUserResponse.from(userRepository.save(user));
     }
@@ -70,6 +72,8 @@ public class AdminUserService {
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             if (request.getPassword().length() < 8) throw new IllegalArgumentException("A palavra-passe deve ter pelo menos 8 caracteres.");
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+            user.setMustChangePassword(true);
+            user.setPasswordChangedAt(null);
         }
         if (request.getRole() != null) user.setRole(request.getRole());
         if (request.getStatus() != null) user.setStatus(request.getStatus());

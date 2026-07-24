@@ -1,6 +1,7 @@
 package com.secretariapay.api.config;
 
 import com.secretariapay.api.security.JwtAuthenticationFilter;
+import com.secretariapay.api.security.MandatoryPasswordChangeFilter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,13 +44,16 @@ public class SecurityConfig {
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final MandatoryPasswordChangeFilter mandatoryPasswordChangeFilter;
     private final UserDetailsService userDetailsService;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
+            MandatoryPasswordChangeFilter mandatoryPasswordChangeFilter,
             UserDetailsService userDetailsService
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.mandatoryPasswordChangeFilter = mandatoryPasswordChangeFilter;
         this.userDetailsService = userDetailsService;
     }
 
@@ -58,6 +62,15 @@ public class SecurityConfig {
             JwtAuthenticationFilter filter
     ) {
         FilterRegistrationBean<JwtAuthenticationFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<MandatoryPasswordChangeFilter> mandatoryPasswordChangeFilterRegistration(
+            MandatoryPasswordChangeFilter filter
+    ) {
+        FilterRegistrationBean<MandatoryPasswordChangeFilter> registration = new FilterRegistrationBean<>(filter);
         registration.setEnabled(false);
         return registration;
     }
@@ -141,7 +154,8 @@ public class SecurityConfig {
                         .hasAnyAuthority(ADMIN_USER_AUTHORITIES)
                         .requestMatchers("/api/v1/admin/**").hasAnyAuthority(ADMIN_AUTHORITIES)
                         .anyRequest().authenticated())
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(mandatoryPasswordChangeFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
