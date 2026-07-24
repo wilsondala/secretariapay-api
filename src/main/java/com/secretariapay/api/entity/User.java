@@ -46,6 +46,12 @@ public class User implements UserDetails {
 
     private LocalDateTime lastWhatsappLoginAt;
 
+    @Column(name = "must_change_password", nullable = false)
+    private Boolean mustChangePassword = false;
+
+    @Column(name = "password_changed_at")
+    private LocalDateTime passwordChangedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "institution_id")
     private Institution institution;
@@ -79,6 +85,10 @@ public class User implements UserDetails {
         if (whatsappVerified == null) {
             whatsappVerified = false;
         }
+
+        if (mustChangePassword == null) {
+            mustChangePassword = false;
+        }
     }
 
     @PreUpdate
@@ -87,6 +97,10 @@ public class User implements UserDetails {
 
         if (whatsappVerified == null) {
             whatsappVerified = false;
+        }
+
+        if (mustChangePassword == null) {
+            mustChangePassword = false;
         }
 
         if (role == null) {
@@ -224,6 +238,24 @@ public class User implements UserDetails {
 
     public User setLastWhatsappLoginAt(LocalDateTime lastWhatsappLoginAt) {
         this.lastWhatsappLoginAt = lastWhatsappLoginAt;
+        return this;
+    }
+
+    public Boolean getMustChangePassword() {
+        return mustChangePassword;
+    }
+
+    public User setMustChangePassword(Boolean mustChangePassword) {
+        this.mustChangePassword = mustChangePassword;
+        return this;
+    }
+
+    public LocalDateTime getPasswordChangedAt() {
+        return passwordChangedAt;
+    }
+
+    public User setPasswordChangedAt(LocalDateTime passwordChangedAt) {
+        this.passwordChangedAt = passwordChangedAt;
         return this;
     }
 

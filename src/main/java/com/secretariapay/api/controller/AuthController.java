@@ -1,6 +1,7 @@
 package com.secretariapay.api.controller;
 
 import com.secretariapay.api.dto.auth.AuthResponse;
+import com.secretariapay.api.dto.auth.ChangePasswordRequest;
 import com.secretariapay.api.dto.auth.LoginRequest;
 import com.secretariapay.api.dto.auth.RegisterRequest;
 import com.secretariapay.api.dto.user.UserResponse;
@@ -34,5 +35,13 @@ public class AuthController {
     @GetMapping("/me")
     public UserResponse me(Authentication authentication) {
         return service.me(authentication.getName());
+    }
+
+    @PostMapping("/change-password")
+    public UserResponse changePassword(
+            Authentication authentication,
+            @RequestBody ChangePasswordRequest request
+    ) {
+        return service.changePassword(authentication.getName(), request);
     }
 }

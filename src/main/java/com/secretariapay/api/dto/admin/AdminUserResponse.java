@@ -15,6 +15,8 @@ public class AdminUserResponse {
     private UserStatus status;
     private String whatsapp;
     private Boolean whatsappVerified;
+    private Boolean mustChangePassword;
+    private LocalDateTime passwordChangedAt;
     private UUID institutionId;
     private String institutionName;
     private LocalDateTime createdAt;
@@ -30,6 +32,8 @@ public class AdminUserResponse {
         response.status = user.getStatus();
         response.whatsapp = user.getWhatsapp();
         response.whatsappVerified = user.getWhatsappVerified();
+        response.mustChangePassword = user.getMustChangePassword();
+        response.passwordChangedAt = user.getPasswordChangedAt();
         response.createdAt = user.getCreatedAt();
         response.updatedAt = user.getUpdatedAt();
         response.lastWhatsappLoginAt = user.getLastWhatsappLoginAt();
@@ -47,6 +51,8 @@ public class AdminUserResponse {
     public UserStatus getStatus() { return status; }
     public String getWhatsapp() { return whatsapp; }
     public Boolean getWhatsappVerified() { return whatsappVerified; }
+    public Boolean getMustChangePassword() { return mustChangePassword; }
+    public LocalDateTime getPasswordChangedAt() { return passwordChangedAt; }
     public UUID getInstitutionId() { return institutionId; }
     public String getInstitutionName() { return institutionName; }
     public LocalDateTime getCreatedAt() { return createdAt; }
